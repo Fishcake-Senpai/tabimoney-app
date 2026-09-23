@@ -32,10 +32,12 @@ class LocalOnlyMiddleware(BaseHTTPMiddleware):
             return PlainTextResponse("Este aplicativo só aceita conexões locais.", status_code=400)
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
             origin = request.headers.get("origin")
-            if origin and origin not in {f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"}:
+            if origin and origin != "null" and origin not in {
+                f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"
+            }:
                 return PlainTextResponse("Origem não permitida.", status_code=403)
-            if request.headers.get("sec-fetch-site", "").lower() == "cross-site":
-                return PlainTextResponse("Origem não permitida.", status_code=403)
+            # Browser Fetch Metadata can report loopback/embedded form posts as cross-site.
+            # Every state-changing route also validates a session-bound CSRF token.
         response = await call_next(request)
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; style-src 'self'; img-src 'self' data:; "
