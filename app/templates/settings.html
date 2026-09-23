@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Configurações{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <p class="eyebrow">CONEXÕES</p>
+  <h1>Configurações</h1>
+  <p class="muted">Cadastre suas integrações. Os segredos ficam protegidos no Credential Manager do Windows.</p>
+</section>
+<form method="post" action="/configuracoes" class="settings-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<section class="settings-grid">
+  <article class="panel panel-form">
+    <div class="panel-heading"><div><p class="eyebrow">OPEN FINANCE</p><h2>Meu Pluggy</h2></div><span class="integration-icon pluggy-icon">P</span></div>
+    <p class="body-copy">Conecte seu Nubank no Meu Pluggy. Depois, a aplicação consulta o Item proxy autorizado pela sua conta Pluggy.</p>
+    <ol class="steps-list">
+      <li>Crie sua conta em <a href="https://meu.pluggy.ai" target="_blank" rel="noreferrer">Meu Pluggy</a> e conecte o Nubank.</li>
+      <li>No <a href="https://dashboard.pluggy.ai" target="_blank" rel="noreferrer">Dashboard Pluggy</a>, conecte o item Meu Pluggy na aplicação demo e copie as credenciais e o Item ID.</li>
+      <li>Salve abaixo. A senha do banco não é solicitada por este aplicativo.</li>
+    </ol>
+    <div class="credential-status"><span>Client ID</span><strong>{{ pluggy_client_id_status }}</strong><span>Client Secret</span><strong>{{ pluggy_client_secret_status }}</strong></div>
+    <div class="form-stack">
+      <label>Client ID <input name="pluggy_client_id" autocomplete="off" placeholder="Deixe em branco para manter o salvo"></label>
+      <label>Client Secret <input name="pluggy_client_secret" type="password" autocomplete="new-password" placeholder="Deixe em branco para manter o salvo"></label>
+      <label>Item ID proxy <input name="pluggy_item_id" value="{{ item_id }}" autocomplete="off" placeholder="UUID do item conectado pelo Meu Pluggy"></label>
+      <label class="checkbox-row"><input type="checkbox" name="remove_pluggy"> Remover credenciais Pluggy do Credential Manager</label>
+    </div>
+    <p class="small-note">A conexão pessoal do Meu Pluggy sincroniza em seu próprio ciclo diário. A aplicação cria uma chave de API temporária durante cada sincronização.</p>
+  </article>
+
+  <article class="panel panel-form">
+    <div class="panel-heading"><div><p class="eyebrow">PREÇOS</p><h2>Fechamento diário</h2></div><span class="integration-icon market-icon">↗</span></div>
+    <p class="body-copy">A integração inicial consulta o histórico diário da brapi e guarda o fechamento não ajustado no SQLite. O token depende da cobertura e dos limites do plano da sua conta.</p>
+    <div class="credential-status"><span>Token brapi</span><strong>{{ brapi_token_status }}</strong></div>
+    <div class="form-stack">
+      <label>Token brapi <input name="brapi_token" type="password" autocomplete="new-password" placeholder="Opcional; deixe em branco para manter o salvo"></label>
+      <label class="checkbox-row"><input type="checkbox" name="remove_brapi"> Remover token da brapi do Credential Manager</label>
+      <label class="checkbox-row"><input type="checkbox" name="daily_quotes" {% if daily_quotes_enabled %}checked{% endif %}> Atualizar preços automaticamente após 19h30, enquanto o aplicativo estiver aberto</label>
+    </div>
+    <p class="small-note">Sem token, a brapi pode limitar os ativos consultáveis. A importação manual por CSV continua disponível.</p>
+  </article>
+</section>
+  <button class="button button-primary settings-save" type="submit">Salvar configurações</button>
+</form>
+<div class="notice notice-neutral settings-footnote">As posições da B3 são lidas pelo Open Finance quando a instituição as disponibiliza. A API da B3 para a Área do Investidor não tem acesso direto para pessoa física.</div>
+{% endblock %}

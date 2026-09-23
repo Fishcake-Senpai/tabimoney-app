@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Importações{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <p class="eyebrow">DADOS LOCAIS</p>
+  <h1>Importações e backups</h1>
+  <p class="muted">Use o Open Finance ou arquivos exportados. A aplicação não altera os arquivos de origem.</p>
+</section>
+<section class="import-grid">
+  <article class="panel import-card">
+    <div class="import-card-top"><span class="integration-icon bank-icon">N</span><div><p class="eyebrow">NUBANK</p><h2>Extrato OFX</h2></div></div>
+    <p>Importe o extrato mensal da conta. Saldos e movimentações entram no SQLite; o identificador completo da conta não é salvo.</p>
+    <form method="post" action="/importar/ofx" enctype="multipart/form-data" class="upload-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Arquivo OFX/QFX<input type="file" name="file" accept=".ofx,.qfx,.ofc" required></label>
+      <button class="button button-secondary" type="submit">Importar extrato</button>
+    </form>
+    <p class="small-note">No app Nubank, exporte o extrato mensal em OFX. Reimportar o mesmo arquivo não duplica movimentações.</p>
+  </article>
+
+  <article class="panel import-card">
+    <div class="import-card-top"><span class="integration-icon asset-icon">A</span><div><p class="eyebrow">POSIÇÕES</p><h2>Carteira inicial por CSV</h2></div></div>
+    <p>Use para carga inicial ou quando precisar informar manualmente as quantidades custodiadas. Quantidade é o total de unidades na data indicada.</p>
+    <p><a class="download-link" href="/csv/modelo-posicoes.csv">Baixar modelo de posições CSV ↓</a></p>
+    <form method="post" action="/importar/posicoes" enctype="multipart/form-data" class="upload-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Arquivo CSV<input type="file" name="file" accept=".csv,text/csv" required></label>
+      <button class="button button-secondary" type="submit">Importar posições</button>
+    </form>
+    <p class="small-note">Cabeçalho: ticker, quantity, as_of_date, account_name, asset_class, currency. Se account_name ficar vazio, o padrão é Nubank / NuInvest. Posições manuais e Pluggy com esse mesmo nome são consolidadas; use nomes diferentes para outras corretoras. A importação atualiza as linhas presentes; inclua quantity=0 em uma data mais recente para registrar a baixa de um ativo omitido.</p>
+  </article>
+
+  <article class="panel import-card">
+    <div class="import-card-top"><span class="integration-icon market-icon">↗</span><div><p class="eyebrow">PREÇOS</p><h2>Fechamentos por CSV</h2></div></div>
+    <p>Contingência para tickers sem cobertura automática ou histórico de preço anterior à configuração da fonte.</p>
+    <p><a class="download-link" href="/csv/modelo-cotacoes.csv">Baixar modelo de cotações CSV ↓</a></p>
+    <form method="post" action="/importar/cotacoes" enctype="multipart/form-data" class="upload-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Arquivo CSV<input type="file" name="file" accept=".csv,text/csv" required></label>
+      <button class="button button-secondary" type="submit">Importar cotações</button>
+    </form>
+    <p class="small-note">Cabeçalho: ticker, trade_date, close, asset_class. Fechamento usa preço não ajustado.</p>
+  </article>
+</section>
+
+<section class="content-grid bottom-grid">
+  <article class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">RECUPERAÇÃO</p><h2>Backup local</h2></div></div>
+    <p>Baixe uma cópia do SQLite. Os arquivos criados pelo aplicativo ficam em <code>%LOCALAPPDATA%\FinancasPessoais\backups</code>.</p>
+    <form method="post" action="/backup" class="inline-button">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="button button-secondary" type="submit">Baixar backup SQLite</button>
+    </form>
+  </article>
+  <article class="panel panel-form">
+    <div class="panel-heading"><div><p class="eyebrow">RESTAURAÇÃO</p><h2>Restaurar uma cópia</h2></div></div>
+    <p>A aplicação valida integridade e versão da base e cria uma cópia preventiva antes de substituir o arquivo atual.</p>
+    <form method="post" action="/restaurar" enctype="multipart/form-data" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Backup SQLite<input type="file" name="file" accept=".sqlite3,.sqlite,.db" required></label>
+      <label class="checkbox-row"><input type="checkbox" name="confirmed" required> Confirmo substituir os dados locais pelo backup selecionado</label>
+      <button class="button button-danger" type="submit">Validar e restaurar</button>
+    </form>
+  </article>
+</section>
+{% endblock %}

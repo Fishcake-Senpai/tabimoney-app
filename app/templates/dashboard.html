@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Painel{% endblock %}
+{% block content %}
+<section class="page-heading heading-row">
+  <div>
+    <p class="eyebrow">VISÃO GERAL</p>
+    <h1>Seu dinheiro, em um só lugar.</h1>
+    <p class="muted">Saldos e posições mais recentes registrados no seu banco local.</p>
+  </div>
+  <div class="action-row">
+    <form method="post" action="/sincronizar/pluggy">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="button button-secondary" type="submit">Sincronizar Open Finance</button>
+    </form>
+    <form method="post" action="/sincronizar/cotacoes">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="button button-primary" type="submit">Atualizar fechamentos</button>
+    </form>
+  </div>
+</section>
+
+<section class="metrics" aria-label="Indicadores">
+  <article class="metric-card metric-featured">
+    <div class="metric-label">Patrimônio rastreado</div>
+    <div class="metric-value">{% if not totals.bank_account_count and not totals.position_count %}Aguardando{% elif totals.missing_quote_count %}Parcial{% elif totals.tracked_net_worth_cents is none %}Parcial{% else %}{{ totals.tracked_net_worth_cents|brl }}{% endif %}</div>
+    <div class="metric-caption">{% if totals.missing_quote_count %}{{ totals.missing_quote_count }} ativo(s) sem preço ficam fora do total{% elif not totals.bank_account_count and not totals.position_count %}Importe uma conta ou posição para começar{% else %}Saldo bancário + valor de mercado dos investimentos{% endif %}</div>
+  </article>
+  <article class="metric-card">
+    <div class="metric-label">Investimentos</div>
+    <div class="metric-value">{{ totals.market_value_cents|brl }}</div>
+    <div class="metric-caption">{% if totals.position_count %}Subtotal com cotação{% if totals.missing_quote_count %}; {{ totals.missing_quote_count }} sem preço{% endif %}{% else %}Nenhuma posição importada{% endif %}</div>
+  </article>
+  <article class="metric-card">
+    <div class="metric-label">Saldo bancário</div>
+    <div class="metric-value">{{ totals.cash_cents|brl }}</div>
+    <div class="metric-caption">Último saldo importado por conta</div>
+  </article>
+  <article class="metric-card">
+    <div class="metric-label">Variação diária de preço</div>
+    <div class="metric-value {% if totals.daily_price_change_cents is not none and totals.daily_price_change_cents > 0 %}positive{% elif totals.daily_price_change_cents is not none and totals.daily_price_change_cents < 0 %}negative{% endif %}">{{ totals.daily_price_change_cents|brl }}</div>
+    <div class="metric-caption">{% if totals.position_count == 0 %}Importe posições e cotações para comparar{% elif totals.daily_change_available_count < totals.position_count %}Soma parcial: {{ totals.daily_change_available_count }} de {{ totals.position_count }} ativo(s) com comparativo{% else %}Soma da mudança de preço das posições{% endif %}; não inclui proventos ou aportes</div>
+  </article>
+</section>
+
+<section class="content-grid">
+  <article class="panel panel-wide">
+    <div class="panel-heading">
+      <div><p class="eyebrow">CARTEIRA</p><h2>Posições e valorização</h2></div>
+      <div class="quote-alerts">
+        {% if totals.missing_quote_count %}<span class="status status-error">{{ totals.missing_quote_count }} sem cotação</span>{% endif %}
+        {% if totals.stale_quote_count %}<span class="status status-warning">{{ totals.stale_quote_count }} cotação(ões) antiga(s)</span>{% endif %}
+        {% if not totals.missing_quote_count and not totals.stale_quote_count and assets %}<span class="status status-ok">Cotações atuais</span>{% endif %}
+      </div>
+    </div>
+    {% if assets %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Ativo</th><th>Classe</th><th class="num">Quantidade</th><th class="num">Fechamento</th><th>Pregão</th><th>Fonte</th><th class="num">Valor de mercado</th><th class="num">Variação diária</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for asset in assets %}
+          <tr>
+            <td><strong>{{ asset.ticker }}</strong><small class="table-sub">{{ asset.name }}</small><small class="table-sub">Posição: {{ asset.position_sources.replace('pluggy', 'Open Finance').replace('manual', 'Manual') }}</small></td>
+            <td>{{ asset.asset_class }}</td>
+            <td class="num">{{ asset.quantity_micros|quantity }}</td>
+            <td class="num">{{ asset.close_cents|brl }}</td>
+            <td>{{ asset.quote_date or "—" }}</td>
+            <td>{{ 'Manual' if asset.quote_source == 'manual' else 'brapi' if asset.quote_source == 'brapi' else '—' }}</td>
+            <td class="num">{{ asset.market_value_cents|brl }}</td>
+            <td class="num {% if asset.daily_price_change_cents is not none and asset.daily_price_change_cents > 0 %}positive{% elif asset.daily_price_change_cents is not none and asset.daily_price_change_cents < 0 %}negative{% endif %}">
+              {% if asset.daily_price_change_cents is not none %}{{ asset.daily_price_change_cents|brl }}{% if asset.daily_price_change_pct is not none %}<small class="table-sub">{{ asset.daily_price_change_pct }}%</small>{% endif %}{% else %}—{% endif %}
+            </td>
+            <td><span class="status status-{{ 'ok' if asset.quote_status == 'OK' else 'warning' if asset.quote_status == 'STALE' else 'error' }}">{{ {'OK':'Atual','STALE':'Antiga','MISSING':'Ausente'}[asset.quote_status] }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="panel-footnote">Custo médio e lucro/prejuízo não realizado ainda não fazem parte deste MVP; serão calculados quando a base de custo histórica estiver definida e validada.</p>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">↗</div><h3>Sua carteira ainda não foi importada</h3>
+        <p>Conecte o Meu Pluggy ou importe um CSV com suas posições iniciais.</p>
+        <a class="button button-secondary" href="/importacoes">Ver opções de importação</a>
+      </div>
+    {% endif %}
+  </article>
+
+  <article class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">CAIXA</p><h2>Contas bancárias</h2></div></div>
+    {% if bank_balances %}
+      <div class="account-list">
+      {% for account in bank_balances %}
+        <div class="account-row"><div><strong>{{ account.account_name }}</strong><small>{{ account.as_of_date }} · {{ 'Open Finance' if account.data_source == 'pluggy' else 'OFX' }}</small></div><span>{{ account.balance_cents|brl }}</span></div>
+      {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-compact"><p>Importe um extrato OFX ou sincronize o Open Finance para ver seus saldos.</p><a href="/importacoes">Importar dados →</a></div>
+    {% endif %}
+    <p class="panel-footnote">OFX e Open Finance são consolidados pelo nome exibido. Se a mesma conta aparecer duas vezes com rótulos diferentes, confira os sufixos antes de considerar o caixa conciliado.</p>
+  </article>
+
+  <article class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">CONCILIAÇÃO</p><h2>Pendências</h2></div></div>
+    {% if position_alerts or bank_alerts %}
+      <div class="alert-list">
+      {% for alert in position_alerts %}
+        <div class="alert-row"><span class="status status-{{ 'error' if alert.status == 'DIVERGENT' else 'warning' }}">{{ 'Divergente' if alert.status == 'DIVERGENT' else 'Histórico incompleto' }}</span><div class="alert-content"><strong>{{ alert.ticker }}</strong><small>{{ alert.account_name }} · {{ alert.as_of_date }}</small>
+          <form class="note-form" method="post" action="/conciliacao/nota">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="entity_type" value="position">
+            <input type="hidden" name="entity_key" value="{{ alert.account_name }}|{{ alert.ticker }}">
+            <input type="text" name="note" maxlength="1000" placeholder="Registrar observação desta posição" aria-label="Observação para {{ alert.ticker }}" required>
+            <button class="button button-secondary" type="submit">Salvar</button>
+          </form>
+        </div></div>
+      {% endfor %}
+      {% for alert in bank_alerts %}
+        <div class="alert-row"><span class="status status-{{ 'error' if alert.status == 'DIVERGENT' else 'warning' }}">{{ 'Divergente' if alert.status == 'DIVERGENT' else 'Histórico incompleto' }}</span><div class="alert-content"><strong>{{ alert.account_name }}</strong><small>{{ alert.as_of_date }} · {{ 'Open Finance' if alert.data_source == 'pluggy' else 'OFX' }}{% if alert.difference_cents is not none %} · diferença {{ alert.difference_cents|brl }}{% endif %}</small>
+          <form class="note-form" method="post" action="/conciliacao/nota">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="entity_type" value="bank">
+            <input type="hidden" name="entity_key" value="{{ alert.account_name }}">
+            <input type="text" name="note" maxlength="1000" placeholder="Registrar observação desta conta" aria-label="Observação para {{ alert.account_name }}" required>
+            <button class="button button-secondary" type="submit">Salvar</button>
+          </form>
+        </div></div>
+      {% endfor %}
+      </div>
+      <p class="panel-footnote">Histórico incompleto não significa divergência: faltam dados anteriores para comparar.</p>
+    {% else %}
+      <div class="empty-compact"><span class="status status-ok">Sem divergências detectadas</span><p>As conciliações usam os movimentos e snapshots existentes no SQLite.</p></div>
+    {% endif %}
+  </article>
+
+  <article class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">ANOTAÇÕES LOCAIS</p><h2>Observações da conciliação</h2></div></div>
+    {% if reconciliation_notes %}
+      <div class="note-list">
+      {% for note in reconciliation_notes %}
+        <div class="note-row">
+          <div><strong>{{ note.entity_key }}</strong><small>{{ 'Posição' if note.entity_type == 'position' else 'Conta bancária' }} · {{ note.created_at }}</small><p>{{ note.note }}</p></div>
+          <form method="post" action="/conciliacao/resolver">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="note_id" value="{{ note.id }}">
+            <button class="button button-secondary" type="submit">Resolver</button>
+          </form>
+        </div>
+      {% endfor %}
+      </div>
+    {% else %}<div class="empty-compact"><p>Você pode registrar contexto em qualquer pendência exibida ao lado. As notas ficam no banco local.</p></div>{% endif %}
+  </article>
+
+  <article class="panel panel-wide">
+    <div class="panel-heading"><div><p class="eyebrow">ATIVIDADE</p><h2>Sincronizações recentes</h2></div></div>
+    {% if recent_runs %}
+      <div class="table-wrap">
+        <table class="compact-table"><thead><tr><th>Origem</th><th>Início local</th><th>Dados da origem até</th><th>Status</th><th class="num">Lidos</th><th class="num">Gravados</th><th>Resumo</th></tr></thead>
+        <tbody>{% for run in recent_runs %}<tr><td>{{ run.source }}</td><td>{{ run.started_at }}</td><td>{{ run.external_updated_at or '—' }}</td><td><span class="status status-{{ 'ok' if run.status == 'success' else 'warning' if run.status in ['partial','running'] else 'error' }}">{{ {'success':'Concluída','partial':'Parcial','running':'Em andamento','failed':'Falhou'}[run.status] }}</span></td><td class="num">{{ run.records_read }}</td><td class="num">{{ run.records_written }}</td><td>{{ run.message or '—' }}</td></tr>{% endfor %}</tbody></table>
+      </div>
+    {% else %}<div class="empty-compact"><p>Nenhuma importação ou sincronização foi executada ainda.</p></div>{% endif %}
+  </article>
+</section>
+<p class="db-location"><span class="lock-icon">▣</span> Banco local: <code>{{ database_path }}</code></p>
+{% endblock %}
