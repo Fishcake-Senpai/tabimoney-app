@@ -1,0 +1,8 @@
+# Arquivos de lote do Windows precisam de CRLF (rótulos do goto falham com LF).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+# O resto é texto normalizado para LF no repositório.
+* text=auto
+*.png binary
+*.ico binary
+*.woff2 binary

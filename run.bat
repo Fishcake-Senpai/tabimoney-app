@@ -1,4 +1,7 @@
 @echo off
+rem Abre o Tabimoney a partir do codigo (para quem clonou o repositorio). Quem recebeu o Tabimoney.exe usa o exe.
+rem Clicar de novo reinicia o app. Para ver o log na tela: .venv\Scripts\python.exe -m app.launch --primeiro-plano
+title Tabimoney
 setlocal
 cd /d "%~dp0"
 
@@ -13,17 +16,13 @@ if not exist ".venv\Scripts\python.exe" (
 )
 
 echo Instalando ou atualizando as dependencias locais...
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -q -r requirements.txt
 if errorlevel 1 (
     echo A instalacao das dependencias falhou. Confira sua conexao com a internet e tente novamente.
     pause
     exit /b 1
 )
 
-echo Iniciando em http://127.0.0.1:8765
+set "PYTHONIOENCODING=utf-8"
 .venv\Scripts\python.exe -m app.launch
-if errorlevel 1 (
-    echo O aplicativo encerrou com erro. Confira a mensagem acima.
-    pause
-)
 endlocal

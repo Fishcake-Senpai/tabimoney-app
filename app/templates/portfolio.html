@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% from "_ui.html" import kpi, ranges, hbars, delta, badge, sync_buttons %}
+{% block title %}Ações e FIIs{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Ações e FIIs</h1><div class="sub">{{ kpis.count }} ativo(s) em carteira{% if kpis.missing_quotes %} · <span class="down">{{ kpis.missing_quotes }} sem cotação</span>{% endif %}{% if kpis.stale_quotes %} · <span class="warn">{{ kpis.stale_quotes }} com cotação antiga</span>{% endif %}</div></div>
+  <div class="actions">{{ sync_buttons(csrf_token) }}</div>
+</div>
+
+{% if not assets %}
+<div class="card empty">
+  <h2>Carteira vazia</h2>
+  <p>Importe a Posição e a Negociação da B3 (Área do Investidor) ou sincronize o Open Finance.</p>
+  <a class="btn btn-primary" href="/importar">Importar</a>
+</div>
+{% else %}
+{% set r12 = kpis.returns["12M"] %}
+<section class="kpis">
+  {% call kpi("Valor de mercado", kpis.value|brl, hero=True) %}{{ delta(kpis.day_cents, kpis.day_pct) }} <span class="muted">hoje</span>{% endcall %}
+  {% call kpi("Resultado não realizado", kpis.unrealized|brl_signed if kpis.unrealized is not none else "—", value_tone=kpis.unrealized|tone) %}{% if kpis.unrealized_pct is not none %}<span class="{{ kpis.unrealized_pct|tone }}">{{ kpis.unrealized_pct|pct }}</span> sobre {{ kpis.cost|brl_compact }} investidos{% else %}Sem preço médio: importe as negociações{% endif %}{% endcall %}
+  {% call kpi("Rentabilidade 12M", r12.twr|pct, value_tone=r12.twr|tone) %}CDI {{ r12.cdi|pct }} · Ibov {{ r12.ibov|pct }}{% endcall %}
+  {% call kpi("Proventos 12M", kpis.income_12m|brl_compact) %}Yield {{ kpis.dy_12m|pct(2, False) }} · total {{ kpis.income_total|brl_compact }}{% endcall %}
+  {% call kpi("Lucro realizado", kpis.realized|brl_signed, value_tone=kpis.realized|tone) %}Vendas, pelo preço médio{% endcall %}
+</section>
+
+<section class="grid">
+  <article class="card span-8">
+    <div class="card-head"><h2 class="card-title">Rentabilidade acumulada</h2>{{ ranges("12M") }}</div>
+    <div class="chart" data-chart="returns"></div>
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Desempenho e risco</h2></div>
+    <table class="data bench">
+      <thead><tr><th></th><th class="num">Carteira</th><th class="num">CDI</th><th class="num">Ibov</th></tr></thead>
+      <tbody>
+        {% for label, r in kpis.returns.items() %}
+        <tr><td>{{ 'Ano' if label == 'YTD' else label }}</td><td class="num {{ r.twr|tone }}">{{ r.twr|pct }}</td><td class="num text-2">{{ r.cdi|pct }}</td><td class="num text-2">{{ r.ibov|pct }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <dl class="stat-pairs footnote">
+      <div><dt>Volatilidade 12M</dt><dd>{{ kpis.volatility|pct(1, False) }}</dd></div>
+      <div><dt>Queda máxima</dt><dd class="{{ 'down' if kpis.max_drawdown }}">{{ kpis.max_drawdown|pct(1) }}</dd></div>
+      <div><dt>Top 5 concentração</dt><dd>{{ kpis.top5|pct(0, False) }}</dd></div>
+      <div><dt>Preço médio conhecido</dt><dd>{{ kpis.cost_coverage }} de {{ kpis.count }}</dd></div>
+    </dl>
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card span-8">
+    <div class="card-head"><h2 class="card-title">Valor de mercado vs capital aplicado</h2>{{ ranges("12M") }}</div>
+    <div class="chart" data-chart="invested"></div>
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Por classe</h2></div>
+    {{ hbars(allocation|rejectattr("label", "in", ["Caixa", "Renda fixa", "Caixinha", "Tesouro"])|list) }}
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card span-12">
+    <div class="card-head"><h2 class="card-title">Rentabilidade mensal</h2><span class="card-note">Método de cotas, com proventos</span></div>
+    <div class="chart" data-chart="monthly"></div>
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card span-8 card-flush">
+    <div class="card-head">
+      <h2 class="card-title">Fundamentos <span class="card-note">CVM (ITR/DFP) + preço do dia{% if fund_synced %} · atualizado {{ fund_synced|date_br }}{% endif %}</span></h2>
+      <form method="post" action="/fundamentos/atualizar" data-busy="Baixando da CVM…">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn" type="submit">Atualizar fundamentos</button>
+      </form>
+    </div>
+    {% if fund.companies %}
+    <dl class="stat-pairs stat-inline">
+      <div><dt>P/L da carteira</dt><dd>{{ fund.weighted.pl|multiple }}</dd></div>
+      <div><dt>Dividend yield</dt><dd>{{ fund.weighted.dy|pct(1, False) }}</dd></div>
+      <div><dt>ROE médio</dt><dd>{{ fund.weighted.roe|pct(1, False) }}</dd></div>
+      <div><dt>Lucro 12M a/a</dt><dd class="{{ fund.weighted.earnings_growth|tone }}">{{ fund.weighted.earnings_growth|pct(1) }}</dd></div>
+      <div><dt>Cobertura</dt><dd>{{ fund.coverage|pct(0, False) }} do valor</dd></div>
+    </dl>
+    <div class="table-wrap">
+      <table class="data" data-sortable>
+        <thead><tr>
+          <th data-sort="text">Empresa</th>
+          {% for key in ["pl", "pvp", "ev_ebitda", "dy", "roe", "net_margin", "net_debt_ebitda", "earnings_growth"] %}
+          <th class="num" data-sort="num" title="{{ indicator_meta[key][2] }}">{{ indicator_meta[key][0] }}</th>
+          {% endfor %}
+          <th data-sort="text">Leitura</th>
+        </tr></thead>
+        <tbody>
+        {% for c in fund.companies %}
+          {% set v = c.ind["values"] %}
+          <tr>
+            <td data-v="{{ c.ticker }}"><a class="ticker" href="/ativo/{{ c.ticker }}#fundamentos"><span class="ticker-badge">{{ c.ticker[:4] }}</span><span><b>{{ c.ticker }}</b><small>{{ c.ind.profile.sector or "—" }} · {{ c.ind.last_label or "sem balanço" }}</small></span></a></td>
+            {% for key in ["pl", "pvp", "ev_ebitda", "dy", "roe", "net_margin", "net_debt_ebitda", "earnings_growth"] %}
+            <td class="num {{ v[key]|tone if key == 'earnings_growth' else '' }}" data-v="{{ v[key] if v[key] is not none else '' }}">{{ v[key]|indicator(indicator_meta[key][1]) }}</td>
+            {% endfor %}
+            <td>
+              {% if c.report and c.report.verdict %}{{ badge({'barata': 'ok', 'justa': 'neutral', 'cara': 'warn'}[c.report.verdict], c.report.verdict|capitalize ~ ' · agente') }}
+              {% elif c.signal %}{{ badge('ok' if c.signal.severity == 'positivo' else 'warn', 'Possivelmente barata' if c.signal.code.startswith('barata') else 'Cara pelo lucro') }}{% endif %}
+              {% set bad = c.alerts|selectattr("severity", "in", ["critico", "atencao"])|rejectattr("code", "in", ["cara_pl"])|list %}
+              {% if bad %}<span class="{{ 'down' if bad|selectattr('severity', 'equalto', 'critico')|list else 'warn' }}">{{ bad|length }} aviso(s)</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote">Indicadores de 12 meses a partir das demonstrações oficiais entregues à CVM, com o preço do dia. Bancos e seguradoras não têm EV/EBITDA nem dívida líquida. ETFs e FIIs não entram.</p>
+    {% else %}
+    <div class="empty"><p class="muted">Clique em <b>Atualizar fundamentos</b> para baixar os balanços das empresas da carteira na CVM (primeira vez: alguns minutos).</p></div>
+    {% endif %}
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Avisos</h2><span class="card-note">{{ fund_alerts|length }} ativo(s)</span></div>
+    {% if fund_alerts %}
+    <div class="list scroll-y alerts">
+      {% for a in fund_alerts %}
+      <div class="list-row">
+        <span>{{ badge({'critico': 'err', 'atencao': 'warn', 'info': 'neutral', 'positivo': 'ok'}[a.severity], a.ticker or 'Carteira') }} {{ a.message }}<small>{{ 'Agente' if a.source not in ('regras',) else 'Regra automática' }}{% if a.period_end %} · {{ a.period_end|date_br }}{% endif %}</small></span>
+        <form method="post" action="/alertas/resolver">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="alert_id" value="{{ a.id }}">
+          <button class="btn btn-ghost" type="submit" title="Marcar como visto">Visto</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Nenhum aviso.</p>{% endif %}
+  </article>
+</section>
+
+<section class="card card-flush">
+  <div class="card-head"><h2 class="card-title">Posições</h2><span class="card-note">Clique no cabeçalho para ordenar</span></div>
+  <div class="table-wrap">
+    <table class="data" data-sortable>
+      <thead><tr>
+        <th data-sort="text">Ativo</th>
+        <th class="num" data-sort="num">Qtd.</th>
+        <th class="num" data-sort="num">Preço médio</th>
+        <th class="num" data-sort="num">Cotação</th>
+        <th class="num" data-sort="num">Dia</th>
+        <th class="num" data-sort="num">Valor</th>
+        <th class="num" data-sort="num">Peso</th>
+        <th class="num" data-sort="num">Resultado</th>
+        <th class="num" data-sort="num">Result. %</th>
+        <th class="num" data-sort="num">12M</th>
+        <th class="num" data-sort="num">Da máx. 52s</th>
+        <th class="num" data-sort="num">Proventos 12M</th>
+        <th class="num" data-sort="num">Yield on cost</th>
+      </tr></thead>
+      <tbody>
+      {% for a in assets %}
+        <tr>
+          <td data-v="{{ a.ticker }}"><a class="ticker" href="/ativo/{{ a.ticker }}"><span class="ticker-badge">{{ a.ticker[:4] }}</span><span><b>{{ a.ticker }}</b><small>{{ a.name }}</small></span></a></td>
+          <td class="num" data-v="{{ a.qty }}">{{ a.qty|quantity }}</td>
+          <td class="num" data-v="{{ a.average_price or '' }}">{{ a.average_price|brl }}{% if a.cost_status == 'estimated' %} <span class="warn" title="Quantidade operada difere da custódia; preço médio estimado">*</span>{% endif %}</td>
+          <td class="num" data-v="{{ a.close or '' }}">{% if a.quote_status == 'missing' %}<span class="down">sem cotação</span>{% else %}{{ a.close|brl }}{% if a.quote_status == 'stale' %} <span class="warn" title="Cotação de {{ a.quote_date|date_br }}">•</span>{% endif %}{% endif %}</td>
+          <td class="num {{ a.day_pct|tone }}" data-v="{{ a.day_pct if a.day_pct is not none else '' }}">{{ a.day_pct|pct }}</td>
+          <td class="num" data-v="{{ a.value or 0 }}">{{ a.value|brl }}</td>
+          <td class="num" data-v="{{ a.weight or 0 }}"><span class="weight">{{ a.weight|pct(1, False) }}<span class="hbar-track"><span class="hbar-fill" data-w="{{ ((a.weight or 0) * 100 / (assets[0].weight or 1))|round(2) }}"></span></span></span></td>
+          <td class="num {{ a.unrealized|tone }}" data-v="{{ a.unrealized if a.unrealized is not none else '' }}">{{ a.unrealized|brl_signed }}</td>
+          <td class="num {{ a.unrealized_pct|tone }}" data-v="{{ a.unrealized_pct if a.unrealized_pct is not none else '' }}">{{ a.unrealized_pct|pct }}</td>
+          <td class="num {{ a.r12m|tone }}" data-v="{{ a.r12m if a.r12m is not none else '' }}">{{ a.r12m|pct(1) }}</td>
+          <td class="num text-2" data-v="{{ a.from_high if a.from_high is not none else '' }}">{{ a.from_high|pct(1) }}</td>
+          <td class="num" data-v="{{ a.income_12m }}">{{ a.income_12m|brl if a.income_12m else "—" }}</td>
+          <td class="num" data-v="{{ a.yoc if a.yoc is not none else '' }}">{{ a.yoc|pct(2, False) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<p class="footnote">Rentabilidade pelo método de cotas: aportes e vendas não distorcem o retorno, e os proventos entram no cálculo. Preço médio no padrão da Receita: vendas não alteram o preço médio. * preço médio estimado: a quantidade operada difere da custódia.</p>
+{% endif %}
+<script type="application/json" id="data-returns">{{ chart_returns|tojson }}</script>
+<script type="application/json" id="data-invested">{{ chart_value|tojson }}</script>
+<script type="application/json" id="data-monthly">{{ monthly|tojson }}</script>
+{% endblock %}

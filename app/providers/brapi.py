@@ -14,20 +14,30 @@ API_BASE = "https://brapi.dev/api"
 class BrapiError(RuntimeError):
     """Falha externa sem incluir token ou resposta financeira no texto."""
 
+    def __init__(self, message: str, retry_shorter: bool = False) -> None:
+        super().__init__(message)
+        self.retry_shorter = retry_shorter
+
 
 def latest_daily_close(ticker: str, token: str | None = None) -> tuple[str, int]:
+    return max(daily_history(ticker, token, "1mo"), key=lambda row: row[0])
+
+
+def daily_history(ticker: str, token: str | None = None, period: str = "1mo") -> list[tuple[str, int]]:
+    """Fechamentos diários não ajustados do período, em ordem de data."""
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     try:
         response = httpx.get(
             f"{API_BASE}/v2/stocks/historical",
-            params={"symbols": ticker, "range": "1mo", "interval": "1d", "sortOrder": "asc"},
+            params={"symbols": ticker, "range": period, "interval": "1d", "sortOrder": "asc"},
             headers=headers,
             timeout=httpx.Timeout(30.0, connect=10.0),
         )
     except httpx.HTTPError as exc:
         raise BrapiError(f"{ticker}: falha de rede ao consultar cotações.") from exc
-    if response.status_code in (401, 403):
-        raise BrapiError(f"{ticker}: o plano/token brapi não permite consultar esse ativo.")
+    if response.status_code in (400, 401, 403):
+        # Planos gratuitos limitam o período; quem chama tenta um intervalo menor.
+        raise BrapiError(f"{ticker}: o plano/token brapi não permite essa consulta.", retry_shorter=period != "1mo")
     if response.status_code == 429:
         raise BrapiError(f"{ticker}: limite de consultas brapi atingido.")
     if response.status_code != 200:
@@ -61,4 +71,4 @@ def latest_daily_close(ticker: str, token: str | None = None) -> tuple[str, int]
             valid_rows.append((trade_date, close_cents))
     if not valid_rows:
         raise BrapiError(f"{ticker}: nenhum fechamento diário válido foi recebido.")
-    return max(valid_rows, key=lambda row: row[0])
+    return sorted(dict(valid_rows).items())

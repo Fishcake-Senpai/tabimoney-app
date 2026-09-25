@@ -1,0 +1,45 @@
+{% macro kpi(label, value, sub=None, sub_tone="", hero=False, value_tone="") -%}
+<div class="kpi{% if hero %} kpi-hero{% endif %}">
+  <div class="kpi-label">{{ label }}</div>
+  <div class="kpi-value tabular {{ value_tone }}">{{ value }}</div>
+  {% if caller %}<div class="kpi-sub">{{ caller() }}</div>{% elif sub %}<div class="kpi-sub {{ sub_tone }}">{{ sub }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro ranges(default="12M", options=("1M", "3M", "6M", "YTD", "12M", "ALL")) -%}
+<div class="seg" role="group" aria-label="Período">
+  {% for r in options %}<button type="button" data-range="{{ r }}" aria-pressed="{{ 'true' if r == default else 'false' }}">{{ 'Tudo' if r == 'ALL' else 'Ano' if r == 'YTD' else r }}</button>{% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro hbars(items, money=True) -%}
+<div class="hbars">
+  {% set top = (items|map(attribute='value')|max) if items else 1 %}
+  {% for it in items %}
+  <div>
+    <div class="hbar-top"><span>{{ it.label }}</span><span><b>{{ it.value|brl_compact if money else it.value }}</b><span class="pct">{{ it.pct|pct(1, False) }}</span></span></div>
+    <div class="hbar-track"><div class="hbar-fill" data-w="{{ (100 * it.value / top)|round(2) }}"></div></div>
+  </div>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro delta(value, pct_value=None, money=True) -%}
+{%- if value is none -%}<span class="muted">—</span>
+{%- else -%}<span class="{{ value|tone }}">{{ value|brl_signed if money else value|pct }}{% if pct_value is not none %} · {{ pct_value|pct }}{% endif %}</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro badge(kind, text) -%}<span class="badge badge-{{ kind }}">{{ text }}</span>{%- endmacro %}
+
+{% macro sync_buttons(csrf_token) -%}
+<form method="post" action="/sincronizar/cotacoes" data-busy="Atualizando…">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button class="btn" type="submit"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Atualizar mercado</button>
+</form>
+<form method="post" action="/sincronizar/pluggy" data-busy="Sincronizando…">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button class="btn" type="submit">Open Finance</button>
+</form>
+<a class="btn btn-primary" href="/importar"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>Importar</a>
+{%- endmacro %}

@@ -1,0 +1,2 @@
+# Só para gerar o Tabimoney.exe (build.bat); o app não precisa disto para rodar.
+pyinstaller>=6.10,<7

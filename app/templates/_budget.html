@@ -1,0 +1,108 @@
+{# Orçamento do mês: destaque de Conta e cartão. Espera budget, budget_suggestions, advice, csrf_token. #}
+{% from "_ui.html" import badge %}
+{% set state_badge = {"ok": ("ok", "No ritmo"), "risco": ("warn", "Em risco"), "estourou": ("err", "Estourou")} %}
+{% set action_label = {"criar": "Criar meta", "ajustar": "Ajustar meta", "manter": "Manter", "remover": "Remover meta", "economizar": "Economizar"} %}
+
+{% macro advice_list(advice, back) -%}
+<div class="advice">
+  <div class="advice-head">
+    <img src="/static/brand/mascote-128.png" alt="" width="28" height="28">
+    <div><b>O agente sugere</b><small>{{ advice.title }} · {{ advice.period|month_label }}{% if advice.expected_monthly_savings_cents %} · economia estimada de {{ advice.expected_monthly_savings_cents|brl_compact }}/mês{% endif %}</small></div>
+    <a class="link" href="/recomendacoes#orcamento">Ver tudo</a>
+  </div>
+  <div class="list">
+    {% for i in advice["items"][:4] %}
+    <div class="list-row">
+      <span><b>{{ action_label[i.action] }}{% if i.budget_name %} · {{ i.budget_name }}{% endif %}</b>
+        <small>{% if i.suggested_limit_cents %}{{ i.before|brl_whole if i.before else "nova" }} → <b class="text-2">{{ i.suggested_limit_cents|brl_whole }}/mês</b> · {% endif %}{{ i.rationale or "" }}</small></span>
+      <span class="right">
+        {% if i.expected_monthly_savings_cents %}<small class="up">−{{ i.expected_monthly_savings_cents|brl_compact }}/mês</small>{% endif %}
+        {% if i.applicable %}
+        <form method="post" action="/orcamento/aplicar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="item_id" value="{{ i.id }}">
+          <input type="hidden" name="back" value="{{ back }}">
+          <button class="btn btn-sm" type="submit">Aplicar</button>
+        </form>
+        {% elif i.applied_at %}<small class="muted">aplicada</small>{% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{%- endmacro %}
+
+<section class="card budget-card" id="orcamento">
+  {% if budget["items"] %}
+  <div class="card-head">
+    <h2 class="card-title">Orçamento de {{ budget.month|month_label }} <span class="card-note">{{ budget.days_left }} dia(s) para acabar o mês</span></h2>
+    <a class="link" href="#metas-gastos">Editar metas</a>
+  </div>
+  <div class="budget-summary">
+    <div>
+      <div class="budget-big tabular">{{ budget.total_spent|brl_whole }} <span class="muted">de {{ budget.total_limit|brl_whole }}</span></div>
+      <div class="kpi-sub">
+        {% if budget.per_day is not none and budget.total_spent < budget.total_limit %}Ainda cabem <b class="up">{{ budget.per_day|brl_whole }} por dia</b> até o fim do mês.
+        {% elif budget.total_limit %}<span class="down">Passou {{ (budget.total_spent - budget.total_limit)|brl_whole }} do orçamento.</span>{% endif %}
+        {% if budget.at_risk %} · <span class="warn">{{ budget.at_risk }} meta(s) pedem atenção</span>{% endif %}
+        {% if budget.coverage is not none and budget.coverage < 0.9 %} · as metas cobrem {{ budget.coverage|pct(0, False) }} do que você gastou{% endif %}
+      </div>
+    </div>
+    <span class="hbar-track target-bar budget-bar"><span class="hbar-fill {{ 'fill-over' if budget.total_pct and budget.total_pct > 1 else 'fill-risk' if budget.total_pct and budget.total_pct > budget.day / budget.days_in_month + 0.1 else '' }}" data-w="{{ ((budget.total_pct or 0) * 100)|round(2) }}"></span><span class="target-mark" data-left="{{ (100 * budget.day / budget.days_in_month)|round(2) }}" title="Hoje: {{ (budget.day / budget.days_in_month)|pct(0, False) }} do mês"></span></span>
+  </div>
+
+  {% set tiles = budget["items"]|rejectattr("is_total")|list %}
+  {% set quiet = tiles|selectattr("spent", "equalto", 0)|selectattr("state", "equalto", "ok")|list %}
+  <div class="budget-grid">
+    {% for b in tiles if b not in quiet %}
+    <div class="budget-tile state-{{ b.state }}">
+      <div class="budget-tile-head">
+        <b>{{ b.name }}</b>{{ badge(*state_badge[b.state]) }}
+      </div>
+      <div class="tabular"><b>{{ b.spent|brl_whole }}</b> <span class="muted">/ {{ b.limit|brl_whole }}</span></div>
+      <span class="hbar-track target-bar"><span class="hbar-fill {{ 'fill-over' if b.state == 'estourou' else 'fill-risk' if b.state == 'risco' else '' }}" data-w="{{ (b.pct * 100)|round(2) }}"></span><span class="target-mark mark-soft" data-left="{{ ([b.projected_pct, 1]|min * 100)|round(2) }}" title="Projeção para o mês: {{ b.projected|brl_whole }}"></span></span>
+      <small class="muted">
+        {% if b.state == 'estourou' %}Passou {{ (b.spent - b.limit)|brl_whole }}
+        {% else %}Cabe {{ b.per_day|brl_whole }}/dia · projeção {{ b.projected|brl_whole }}{% endif %}
+      </small>
+      <span class="budget-dots" title="Últimos meses: verde = dentro da meta">
+        {% for h in b.history %}<i class="{{ 'hit' if h.hit and h.spent else 'miss' if h.spent else '' }}" title="{{ h.m|month_label }}: {{ h.spent|brl_whole }}"></i>{% endfor %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if quiet %}
+  <p class="footnote">Nada gasto ainda: {% for b in quiet %}{{ b.name }} ({{ b.limit|brl_whole }}){{ ", " if not loop.last }}{% endfor %}.</p>
+  {% endif %}
+  {% if budget.uncovered %}
+  <p class="footnote">Sem meta: {% for u in budget.uncovered[:5] %}{{ u.category }} {{ (u.spent or u.avg3)|brl_whole }}{% if not u.spent %} (média){% endif %}{{ ", " if not loop.last }}{% endfor %}. <a class="link" href="#metas-gastos">Criar meta</a></p>
+  {% endif %}
+  {% if advice %}{{ advice_list(advice, "/contas#orcamento") }}{% endif %}
+
+  {% else %}
+  <div class="budget-cta">
+    <img src="/static/brand/mascote-128.png" alt="" width="64" height="64">
+    <div>
+      <h2 class="card-title">Coloque rédea nos gastos</h2>
+      <p class="muted">Metas de gastos por grupo mostram, durante o mês, onde o dinheiro está escapando e quanto ainda cabe por dia.
+        {% if budget_suggestions %}Pelos seus últimos 3 meses, uma boa largada seria:{% endif %}</p>
+    </div>
+  </div>
+  {% if budget_suggestions %}
+  <div class="budget-grid">
+    {% for s in budget_suggestions %}
+    <div class="budget-tile"><b>{{ s.name }}</b><div class="tabular">{{ s.limit|brl_whole }}<span class="muted">/mês</span></div><small class="muted">média {{ s.avg3|brl_whole }} · {{ s.categories|join(", ") }}</small></div>
+    {% endfor %}
+  </div>
+  <div class="actions">
+    <form method="post" action="/orcamento/sugeridas">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn btn-primary" type="submit">Criar estas metas</button>
+    </form>
+    <a class="btn" href="#metas-gastos">Montar do meu jeito</a>
+  </div>
+  {% endif %}
+  {% if advice %}{{ advice_list(advice, "/contas#orcamento") }}{% endif %}
+  {% endif %}
+</section>

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% from "_ui.html" import kpi, badge %}
+{% set d = detail %}
+{% block title %}{{ d.category }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="sub"><a class="link" href="/contas">Conta e cartão</a> / Gastos por categoria</div>
+    <h1>{{ d.category }}</h1>
+  </div>
+  <div class="actions">
+    <select data-navigate aria-label="Ver outra categoria">
+      {% for c in other_categories %}<option value="/contas/gastos/{{ c|urlencode }}"{% if c == d.category %} selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+  </div>
+</div>
+
+<section class="kpis">
+  {% call kpi(d.current|month_label ~ " até agora", d.spent_now|brl, hero=True) %}Projeção do mês {{ d.projected|brl_compact }}{% endcall %}
+  {% call kpi("Média mensal", d.avg12|brl_compact) %}Últimos {{ d.window_months }} meses fechados{% endcall %}
+  {% if d.last %}{% call kpi(d.last|month_label, d.last_value|brl_compact) %}{% if d.last_delta_pct is not none %}<span class="{{ (-d.last_delta_pct)|tone }}">{{ d.last_delta_pct|pct(0) }}</span> vs média de 3 meses{% else %}Mês fechado{% endif %}{% endcall %}{% endif %}
+  {% call kpi("Compras em 12 meses", d.count) %}Ticket médio {{ d.ticket|brl_compact }}{% endcall %}
+  {% if d.share is not none %}{% call kpi("Peso nos gastos", d.share|pct(0, False)) %}{{ d.rank }}ª maior categoria{% endcall %}{% endif %}
+</section>
+
+<section class="grid">
+  <article class="card span-8">
+    <div class="card-head"><h2 class="card-title">Gasto por mês</h2><span class="card-note">Linha: média de {{ d.window_months }} meses · mês corrente em destaque</span></div>
+    <div class="chart" data-chart="category-monthly"></div>
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Observações</h2></div>
+    {% if d.insights %}
+    <ul class="insights">
+      {% for i in d.insights %}<li class="{{ i.tone }}">{{ i.text }}</li>{% endfor %}
+    </ul>
+    {% else %}<p class="muted">Poucos dados para tirar conclusões ainda.</p>{% endif %}
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card span-6">
+    <div class="card-head"><h2 class="card-title">Ritmo do mês</h2><span class="card-note">Gasto acumulado dia a dia</span></div>
+    <div class="chart" data-chart="category-pace"></div>
+  </article>
+  <article class="card span-6">
+    <div class="card-head"><h2 class="card-title">Por dia da semana</h2><span class="card-note">Compras dos últimos 12 meses</span></div>
+    <div class="chart" data-chart="category-weekday"></div>
+  </article>
+</section>
+
+{% if budgets %}
+<section class="grid">
+  <article class="card span-12">
+    <div class="card-head"><h2 class="card-title">Metas que incluem {{ d.category }}</h2><a class="link" href="/contas#metas-gastos">Editar metas</a></div>
+    <div class="list">
+      {% for b in budgets %}
+      <div class="list-row">
+        <span><b>{{ b.name }}</b><small>{{ "Todos os gastos do mês" if b.is_total else b.categories|join(", ") }} · projeção {{ b.projected|brl_compact }}</small>
+          <span class="hbar-track budget-track"><span class="hbar-fill {{ {'risco': 'fill-risk', 'estourou': 'fill-over'}.get(b.state, '') }}" data-w="{{ (100 * b.pct)|round(2) }}"></span></span></span>
+        <span class="right"><b>{{ b.spent|brl_compact }} de {{ b.limit|brl_compact }}</b>
+          <small>{{ badge({"ok": "ok", "risco": "warn", "estourou": "err"}[b.state], {"ok": "no ritmo", "risco": "em risco", "estourou": "estourou"}[b.state]) }}</small></span>
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% endif %}
+
+<section class="grid">
+  <article class="card card-flush span-7">
+    <div class="card-head"><h2 class="card-title">Onde você gasta</h2><span class="card-note">Últimos 12 meses, por estabelecimento</span></div>
+    <div class="table-wrap scroll-y">
+      <table class="data" data-sortable>
+        <thead><tr>
+          <th data-sort="text">Estabelecimento</th><th class="num" data-sort="num">Compras</th><th class="num" data-sort="num">Meses</th>
+          <th class="num" data-sort="num">Ticket médio</th><th class="num" data-sort="num">Total</th><th class="num" data-sort="num">%</th>
+        </tr></thead>
+        <tbody>
+        {% for m in d.merchants %}
+          <tr>
+            <td>{{ m.label[:40] }}<small class="muted block">última {{ m.last|date_br }}</small></td>
+            <td class="num" data-v="{{ m.count }}">{{ m.count }}</td>
+            <td class="num" data-v="{{ m.months }}">{{ m.months }}</td>
+            <td class="num" data-v="{{ m.avg }}">{{ m.avg|brl }}</td>
+            <td class="num" data-v="{{ m.value }}"><b>{{ m.value|brl }}</b></td>
+            <td class="num" data-v="{{ m.pct }}">{{ m.pct|pct(0, False) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+  <article class="card span-5">
+    <div class="card-head"><h2 class="card-title">Maiores compras</h2><span class="card-note">Últimos 12 meses</span></div>
+    <div class="list">
+      {% for t in d.biggest %}
+      <div class="list-row">
+        <span>{{ t.description.split('|')[-1][:40] }}<small>{{ t.transaction_date|date_br }} · {{ t.account_name }}</small></span>
+        <span class="right"><b>{{ (-t.amount_cents)|brl }}</b>{% if t.original_currency %}<small>{{ t.original_amount_cents|foreign_money(t.original_currency) }}</small>{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card card-flush span-12" id="lancamentos">
+    <div class="card-head">
+      <h2 class="card-title">Todos os lançamentos <span class="card-note" data-count-for="cat-tx">{{ d.transactions|length }} lançamentos</span></h2>
+      <div class="toolbar"><input type="search" placeholder="Buscar" data-filter="cat-tx" aria-label="Buscar lançamentos"></div>
+    </div>
+    <div class="table-wrap scroll-y">
+      <table class="data" id="cat-tx" data-sortable>
+        <thead><tr><th data-sort="text">Data</th><th data-sort="text">Descrição</th><th data-sort="text">Categoria</th><th data-sort="text">Conta</th><th class="num" data-sort="num">Valor</th></tr></thead>
+        <tbody>
+        {% for t in d.transactions %}
+          <tr>
+            <td data-v="{{ t.transaction_date }}">{{ t.transaction_date|date_br }}</td>
+            <td>{{ t.description[:60] }}{% if t.status == 'PENDING' %} {{ badge("neutral", "fatura aberta") }}{% endif %}{% if t.amount_cents > 0 %} {{ badge("ok", "estorno") }}{% endif %}</td>
+            <td class="text-2">
+              <form method="post" action="/contas/categoria" class="recat">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="transaction_id" value="{{ t.id }}">
+                <input type="hidden" name="back" value="/contas/gastos/{{ d.category|urlencode }}">
+                <select name="category" data-autosubmit aria-label="Categoria de {{ t.description[:40] }}" class="{{ 'is-manual' if t.category_source != 'auto' }}">
+                  <option value="">{{ 'Automática: ' ~ t.auto_category if t.category_source == 'manual' else t.category }}</option>
+                  {% for c in category_options if c != t.category or t.category_source == 'manual' %}<option{% if t.category_source == 'manual' and c == t.category %} selected{% endif %}>{{ c }}</option>{% endfor %}
+                </select>
+              </form>
+              {% if t.category_source == 'regra' %}<small class="muted">regra</small>{% endif %}
+            </td>
+            <td class="muted">{{ t.account_name }}</td>
+            <td class="num {{ 'up' if t.amount_cents > 0 }}" data-v="{{ t.amount_cents }}">{{ t.amount_cents|brl_signed }}{% if t.original_currency %}<small class="muted block">{{ t.original_amount_cents|foreign_money(t.original_currency) }}</small>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+
+<script type="application/json" id="data-category">{{ {"months": d.months, "avg": d.avg12, "current": d.current, "pace": d.pace_series, "weekday": d.weekday}|tojson }}</script>
+{% endblock %}

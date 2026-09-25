@@ -3,35 +3,65 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
-  <title>{% block title %}Finanças Pessoais{% endblock %} · local</title>
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0f0e">
+  <meta name="application-name" content="Tabimoney">
+  <meta name="description" content="Tabimoney — finanças sérias (mais ou menos).">
+  <title>{% block title %}Visão geral{% endblock %} · Tabimoney</title>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/brand/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/brand/favicon-16.png">
+  <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/static/brand/site.webmanifest">
+  <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a class="brand" href="/" aria-label="Finanças Pessoais, painel">
-        <span class="brand-mark">F</span>
-        <span><strong>Finanças</strong><small>pessoais · local</small></span>
-      </a>
-      <nav aria-label="Navegação principal">
-        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Painel</a>
-        <a href="/importacoes" class="{% if request.url.path.startswith('/importacoes') %}active{% endif %}">Importações</a>
-        <a href="/configuracoes" class="{% if request.url.path.startswith('/configuracoes') %}active{% endif %}">Configurações</a>
-      </nav>
-      <span class="local-pill"><span></span> Esta máquina</span>
+<a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+{% set path = request.url.path %}
+{% macro navlink(href, label, icon, active) -%}
+  <a href="{{ href }}"{% if active %} aria-current="page"{% endif %}>
+    <svg viewBox="0 0 24 24" aria-hidden="true">{{ icon|safe }}</svg>{{ label }}{{ caller() if caller }}
+  </a>
+{%- endmacro %}
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Tabimoney — início">
+      <img class="brand-mascot" src="/static/brand/mascote-128.png" alt="" width="40" height="40">
+      <span class="brand-text"><span class="wordmark">Tabi<em>money</em></span><span class="tagline">Finanças sérias (mais ou menos)</span></span>
+    </a>
+    <nav class="nav" aria-label="Principal">
+      <div class="nav-label">Análise</div>
+      {{ navlink("/", "Visão geral", '<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>', path == "/") }}
+      {{ navlink("/carteira", "Ações e FIIs", '<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>', path.startswith("/carteira") or path.startswith("/ativo")) }}
+      {{ navlink("/recomendacoes", "Recomendações", '<path d="M12 2l3 6.5 7 .9-5 4.8 1.3 7L12 17.8 5.7 21.2 7 14.2 2 9.4l7-.9z"/>', path.startswith("/recomendacoes") or path.startswith("/analises")) }}
+      {{ navlink("/renda-fixa", "Renda fixa", '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>', path.startswith("/renda-fixa")) }}
+      {{ navlink("/rendimentos", "Proventos e CDI", '<path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>', path.startswith("/rendimentos")) }}
+      {{ navlink("/previdencia", "Previdência", '<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/>', path.startswith("/previdencia")) }}
+      {{ navlink("/metas", "Metas", '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>', path.startswith("/metas")) }}
+      {{ navlink("/contas", "Conta e cartão", '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>', path.startswith("/contas")) }}
+      <div class="nav-label">Dados</div>
+      {{ navlink("/importar", "Importar", '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/>', path.startswith("/importar")) }}
+      {% call navlink("/conciliacao", "Conciliação", '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>', path.startswith("/conciliacao")) %}{% if nav and nav.pending %}<span class="count">{{ nav.pending }}</span>{% endif %}{% endcall %}
+      {{ navlink("/configuracoes", "Configurações", '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>', path.startswith("/configuracoes")) }}
+    </nav>
+    <div class="sidebar-foot"><span class="dot-live"></span> Local · 127.0.0.1 <span class="version" title="Versão do Tabimoney">v{{ app_version }}</span></div>
+    {% if request.app.state.server is defined %}
+    <form method="post" action="/sistema/encerrar" class="sidebar-quit" data-confirm="Encerrar o Tabimoney? Para abrir de novo, clique no Tabimoney.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-ghost btn-sm">Encerrar o Tabimoney</button>
+    </form>
+    {% endif %}
+  </aside>
+  <main class="main" id="conteudo">
+    {% if flash_messages %}
+    <div class="flash-stack">
+      {% for flash in flash_messages %}<div class="flash flash-{{ flash.kind }}" role="status">{{ flash.text }}</div>{% endfor %}
     </div>
-  </header>
-  <main class="page" id="conteudo">
-    {% for flash in flash_messages %}
-      <div class="notice notice-{{ flash.kind }}" role="status">{{ flash.text }}</div>
-    {% endfor %}
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
-  <footer class="footer">
-    <span>Dados da carteira ficam no SQLite local.</span>
-    <span>Aplicativo acessível somente em 127.0.0.1</span>
-  </footer>
+</div>
 </body>
 </html>

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_ui.html" import badge %}
+{% block title %}Análises{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Análises</h1><div class="sub">Todos os relatórios do agente, guardados por período</div></div>
+  <div class="actions"><a class="btn" href="/recomendacoes">Recomendações trimestrais</a></div>
+</div>
+
+<form method="get" action="/analises" class="toolbar card-filter">
+  <input type="search" name="ticker" value="{{ ticker }}" placeholder="Ticker" aria-label="Filtrar por ticker">
+  <select name="tipo" aria-label="Tipo de assunto">
+    <option value="">Todos os assuntos</option>
+    {% for s in subject_types %}<option value="{{ s }}" {% if s == tipo %}selected{% endif %}>{{ {"ativo": "Ações e FIIs", "renda_fixa": "Renda fixa", "previdencia": "Previdência", "carteira": "Carteira"}[s] }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">Filtrar</button>
+</form>
+
+<section class="card card-flush">
+  {% if reports %}
+  <div class="table-wrap">
+    <table class="data" data-sortable>
+      <thead><tr><th data-sort="text">Data</th><th data-sort="text">Assunto</th><th data-sort="text">Período</th><th data-sort="text">Título</th><th data-sort="text">Leitura</th><th class="num" data-sort="num">Nota</th><th data-sort="text">Autor</th></tr></thead>
+      <tbody>
+      {% for r in reports %}
+        <tr>
+          <td data-v="{{ r.created_at }}">{{ r.created_at|date_br }}</td>
+          <td>{% if r.ticker %}<a class="link" href="/ativo/{{ r.ticker }}"><b>{{ r.ticker }}</b></a>{% else %}{{ r.subject or "Carteira" }}{% endif %}</td>
+          <td>{{ r.period or "—" }}</td>
+          <td><a class="link" href="/analises/{{ r.id }}">{{ r.title }}</a></td>
+          <td>{% if r.verdict %}{{ badge({'barata': 'ok', 'justa': 'neutral', 'cara': 'warn'}[r.verdict], r.verdict|capitalize) }}{% endif %}</td>
+          <td class="num" data-v="{{ r.score if r.score is not none else '' }}">{{ r.score|round(1) if r.score is not none else "—" }}</td>
+          <td class="muted">{{ r.author }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty"><p class="muted">Nenhum relatório. O agente grava com <code>financas analise importar</code> (veja a skill <code>financas-analise-trimestral</code>).</p></div>{% endif %}
+</section>
+{% endblock %}

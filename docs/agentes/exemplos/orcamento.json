@@ -1,0 +1,16 @@
+{
+  "period": "2026-09",
+  "title": "Setembro: Pix e alimentação fora puxam o orçamento",
+  "summary": "Gastos totais 18% abaixo da média, mas Pix e transferências cresceram sem categoria clara. Duas metas precisam de ajuste e falta uma meta para assinaturas.",
+  "expected_monthly_savings": 370.0,
+  "model": "claude-opus-5-5",
+  "body_md": "## Diagnóstico\n- Renda estável; sobra média de R$ 2,4 mil por mês nos últimos 3 meses.\n- **Pix e transferências** é a segunda maior categoria e mistura pagamentos a pessoas com compras: recategorizar ajuda a enxergar.\n\n## O que mudar\n1. Reduzir a meta de alimentação fora em R$ 100.\n2. Criar meta de assinaturas para não crescer sem perceber.\n\n## Metas que estão funcionando\n- Mercado e transporte dentro da meta em 4 dos últimos 6 meses.",
+  "items": [
+    {"action": "ajustar", "budget": "Alimentação fora", "current_limit": 900, "suggested_limit": 800, "expected_monthly_savings": 100, "priority": 1,
+     "rationale": "Média de R$ 870, com delivery em 60% dos pedidos. Cortar um pedido por semana cabe em R$ 800."},
+    {"action": "criar", "budget": "Assinaturas", "categories": ["Assinaturas"], "suggested_limit": 60, "priority": 3,
+     "rationale": "Hoje sem meta; 4 serviços somam cerca de R$ 50/mês."},
+    {"action": "economizar", "budget": "Pix e outros", "expected_monthly_savings": 270, "priority": 2,
+     "rationale": "Metade dos Pix de agosto foi para lojas: recategorize (skill financas-gastos) para descobrir onde cortar."}
+  ]
+}

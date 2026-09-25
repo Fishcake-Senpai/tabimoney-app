@@ -1,66 +1,85 @@
 {% extends "base.html" %}
-{% block title %}Importações{% endblock %}
+{% from "_ui.html" import badge %}
+{% block title %}Importar{% endblock %}
 {% block content %}
-<section class="page-heading">
-  <p class="eyebrow">DADOS LOCAIS</p>
-  <h1>Importações e backups</h1>
-  <p class="muted">Use o Open Finance ou arquivos exportados. A aplicação não altera os arquivos de origem.</p>
-</section>
-<section class="import-grid">
-  <article class="panel import-card">
-    <div class="import-card-top"><span class="integration-icon bank-icon">N</span><div><p class="eyebrow">NUBANK</p><h2>Extrato OFX</h2></div></div>
-    <p>Importe o extrato mensal da conta. Saldos e movimentações entram no SQLite; o identificador completo da conta não é salvo.</p>
-    <form method="post" action="/importar/ofx" enctype="multipart/form-data" class="upload-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label>Arquivo OFX/QFX<input type="file" name="file" accept=".ofx,.qfx,.ofc" required></label>
-      <button class="button button-secondary" type="submit">Importar extrato</button>
-    </form>
-    <p class="small-note">No app Nubank, exporte o extrato mensal em OFX. Reimportar o mesmo arquivo não duplica movimentações.</p>
-  </article>
+<div class="page-head">
+  <div><h1>Importar</h1><div class="sub">O formato é detectado sozinho. Reimportar não duplica.</div></div>
+</div>
 
-  <article class="panel import-card">
-    <div class="import-card-top"><span class="integration-icon asset-icon">A</span><div><p class="eyebrow">POSIÇÕES</p><h2>Carteira inicial por CSV</h2></div></div>
-    <p>Use para carga inicial ou quando precisar informar manualmente as quantidades custodiadas. Quantidade é o total de unidades na data indicada.</p>
-    <p><a class="download-link" href="/csv/modelo-posicoes.csv">Baixar modelo de posições CSV ↓</a></p>
-    <form method="post" action="/importar/posicoes" enctype="multipart/form-data" class="upload-form">
+<section class="grid">
+  <article class="card span-8">
+    <form method="post" action="/importar" enctype="multipart/form-data" data-busy="Importando…">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label>Arquivo CSV<input type="file" name="file" accept=".csv,text/csv" required></label>
-      <button class="button button-secondary" type="submit">Importar posições</button>
+      <div class="dropzone">
+        <input type="file" name="files" multiple accept=".ofx,.qfx,.ofc,.csv,.xlsx" aria-label="Selecionar arquivos">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
+        <h3>Arraste os arquivos aqui</h3>
+        <p>OFX, CSV ou XLSX · vários de uma vez</p>
+        <ul class="dropzone-files"></ul>
+      </div>
+      <div class="actions footnote"><button class="btn btn-primary" type="submit" disabled>Importar arquivos</button></div>
     </form>
-    <p class="small-note">Cabeçalho: ticker, quantity, as_of_date, account_name, asset_class, currency. Se account_name ficar vazio, o padrão é Nubank / NuInvest. Posições manuais e Pluggy com esse mesmo nome são consolidadas; use nomes diferentes para outras corretoras. A importação atualiza as linhas presentes; inclua quantity=0 em uma data mais recente para registrar a baixa de um ativo omitido.</p>
   </article>
-
-  <article class="panel import-card">
-    <div class="import-card-top"><span class="integration-icon market-icon">↗</span><div><p class="eyebrow">PREÇOS</p><h2>Fechamentos por CSV</h2></div></div>
-    <p>Contingência para tickers sem cobertura automática ou histórico de preço anterior à configuração da fonte.</p>
-    <p><a class="download-link" href="/csv/modelo-cotacoes.csv">Baixar modelo de cotações CSV ↓</a></p>
-    <form method="post" action="/importar/cotacoes" enctype="multipart/form-data" class="upload-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label>Arquivo CSV<input type="file" name="file" accept=".csv,text/csv" required></label>
-      <button class="button button-secondary" type="submit">Importar cotações</button>
-    </form>
-    <p class="small-note">Cabeçalho: ticker, trade_date, close, asset_class. Fechamento usa preço não ajustado.</p>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Onde baixar cada arquivo</h2></div>
+    <ol class="steps">
+      <li><b>Conta Nubank:</b> app › Extrato › exportar (OFX traz o saldo).</li>
+      <li><b>Cartão:</b> app › Fatura › exportar CSV (uma por mês).</li>
+      <li><b>Ações, FIIs, CDB, Tesouro:</b> <a href="https://www.investidor.b3.com.br" target="_blank" rel="noreferrer">Área do Investidor B3</a> › Extratos › Posição, Negociação e Movimentação (Excel).</li>
+      <li><b>Caixinhas/RDB:</b> modelo de renda fixa abaixo, ou Open Finance.</li>
+    </ol>
   </article>
 </section>
 
-<section class="content-grid bottom-grid">
-  <article class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">RECUPERAÇÃO</p><h2>Backup local</h2></div></div>
-    <p>Baixe uma cópia do SQLite. Os arquivos criados pelo aplicativo ficam em <code>%LOCALAPPDATA%\FinancasPessoais\backups</code>.</p>
-    <form method="post" action="/backup" class="inline-button">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button class="button button-secondary" type="submit">Baixar backup SQLite</button>
-    </form>
+<section class="card">
+  <div class="card-head"><h2 class="card-title">Formatos reconhecidos</h2></div>
+  <div class="formats">
+    <div class="format"><b>Extrato da conta</b><span>OFX ou CSV do Nubank · saldo e movimentações</span></div>
+    <div class="format"><b>Fatura do cartão</b><span>CSV ou OFX · lançamentos e total da fatura</span></div>
+    <div class="format"><b>Posição B3</b><span>XLSX · ações, FIIs, ETFs, BDRs, renda fixa, Tesouro</span></div>
+    <div class="format"><b>Negociação B3</b><span>XLSX · compras e vendas → preço médio</span></div>
+    <div class="format"><b>Movimentação B3</b><span>XLSX · dividendos, JCP, rendimentos, desdobros</span></div>
+    <div class="format"><b>Modelos CSV</b><span><a class="link" href="/csv/modelo-renda-fixa.csv">renda fixa</a> · <a class="link" href="/csv/modelo-operacoes.csv">operações</a> · <a class="link" href="/csv/modelo-posicoes.csv">posições</a> · <a class="link" href="/csv/modelo-cotacoes.csv">cotações</a></span></div>
+  </div>
+</section>
+
+<section class="grid footnote">
+  <article class="card card-flush span-8">
+    <div class="card-head"><h2 class="card-title">Últimas importações</h2></div>
+    {% if recent_runs %}
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Origem</th><th>Quando</th><th>Status</th><th class="num">Registros</th><th>Resumo</th></tr></thead>
+        <tbody>
+        {% for run in recent_runs %}
+          <tr>
+            <td>{{ run.source }}</td>
+            <td class="text-2">{{ run.started_at|date_br }} {{ run.started_at[11:16] }}</td>
+            <td>{{ badge({'success':'ok','partial':'warn','running':'warn','failed':'err'}[run.status], {'success':'Concluída','partial':'Parcial','running':'Em andamento','failed':'Falhou'}[run.status]) }}</td>
+            <td class="num">{{ run.records_written }}</td>
+            <td class="muted">{{ (run.message or "")[:70] }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="empty"><p>Nada importado ainda.</p></div>{% endif %}
   </article>
-  <article class="panel panel-form">
-    <div class="panel-heading"><div><p class="eyebrow">RESTAURAÇÃO</p><h2>Restaurar uma cópia</h2></div></div>
-    <p>A aplicação valida integridade e versão da base e cria uma cópia preventiva antes de substituir o arquivo atual.</p>
-    <form method="post" action="/restaurar" enctype="multipart/form-data" class="form-stack">
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Backup</h2></div>
+    <form method="post" action="/backup">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label>Backup SQLite<input type="file" name="file" accept=".sqlite3,.sqlite,.db" required></label>
-      <label class="checkbox-row"><input type="checkbox" name="confirmed" required> Confirmo substituir os dados locais pelo backup selecionado</label>
-      <button class="button button-danger" type="submit">Validar e restaurar</button>
+      <button class="btn" type="submit">Baixar backup SQLite</button>
     </form>
+    <details class="more footnote">
+      <summary>Restaurar um backup</summary>
+      <form method="post" action="/restaurar" enctype="multipart/form-data" class="form-grid footnote">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="file" name="file" accept=".sqlite3,.sqlite,.db" required aria-label="Arquivo de backup">
+        <label class="check"><input type="checkbox" name="confirmed" required> Substituir os dados atuais</label>
+        <button class="btn btn-danger" type="submit">Validar e restaurar</button>
+      </form>
+    </details>
   </article>
 </section>
 {% endblock %}

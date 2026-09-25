@@ -53,6 +53,12 @@ class PluggyClient:
     def close(self) -> None:
         self._http.close()
 
+    def __enter__(self) -> "PluggyClient":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
     def _get(self, path: str, params: dict[str, object] | None = None) -> dict[str, Any]:
         try:
             response = self._http.get(path, params=params)
@@ -116,6 +122,7 @@ class PluggyClient:
         return output
 
     def collect(self, item_id: str) -> PluggyData:
+        """Lê um item; a mesma sessão serve para vários itens, e quem abriu o cliente o fecha."""
         normalized_item_id = item_id.strip()
         if not normalized_item_id:
             raise PluggyError("Informe o Item ID proxy do Meu Pluggy.")
@@ -123,12 +130,8 @@ class PluggyClient:
             normalized_item_id = str(UUID(normalized_item_id))
         except ValueError as exc:
             raise PluggyError("O Item ID do Meu Pluggy precisa ser um UUID válido.") from exc
-        try:
-            item = self._get(f"/items/{normalized_item_id}")
-            accounts = self._page_list("/accounts", {"itemId": normalized_item_id})
-        except PluggyError:
-            self.close()
-            raise
+        item = self._get(f"/items/{normalized_item_id}")
+        accounts = self._page_list("/accounts", {"itemId": normalized_item_id})
 
         result = PluggyData(item=item, accounts=accounts)
         for account in accounts:
@@ -147,7 +150,6 @@ class PluggyClient:
         except PluggyError as exc:
             result.positions_complete = False
             result.errors.append(f"Posições de investimento não foram carregadas: {exc}")
-            self.close()
             return result
 
         for investment in investments:
@@ -163,5 +165,4 @@ class PluggyClient:
             except PluggyError as exc:
                 result.positions_complete = False
                 result.errors.append(f"Movimentações de um investimento não foram carregadas: {exc}")
-        self.close()
         return result

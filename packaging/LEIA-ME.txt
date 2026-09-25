@@ -1,0 +1,35 @@
+TABIMONEY - financas serias (mais ou menos)
+============================================
+
+ABRIR
+1. Tire o Tabimoney.exe do .zip (botao direito > Extrair tudo) e guarde numa pasta sua,
+   por exemplo em Documentos. Nao rode de dentro do .zip nem da pasta Downloads temporaria.
+2. De dois cliques no Tabimoney.exe. Uma janelinha preta mostra o progresso e fecha sozinha;
+   o app abre no navegador em http://127.0.0.1:8765
+3. Na primeira vez o Windows pode mostrar "O Windows protegeu o computador".
+   Clique em "Mais informacoes" e depois em "Executar assim mesmo". Isso acontece porque o
+   arquivo nao tem assinatura digital paga; so aparece uma vez.
+
+DICA: clique com o botao direito no Tabimoney.exe > "Enviar para" > "Area de trabalho
+(criar atalho)" para ter um atalho.
+
+REINICIAR OU ATUALIZAR
+- Clicar de novo no Tabimoney.exe reinicia o app.
+- Para atualizar, substitua o Tabimoney.exe pelo novo e abra de novo. Seus dados ficam.
+
+ENCERRAR
+- No app, menu lateral > "Encerrar o Tabimoney". Fechar a aba do navegador NAO encerra.
+
+SEUS DADOS
+- Ficam so neste computador, em %LOCALAPPDATA%\FinancasPessoais (banco, backups e logs).
+- Senhas e chaves (Pluggy, brapi) ficam no Gerenciador de Credenciais do Windows.
+- Para apagar tudo: encerre o app e apague a pasta acima.
+
+IA (OPCIONAL)
+- O app cria a pasta %USERPROFILE%\Tabimoney com as instrucoes para a IA.
+  Abra o Claude Code (ou outro agente) nessa pasta e peca, por exemplo:
+  "atualize minhas financas" ou "revise meus gastos do mes".
+
+PROBLEMAS
+- "A porta 8765 esta ocupada": feche outra janela do Tabimoney ou reinicie o computador.
+- O registro de erros fica em %LOCALAPPDATA%\FinancasPessoais\logs

@@ -1,0 +1,34 @@
+[
+  {
+    "ticker": "EGIE3",
+    "period": "2T26",
+    "model": "claude-opus-5-5",
+    "report": {
+      "kind": "trimestral",
+      "title": "EGIE3 2T26: qualidade alta, preço esticado",
+      "summary": "ROE de 30% e caixa líquido, mas P/L de 35x com receita parada há quatro trimestres.",
+      "body_md": "## Resumo\nResultado estável, sem crescimento. A tese de qualidade segue de pé; o preço já embute retomada.\n\n## Resultado do trimestre\n| Indicador | 2T26 | 2T25 | Variação |\n|---|---|---|---|\n| Receita | R$ 10,1 bi | R$ 10,2 bi | −0,6% |\n| Lucro líquido | R$ 1,56 bi | R$ 1,59 bi | −2,1% |\n\n## Checklist\n- [x] Dívida líquida/EBITDA abaixo de 2,5x\n- [ ] Preço abaixo do preço justo\n\n## Conclusão\nCara: manter a posição, sem novos aportes até P/L abaixo de 28x.",
+      "verdict": "cara",
+      "score": 6.8,
+      "fair_price": 38.4,
+      "sources": ["https://www.rad.cvm.gov.br/ENETCONSULTA/frmDownloadDocumento.aspx", "Release de resultados 2T26"]
+    },
+    "metrics": [
+      {"metric": "roic", "value": 0.27, "period_end": "2026-06-30", "period_type": "TTM", "unit": "fração"}
+    ],
+    "alerts": [
+      {"code": "crescimento_parado", "severity": "atencao", "message": "Receita sem crescer há 4 trimestres.",
+       "metric": "revenue_growth", "value": -0.02, "threshold": 0.0, "period_end": "2026-06-30"}
+    ]
+  },
+  {
+    "subject": "Tesouro IPCA+ 2029",
+    "subject_type": "renda_fixa",
+    "period": "3T26",
+    "report": {
+      "title": "Tesouro IPCA+ 2029: manter até o vencimento",
+      "summary": "Taxa contratada de IPCA+7% acima da atual; resgatar antes realiza a marcação a mercado.",
+      "body_md": "## Resumo\nManter até 2029.\n\n## Conclusão\nManter."
+    }
+  }
+]

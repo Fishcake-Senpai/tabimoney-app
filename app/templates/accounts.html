@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% from "_ui.html" import kpi, ranges, hbars, badge %}
+{% block title %}Conta e cartão{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Conta e cartão</h1><div class="sub">Saldos, fatura e movimentações</div></div>
+  <div class="actions"><a class="btn btn-primary" href="/importar">Importar extrato</a></div>
+</div>
+
+{% if not accounts and not transactions %}
+<div class="card empty">
+  <h2>Sem extratos</h2>
+  <p>No app Nubank, exporte o extrato da conta (OFX ou CSV) e a fatura do cartão (CSV).</p>
+  <a class="btn btn-primary" href="/importar">Importar</a>
+</div>
+{% else %}
+{% set last = chart_flow[-1] if chart_flow else none %}
+<section class="kpis">
+  {{ kpi("Saldo em conta", cash|brl, "Último saldo importado", hero=True) }}
+  {% if has_card %}{{ kpi("Fatura atual", card_due|brl, "Cartão de crédito") }}{% endif %}
+  {{ kpi("Receitas no mês", last.in|brl_compact if last else "—", last.m|month_label if last else "") }}
+  {{ kpi("Despesas no mês", last.out|brl_compact if last else "—", "Sem transferências internas") }}
+  {% if last %}{% call kpi("Saldo do mês", last.net|brl_signed, value_tone=last.net|tone) %}Receitas − despesas{% endcall %}{% endif %}
+</section>
+
+{% include "_budget.html" %}
+
+<section class="grid">
+  <article class="card span-8">
+    <div class="card-head"><h2 class="card-title">Receitas e despesas por mês</h2></div>
+    <div class="chart" data-chart="cash-flow"></div>
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Despesas por categoria</h2><span class="card-note">Últimos 3 meses</span></div>
+    {% if categories %}{{ hbars(categories[:9]) }}{% else %}<p class="muted">Sem despesas no período.</p>{% endif %}
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card card-flush span-8">
+    <div class="card-head"><h2 class="card-title">Gasto por categoria, mês a mês</h2><span class="card-note">Clique numa categoria para ver os detalhes · estornos abatem; transferências e investimentos ficam de fora</span></div>
+    {% if trends.categories %}
+    <div class="table-wrap">
+      <table class="data trend" data-sortable>
+        <thead><tr>
+          <th data-sort="text">Categoria</th>
+          {% for m in trends.months %}<th class="num" data-sort="num">{{ m|month_label }}{% if loop.last %}*{% endif %}</th>{% endfor %}
+          <th class="num" data-sort="num" title="{{ trends.last|month_label }} contra a média de {{ trends.base[0]|month_label }}–{{ trends.base[-1]|month_label }}">Último vs média 3M</th>
+          <th class="num" data-sort="num" title="Últimos 3 meses fechados contra os 3 anteriores">3M vs 3M ant.</th>
+        </tr></thead>
+        <tbody>
+        {% for c in trends.categories %}
+          <tr>
+            <td data-v="{{ c.category }}"><a class="cat-link" href="/contas/gastos/{{ c.category|urlencode }}">{{ c.category }}</a></td>
+            {% for value in c["values"] %}
+            <td class="num {{ 'text-2' if loop.last }}" data-v="{{ value }}">{{ value|brl_whole if value else "—" }}</td>
+            {% endfor %}
+            <td class="num {{ (-c.delta)|tone }}" data-v="{{ c.delta }}">{{ ('+' if c.delta > 0 else '') ~ c.delta|brl_whole }}{% if c.delta_pct is not none %}<small> {{ c.delta_pct|pct(0) }}</small>{% endif %}</td>
+            <td class="num {{ (-(c.trend_pct or 0))|tone if c.trend_pct is not none }}" data-v="{{ c.trend_pct if c.trend_pct is not none else '' }}">{{ c.trend_pct|pct(0) }}</td>
+          </tr>
+        {% endfor %}
+          <tr class="total">
+            <td><b>Total</b></td>
+            {% for value in trends.totals %}<td class="num"><b>{{ value|brl_whole }}</b></td>{% endfor %}
+            <td></td><td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote">* mês corrente, ainda incompleto (ritmo de {{ (trends.totals[-1] * trends.pace)|int|brl_compact }} no mês). Vermelho = gastou mais.</p>
+    {% else %}<div class="empty"><p class="muted">Sem gastos nos últimos meses.</p></div>{% endif %}
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">O que mudou</h2><span class="card-note">{{ trends.last|month_label }} vs média de 3 meses</span></div>
+    {% if trends.changes %}
+    <div class="list">
+      {% for c in trends.changes %}
+      <div class="list-row change">
+        <span><a class="cat-link" href="/contas/gastos/{{ c.category|urlencode }}"><b>{{ c.category }}</b></a>
+          <small>{{ c.last|brl_compact }} contra {{ c.avg3|brl_compact }} de média{% if c.drivers %} · {% for t in c.drivers %}{{ t.description.split('|')[-1][:22] }} {{ (-t.amount_cents)|brl_compact }}{{ ", " if not loop.last }}{% endfor %}{% endif %}</small></span>
+        <span class="right {{ (-c.delta)|tone }}"><b>{{ c.delta|brl_signed }}</b>{% if c.delta_pct is not none %}<small>{{ c.delta_pct|pct(0) }}</small>{% else %}<small>novo</small>{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Nenhuma categoria mudou mais de 15% (e R$ 50).</p>{% endif %}
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Contas</h2></div>
+    <div class="list">
+      {% for a in accounts %}
+      <div class="list-row">
+        <span>{{ a.name }}<small>{{ 'Cartão' if a.type == 'CREDIT' else 'Conta' }} · {{ a.as_of|date_br }} · {{ {"pluggy": "Open Finance", "ofx": "OFX", "derived": "calculado", "nubank_csv": "CSV"}.get(a.source, a.source) }}</small></span>
+        <span class="right"><b>{{ (-a.balance if a.type == 'CREDIT' else a.balance)|brl }}</b>{% if a.available is not none %}<small>livre {{ a.available|brl_compact }}{% if a.limit %} de {{ a.limit|brl_compact }}{% endif %}</small>{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+  <article class="card card-flush span-8" id="movimentacoes">
+    <div class="card-head">
+      <h2 class="card-title">Movimentações <span class="card-note" data-count-for="tx">{{ transactions|length }} lançamentos</span></h2>
+      <div class="toolbar">
+        <input type="search" placeholder="Buscar" data-filter="tx" aria-label="Buscar movimentações">
+        <select data-filter-for="tx" aria-label="Categoria">
+          <option value="">Todas as categorias</option>
+          {% for c in transactions|map(attribute="category")|reject("none")|unique|sort %}<option>{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap scroll-y">
+      <table class="data" id="tx" data-sortable>
+        <thead><tr><th data-sort="text">Data</th><th data-sort="text">Descrição</th><th data-sort="text">Categoria</th><th data-sort="text">Conta</th><th class="num" data-sort="num">Valor</th></tr></thead>
+        <tbody>
+        {% for t in transactions %}
+          <tr data-cat="{{ t.category or '' }}">
+            <td data-v="{{ t.transaction_date }}">{{ t.transaction_date|date_br }}</td>
+            <td>{{ t.description[:60] }}{% if t.transfer_with %} <small class="muted">↔ {{ t.transfer_with }}</small>{% endif %}</td>
+            <td class="text-2" data-v="{{ t.category or '' }}">
+              <form method="post" action="/contas/categoria" class="recat">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="transaction_id" value="{{ t.id }}">
+                <select name="category" data-autosubmit aria-label="Categoria de {{ t.description[:40] }}" class="{{ 'is-manual' if t.category_source != 'auto' }}">
+                  <option value="">{{ 'Automática: ' ~ t.auto_category if t.category_source == 'manual' else t.category }}</option>
+                  {% for c in category_options if c != t.category or t.category_source == 'manual' %}<option{% if t.category_source == 'manual' and c == t.category %} selected{% endif %}>{{ c }}</option>{% endfor %}
+                </select>
+              </form>
+              {% if t.category_source == 'regra' %}<small class="muted">regra</small>{% endif %}
+            </td>
+            <td class="muted">{{ t.account_name }}</td>
+            <td class="num {{ 'up' if t.amount_cents > 0 }}" data-v="{{ t.amount_cents }}">{{ t.amount_cents|brl_signed }}{% if t.original_currency %}<small class="muted block">{{ t.original_amount_cents|foreign_money(t.original_currency) }}</small>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+{% endif %}
+{% if accounts or transactions %}
+<section class="grid" id="metas-gastos">
+  <article class="card span-7">
+    <div class="card-head"><h2 class="card-title">Metas de gastos</h2><span class="card-note">Limite mensal por grupo de categorias</span></div>
+    {% if budget_list %}
+    <div class="list">
+      {% for b in budget_list %}
+      <details class="budget-edit">
+        <summary class="list-row">
+          <span><b>{{ b.name }}</b><small>{{ "Todos os gastos do mês" if b.is_total else b.categories|join(", ") }} · aviso em {{ b.alert_pct|pct(0, False) }}{% if b.author == 'agente' %} · ajustada pelo agente{% endif %}</small></span>
+          <span class="right"><b>{{ b.monthly_limit_cents|brl_whole }}</b><small>por mês · editar</small></span>
+        </summary>
+        <form method="post" action="/orcamento" class="form-grid footnote">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="budget_id" value="{{ b.id }}">
+          <div class="form-row">
+            <label class="field">Nome<input name="name" value="{{ b.name }}" maxlength="60" required></label>
+            <label class="field">Limite por mês (R$)<input name="limit" value="{{ (b.monthly_limit_cents|brl)[3:] }}" inputmode="decimal" required></label>
+            <label class="field">Avisar em (%)<input name="alert_pct" value="{{ (b.alert_pct * 100)|round|int }}" inputmode="numeric"></label>
+          </div>
+          <label class="check"><input type="checkbox" name="total" {% if b.is_total %}checked{% endif %}> Meta de todos os gastos do mês</label>
+          <div class="checks">{% for c in spend_categories %}<label class="check"><input type="checkbox" name="categories" value="{{ c }}" {% if c in b.categories %}checked{% endif %}> {{ c }}</label>{% endfor %}</div>
+          <div class="actions"><button class="btn btn-primary" type="submit">Salvar</button></div>
+        </form>
+        <form method="post" action="/orcamento/excluir" class="footnote">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="budget_id" value="{{ b.id }}">
+          <button class="btn btn-ghost" type="submit">Excluir meta</button>
+        </form>
+      </details>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Nenhuma meta ainda. Crie ao lado ou use as sugestões no topo da página.</p>{% endif %}
+  </article>
+  <article class="card span-5">
+    <div class="card-head"><h2 class="card-title">Nova meta</h2></div>
+    <form method="post" action="/orcamento" class="form-grid footnote">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="form-row">
+        <label class="field">Nome<input name="name" maxlength="60" required placeholder="Ex.: Alimentação fora"></label>
+        <label class="field">Limite por mês (R$)<input name="limit" inputmode="decimal" required placeholder="Ex.: 1.200"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="total"> Meta de todos os gastos do mês</label>
+      <div class="checks">{% for c in spend_categories %}<label class="check"><input type="checkbox" name="categories" value="{{ c }}"> {{ c }}</label>{% endfor %}</div>
+      <p class="muted">Cada categoria entra em uma meta só. O aviso dispara ao chegar em 80% do limite ou quando o ritmo do mês aponta estouro.</p>
+      <div><button class="btn btn-primary" type="submit">Criar meta</button></div>
+    </form>
+  </article>
+</section>
+
+<section class="grid" id="regras">
+  <article class="card span-6">
+    <div class="card-head"><h2 class="card-title">Regras de categoria</h2><span class="card-note">Valem para lançamentos antigos e novos</span></div>
+    <form method="post" action="/contas/regras" class="form-grid footnote">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="form-row">
+        <label class="field">Descrição contém<input name="pattern" minlength="3" maxlength="80" required autocomplete="off" placeholder="Ex.: UBER, IFOOD, NETFLIX"></label>
+        <label class="field">Categoria<input name="category" list="category-list" maxlength="40" required autocomplete="off" placeholder="Existente ou nova"></label>
+      </div>
+      <label class="field">Só na conta (opcional)
+        <select name="account_name"><option value="">Todas</option>{% for a in accounts %}<option>{{ a.name }}</option>{% endfor %}</select>
+      </label>
+      <div><button class="btn btn-primary" type="submit">Criar regra</button></div>
+    </form>
+    <datalist id="category-list">{% for c in category_options %}<option value="{{ c }}">{% endfor %}</datalist>
+    <p class="footnote">Ordem: categoria escolhida no lançamento &gt; regra (a de texto mais longo) &gt; categoria automática. Sincronizar de novo não desfaz nenhuma das duas.</p>
+  </article>
+  <article class="card span-6">
+    <div class="card-head"><h2 class="card-title">Regras ativas</h2></div>
+    {% if rules %}
+    <div class="list">
+      {% for r in rules %}
+      <div class="list-row">
+        <span>“{{ r.pattern }}” → <b>{{ r.category }}</b><small>{{ r.account_name or "todas as contas" }} · {{ r.author }}{% if r.note %} · {{ r.note }}{% endif %}</small></span>
+        <form method="post" action="/contas/regras/excluir">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="rule_id" value="{{ r.id }}">
+          <button class="btn btn-ghost" type="submit">Excluir</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Nenhuma. Crie aqui ou peça ao agente (<code>financas gastos regra</code>).</p>{% endif %}
+  </article>
+</section>
+
+<section class="grid" id="categorias">
+  <article class="card span-8">
+    <div class="card-head"><h2 class="card-title">Categorias</h2><span class="card-note">As padrão não podem ser excluídas</span></div>
+    {% macro category_row(c) %}
+      <div class="list-row">
+        <span>{% if c.transactions %}<a class="cat-link" href="/contas/gastos/{{ c.name|urlencode }}"><b>{{ c.name }}</b></a>{% else %}<b>{{ c.name }}</b>{% endif %}
+          {% if c.base %}{{ badge("neutral", "padrão") }}{% else %}{{ badge("ok", "sua") }}{% endif %}
+          <small>{{ c.transactions }} lançamento(s){% if c.manual %} · {{ c.manual }} corrigido(s) à mão{% endif %}{% if c.rules %} · {{ c.rules }} regra(s){% endif %}{% if c.budgets %} · meta {{ c.budgets|join(", ") }}{% endif %}</small></span>
+        {% if not c.base %}
+        <details class="cat-delete">
+          <summary class="btn btn-ghost btn-sm">Excluir</summary>
+          <form method="post" action="/contas/categorias/excluir" class="footnote"
+                data-confirm="Excluir a categoria {{ c.name }}?{% if c.in_use %} Os lançamentos, regras e metas dela vão para o destino escolhido.{% endif %}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="name" value="{{ c.name }}">
+            {% if c.in_use %}
+            <label class="field">Mover o que está nela para
+              <select name="destination">
+                <option value="Outros" selected>Outros</option>
+                <option value="automatica">Categoria automática de cada lançamento</option>
+                {% for o in category_options if o != c.name and o != "Outros" %}<option>{{ o }}</option>{% endfor %}
+              </select>
+            </label>
+            {% endif %}
+            <button class="btn btn-sm btn-danger" type="submit">Confirmar exclusão</button>
+          </form>
+        </details>
+        {% endif %}
+      </div>
+    {% endmacro %}
+    {% set custom = category_overview|rejectattr("base")|list %}
+    {% if custom %}<div class="list">{% for c in custom %}{{ category_row(c) }}{% endfor %}</div>
+    {% else %}<p class="muted">Você ainda não criou nenhuma categoria.</p>{% endif %}
+    <details class="base-cats">
+      <summary class="footnote">Categorias padrão ({{ category_overview|selectattr("base")|list|length }})</summary>
+      <div class="list">{% for c in category_overview if c.base %}{{ category_row(c) }}{% endfor %}</div>
+    </details>
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Nova categoria</h2></div>
+    <form method="post" action="/contas/categorias" class="form-grid footnote">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="field">Nome<input name="name" minlength="2" maxlength="40" required autocomplete="off" placeholder="Ex.: Delivery, Pets, Academia"></label>
+      <p class="muted">Depois é só escolher a categoria nos lançamentos ou criar uma regra para ela. Criar uma que já existe (com outra grafia) não duplica.</p>
+      <div><button class="btn btn-primary" type="submit">Criar categoria</button></div>
+    </form>
+    {% if deleted_categories %}
+    <div class="card-head card-head-sub"><h2 class="card-title">Excluídas</h2></div>
+    <div class="list">
+      {% for d in deleted_categories[:6] %}
+      <div class="list-row">
+        <span>{{ d.name }}<small>{{ d.deleted_at|date_br }}{% if d.moved %} · {{ d.moved }} item(ns) foram para {{ "a automática" if d.moved_to == "automatica" else d.moved_to }}{% endif %}</small></span>
+        <form method="post" action="/contas/categorias/restaurar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="name" value="{{ d.name }}">
+          <button class="btn btn-ghost btn-sm" type="submit">Restaurar</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </article>
+</section>
+{% endif %}
+<script type="application/json" id="data-cash-flow">{{ chart_flow|tojson }}</script>
+{% endblock %}

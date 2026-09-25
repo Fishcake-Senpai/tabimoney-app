@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% from "_ui.html" import badge %}
+{% block title %}Conciliação{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Conciliação</h1><div class="sub">Confere posições e saldos contra as movimentações</div></div>
+</div>
+
+<section class="grid">
+  <article class="card card-flush span-8">
+    <div class="card-head"><h2 class="card-title">Pendências</h2></div>
+    {% if position_alerts or bank_alerts %}
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Item</th><th>Status</th><th>Data</th><th>Observação</th></tr></thead>
+        <tbody>
+        {% for alert in position_alerts %}
+          <tr>
+            <td><b>{{ alert.ticker }}</b> <span class="muted">{{ alert.account_name }}</span></td>
+            <td>{{ badge('err' if alert.status == 'DIVERGENT' else 'warn', 'Divergente' if alert.status == 'DIVERGENT' else 'Histórico incompleto') }}</td>
+            <td class="text-2">{{ alert.as_of_date|date_br }}</td>
+            <td>
+              <form class="toolbar" method="post" action="/conciliacao/nota">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="entity_type" value="position">
+                <input type="hidden" name="entity_key" value="{{ alert.account_name }}|{{ alert.ticker }}">
+                <input type="text" name="note" maxlength="1000" placeholder="Anotar" aria-label="Observação para {{ alert.ticker }}" required>
+                <button class="btn" type="submit">Salvar</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        {% for alert in bank_alerts %}
+          <tr>
+            <td><b>{{ alert.account_name }}</b>{% if alert.difference_cents is not none %} <span class="down">{{ alert.difference_cents|brl_signed }}</span>{% endif %}</td>
+            <td>{{ badge('err' if alert.status == 'DIVERGENT' else 'warn', 'Divergente' if alert.status == 'DIVERGENT' else 'Histórico incompleto') }}</td>
+            <td class="text-2">{{ alert.as_of_date|date_br }}</td>
+            <td>
+              <form class="toolbar" method="post" action="/conciliacao/nota">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="entity_type" value="bank">
+                <input type="hidden" name="entity_key" value="{{ alert.account_name }}">
+                <input type="text" name="note" maxlength="1000" placeholder="Anotar" aria-label="Observação para {{ alert.account_name }}" required>
+                <button class="btn" type="submit">Salvar</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="empty"><p>{{ badge('ok', 'Sem divergências') }}</p></div>{% endif %}
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Observações abertas</h2></div>
+    {% if reconciliation_notes %}
+    <div class="list">
+      {% for note in reconciliation_notes %}
+      <div class="list-row">
+        <span>{{ note.entity_key }}<small>{{ note.note }}</small></span>
+        <form method="post" action="/conciliacao/resolver">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="note_id" value="{{ note.id }}">
+          <button class="btn btn-ghost" type="submit">Resolver</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Nenhuma.</p>{% endif %}
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card card-flush span-8">
+    <div class="card-head"><h2 class="card-title">Transferências entre contas</h2><span class="card-note">Últimos 3 meses · fora de receitas e despesas</span></div>
+    {% if transfer_pairs %}
+    <div class="table-wrap scroll-y">
+      <table class="data">
+        <thead><tr><th>Data</th><th>De</th><th>Para</th><th>Tipo</th><th class="num">Valor</th></tr></thead>
+        <tbody>
+        {% for t in transfer_pairs %}
+          <tr>
+            <td class="text-2">{{ t.transaction_date|date_br }}</td>
+            <td>{{ t.account_name }}</td>
+            <td>{{ t.transfer_with }}</td>
+            <td class="muted">{{ t.category }}</td>
+            <td class="num">{{ (-t.amount_cents)|brl }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="empty"><p class="muted">Nenhum par encontrado. Conecte os dois bancos para conciliar as transferências.</p></div>{% endif %}
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Sem o outro lado</h2></div>
+    {% if transfer_orphans %}
+    <div class="list">
+      {% for t in transfer_orphans[:30] %}
+      <div class="list-row">
+        <span>{{ t.account_name }}<small>{{ t.transaction_date|date_br }} · {{ t.description[:40] }}</small></span>
+        <span class="right"><b class="{{ 'up' if t.amount_cents > 0 }}">{{ t.amount_cents|brl_signed }}</b></span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="footnote">Transferências próprias de ou para uma conta não conectada. Continuam fora de receitas e despesas.</p>
+    {% else %}<p class="muted">Todas conciliadas.</p>{% endif %}
+  </article>
+</section>
+
+<section class="card card-flush">
+  <div class="card-head"><h2 class="card-title">Sincronizações e importações</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Origem</th><th>Início</th><th>Dados até</th><th>Status</th><th class="num">Lidos</th><th class="num">Gravados</th><th>Resumo</th></tr></thead>
+      <tbody>
+      {% for run in recent_runs %}
+        <tr>
+          <td>{{ run.source }}</td>
+          <td class="text-2">{{ run.started_at|date_br }} {{ run.started_at[11:16] }}</td>
+          <td class="muted">{{ run.external_updated_at|date_br }}</td>
+          <td>{{ badge({'success':'ok','partial':'warn','running':'warn','failed':'err'}[run.status], {'success':'Concluída','partial':'Parcial','running':'Em andamento','failed':'Falhou'}[run.status]) }}</td>
+          <td class="num">{{ run.records_read }}</td>
+          <td class="num">{{ run.records_written }}</td>
+          <td class="muted">{{ (run.message or "—")[:90] }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<p class="footnote">Banco local: <code>{{ database_path }}</code></p>
+{% endblock %}

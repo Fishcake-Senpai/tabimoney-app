@@ -8,3 +8,5 @@ __pycache__/
 .superpowers/
 data/
 backups/
+build/
+dist/

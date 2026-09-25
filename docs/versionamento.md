@@ -1,0 +1,65 @@
+# Versionamento e lançamentos
+
+Este guia é para quem mantém o Tabimoney e publica versões, inclusive agentes de IA que mexem no código.
+
+## Onde fica a versão
+
+| Onde | O quê |
+|---|---|
+| `app/__init__.py` | `__version__`, a **única** fonte da versão |
+| `CHANGELOG.md` | O que mudou em cada versão, para quem usa |
+| Tag do git | `vX.Y.Z` no commit do lançamento |
+| App | Rodapé do menu lateral, `financas --version` e a janela do `run.bat` |
+
+## Regras de numeração ([SemVer](https://semver.org/lang/pt-BR/))
+
+`MAIOR.MENOR.CORREÇÃO`, por exemplo `0.9.0`.
+
+- **CORREÇÃO** (`0.9.1`): corrige um erro sem mudar comportamento esperado nem formato de dados.
+- **MENOR** (`0.10.0`): funcionalidade nova, tela nova, comando novo, migração nova da base.
+- **MAIOR** (`1.0.0`, `2.0.0`): quebra algo de quem já usa, como:
+  - um comando da CLI ou um campo do contrato com agentes (`docs/agente-financeiro.md`) removido ou renomeado;
+  - uma base antiga que deixa de abrir sem passo manual.
+
+Enquanto a versão começar com `0.`, o projeto está em desenvolvimento inicial e mudanças que quebram sobem só a
+MENOR. A `1.0.0` marca a primeira versão pública estável para amigos baixarem.
+
+## O changelog
+
+- Toda mudança entra na seção **`[Não lançado]`** do `CHANGELOG.md` no mesmo commit que a implementa.
+- Use os grupos do Keep a Changelog: **Adicionado**, **Alterado**, **Descontinuado**, **Removido**, **Corrigido**, **Segurança**.
+- Escreva para quem usa o app, em português, uma linha por mudança. Detalhe técnico vai no commit.
+
+## Migrações da base
+
+- Mudança no esquema = arquivo novo `migrations/NNN_descricao.sql`, com o número seguinte.
+- Nunca altere uma migração que já foi lançada: quem atualizar perde a mudança.
+- As migrações rodam sozinhas ao abrir o app, e a restauração de backup recusa bases de versão mais nova.
+
+## Como lançar uma versão
+
+1. Confira que `[Não lançado]` descreve tudo o que entra.
+2. Escolha o número pelas regras acima e atualize `__version__` em `app/__init__.py`.
+3. No `CHANGELOG.md`:
+   - renomeie `[Não lançado]` para `[X.Y.Z] - AAAA-MM-DD` e crie uma seção `[Não lançado]` vazia acima dela;
+   - atualize os links de comparação no fim do arquivo.
+4. Teste abrindo o app com uma cópia da base (`financas backup`) e passando pelas telas principais.
+5. Faça o commit `chore(release): vX.Y.Z` e crie a tag: `git tag -a vX.Y.Z -m "Tabimoney X.Y.Z"`.
+6. Rode `build.bat` e confira `dist\Tabimoney.exe --versao`. Abra o exe, clique de novo (tem que reiniciar) e
+   encerre pelo menu.
+7. No GitHub, publique um *Release* da tag com o trecho do changelog e anexe `dist\Tabimoney-X.Y.Z.zip`. É esse
+   arquivo (ou o `.exe`) que vai para os amigos.
+
+## Antes de tornar o repositório público
+
+- **Licença:** escolha uma e crie o `LICENSE`. MIT é a mais simples; AGPL-3.0 obriga quem publicar uma versão
+  modificada como serviço a abrir o código.
+- **Dados pessoais:** confira que nada pessoal está versionado. A base, os backups e os segredos ficam fora do
+  repositório (`%LOCALAPPDATA%`, Credential Manager e `.gitignore`), mas revise exemplos, capturas de tela e o
+  histórico do git:
+  `git log -p | findstr /i "cpf conta saldo"` e busque seu nome, empresa e números de conta.
+- **Links:** troque `SEU-USUARIO` pelos links reais nos rodapés do `CHANGELOG.md`.
+- **README para quem baixa:** requisitos (Windows, Python 3.11+), como rodar (`run.bat`), como conectar o Open
+  Finance e o aviso de que os dados ficam só na máquina.
+- **Fonte e marca:** a Inter é distribuída sob a SIL Open Font License (`app/static/fonts/LICENSE-Inter.txt`).
+  A marca Tabimoney (`manual_marca/`, `app/static/brand/`) é do autor; diga na licença se ela pode ser reutilizada.

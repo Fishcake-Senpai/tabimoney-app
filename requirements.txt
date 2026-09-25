@@ -7,3 +7,4 @@ keyring>=25,<27
 ofxparse>=0.21,<1
 itsdangerous>=2.2,<3
 tzdata>=2024.1,<2027
+openpyxl>=3.1,<4

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from "_ui.html" import kpi, ranges, hbars, delta, sync_buttons %}
+{% block title %}Visão geral{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Olá{% if display_name %}, {{ display_name }}{% endif %}!</h1><div class="sub">Bora organizar as finanças?</div></div>
+  <div class="actions">{{ sync_buttons(csrf_token) }}</div>
+</div>
+
+{% if not has_data %}
+<div class="card empty">
+  <h2>Nenhum dado ainda</h2>
+  <p>Arraste extratos do Nubank e planilhas da B3 para começar.</p>
+  <a class="btn btn-primary" href="/importar">Importar arquivos</a>
+</div>
+{% else %}
+<section class="kpis">
+  {% call kpi("Patrimônio", summary.net_worth|brl, hero=True) %}{{ delta(summary.change_30d, summary.change_30d_pct) }} <span class="muted">em 30 dias</span>{% endcall %}
+  {% call kpi("Ações e FIIs", summary.equity|brl_compact) %}{{ delta(kpis.day_cents, kpis.day_pct) }} <span class="muted">hoje</span>{% endcall %}
+  {{ kpi("Renda fixa", summary.fixed|brl_compact, "CDB, caixinhas, Tesouro") }}
+  {% if summary.pension %}{{ kpi("Previdência", summary.pension|brl_compact, "PGBL/VGBL · último extrato") }}{% endif %}
+  {{ kpi("Caixa", summary.cash|brl_compact, "Saldo em conta") }}
+  {{ kpi("Fatura atual", summary.card_due|brl_compact if summary.card_due is not none else "—",
+         ("Limite livre " ~ summary.card_available|brl_compact) if summary.card_available is not none else "Cartão de crédito") }}
+</section>
+
+<section class="grid">
+  <article class="card span-8">
+    <div class="card-head"><h2 class="card-title">Evolução do patrimônio</h2>{{ ranges("12M") }}</div>
+    <div class="chart" data-chart="net-worth"></div>
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Alocação</h2></div>
+    {% if allocation %}{{ hbars(allocation) }}{% else %}<p class="muted">Sem posições.</p>{% endif %}
+    <div class="card-head"><h2 class="card-title">Metas</h2><a class="link" href="/metas">Onde aportar</a></div>
+    {% if balance.configured %}
+    <dl class="stat-pairs footnote">
+      {% if balance.reserve.target_value is not none %}<div><dt>Reserva</dt><dd class="{{ 'down' if balance.reserve.gap and balance.reserve.gap > 0 }}">{{ balance.reserve.value|brl_compact }} / {{ balance.reserve.target_value|brl_compact }}</dd></div>{% endif %}
+      {% for b in balance.buckets if b.target_pct is not none %}
+      <div><dt>{{ b.label }}</dt><dd class="{{ 'warn' if b.drift is not none and b.drift|abs >= 0.05 }}">{{ b.pct|pct(0, False) }} <small class="muted">meta {{ b.target_pct|pct(0, False) }}</small></dd></div>
+      {% endfor %}
+    </dl>
+    {% else %}<p class="muted footnote">Defina reserva de emergência e a divisão entre renda fixa, variável e internacional em <a class="link" href="/metas">Metas</a>.</p>{% endif %}
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card span-8">
+    <div class="card-head"><h2 class="card-title">Receitas e despesas</h2>
+      <div class="card-note">
+        Gasto no mês <b class="text-2">{{ summary.spend_month|brl_compact if summary.spend_month else "—" }}</b>
+        {% if summary.savings_rate is not none %} · Poupança mês anterior <b class="{{ summary.savings_rate|tone }}">{{ summary.savings_rate|pct(0) }}</b>{% endif %}
+        {% if budget["items"] %} · <a class="link" href="/contas#orcamento">Orçamento {{ budget.total_pct|pct(0, False) }} usado{% if budget.at_risk %}, {{ budget.at_risk }} em risco{% endif %}</a>{% else %} · <a class="link" href="/contas#orcamento">Criar metas de gastos</a>{% endif %}
+      </div>
+    </div>
+    <div class="chart" data-chart="cash-flow"></div>
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Gastos do mês por categoria</h2></div>
+    {% if categories %}{{ hbars(categories) }}{% else %}<p class="muted">Sem despesas neste mês.</p>{% endif %}
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card span-6">
+    <div class="card-head"><h2 class="card-title">Rentabilidade da carteira</h2><a class="link" href="/carteira">Detalhes</a></div>
+    <table class="data bench">
+      <thead><tr><th></th>{% for label in ["1M", "YTD", "12M"] %}<th class="num">{{ 'Ano' if label == 'YTD' else label }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for key, name in [("twr", "Carteira"), ("cdi", "CDI"), ("ibov", "Ibovespa")] %}
+        <tr><td>{{ name }}</td>{% for label in ["1M", "YTD", "12M"] %}{% set v = kpis.returns[label][key] %}<td class="num {{ v|tone if key == 'twr' else '' }}">{{ v|pct }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+  <article class="card span-6">
+    <div class="card-head"><h2 class="card-title">Maiores variações hoje</h2></div>
+    {% if movers %}
+    <div class="list">
+      {% for a in movers %}
+      <a class="list-row" href="/ativo/{{ a.ticker }}">
+        <span class="ticker"><span class="ticker-badge">{{ a.ticker[:4] }}</span><span><b>{{ a.ticker }}</b><small>{{ a.close|brl }}</small></span></span>
+        <span class="right"><span class="{{ a.day_pct|tone }}">{{ a.day_pct|pct }}</span><small>{{ a.day_cents|brl_signed }}</small></span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Atualize o mercado para ver a variação diária.</p>{% endif %}
+  </article>
+</section>
+{% endif %}
+<script type="application/json" id="data-net-worth">{{ chart_series|tojson }}</script>
+<script type="application/json" id="data-cash-flow">{{ chart_flow|tojson }}</script>
+{% endblock %}

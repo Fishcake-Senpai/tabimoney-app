@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "_ui.html" import kpi, hbars %}
+{% block title %}Renda fixa{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Renda fixa</h1><div class="sub">CDB, RDB, caixinhas, LCI/LCA, Tesouro e fundos</div></div>
+  <div class="actions"><a class="btn btn-primary" href="/importar">Importar</a></div>
+</div>
+
+{% if not products %}
+<div class="card empty">
+  <h2>Nenhum título</h2>
+  <p>Importe a Posição da B3, sincronize o Open Finance ou use o modelo CSV para caixinhas.</p>
+  <a class="btn btn-primary" href="/importar">Importar</a>
+</div>
+{% else %}
+<section class="kpis">
+  {% call kpi("Valor bruto", totals.gross|brl, hero=True) %}{{ totals.count }} título(s) · líquido {{ totals.net|brl_compact }}{% endcall %}
+  {% call kpi("Rendimento", totals.gain|brl_signed if totals.gain is not none else "—", value_tone=totals.gain|tone) %}{% if totals.gain_pct is not none %}<span class="{{ totals.gain_pct|tone }}">{{ totals.gain_pct|pct }}</span> sobre o aplicado{% else %}Valor aplicado não informado{% endif %}{% endcall %}
+  {{ kpi("Valor aplicado", totals.invested|brl_compact if totals.invested else "—", "Onde a origem informa") }}
+  {% call kpi("Próximo vencimento", totals.next.maturity|date_br if totals.next else "—") %}{% if totals.next %}{{ totals.next.name }} · {{ totals.next.days_to_maturity }} dias{% else %}Sem vencimentos{% endif %}{% endcall %}
+</section>
+
+<section class="grid">
+  <article class="card card-flush span-8">
+    <div class="card-head"><h2 class="card-title">Títulos</h2></div>
+    <div class="table-wrap">
+      <table class="data" data-sortable>
+        <thead><tr>
+          <th data-sort="text">Produto</th><th data-sort="text">Indexador</th><th data-sort="text">Vencimento</th>
+          <th class="num" data-sort="num">Aplicado</th><th class="num" data-sort="num">Valor bruto</th><th class="num" data-sort="num">Rend.</th>
+        </tr></thead>
+        <tbody>
+        {% for p in products %}
+          <tr>
+            <td data-v="{{ p.name }}"><span class="ticker"><span class="ticker-badge">{{ p.product_type[:3]|upper }}</span><span><b>{{ p.name }}</b><small>{{ p.issuer or p.account }} · {{ p.as_of|date_br }}</small></span></span></td>
+            <td class="text-2">{{ p.indexer or "—" }}{% if p.rate %} {{ p.rate }}{% endif %}</td>
+            <td data-v="{{ p.maturity or '9999' }}">{{ p.maturity|date_br }}{% if p.days_to_maturity is not none and p.days_to_maturity < 90 and p.days_to_maturity >= 0 %} <span class="badge badge-warn badge-plain">{{ p.days_to_maturity }}d</span>{% endif %}</td>
+            <td class="num" data-v="{{ p.invested or '' }}">{{ p.invested|brl }}</td>
+            <td class="num" data-v="{{ p.gross }}">{{ p.gross|brl }}</td>
+            <td class="num {{ p.gain_pct|tone }}" data-v="{{ p.gain_pct if p.gain_pct is not none else '' }}">{{ p.gain_pct|pct }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Por tipo</h2></div>
+    {{ hbars(allocation) }}
+    <div class="card-head"><h2 class="card-title">Análises</h2><a class="link" href="/analises?tipo=renda_fixa">Todas</a></div>
+    {% if reports %}
+    <div class="list">
+      {% for r in reports[:8] %}
+      <a class="list-row" href="/analises/{{ r.id }}"><span>{{ r.subject or r.title }}<small>{{ r.period or "" }} · {{ r.title }}</small></span></a>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted footnote">O agente pode analisar CDBs, Tesouro e caixinhas (relatório com <code>subject_type: "renda_fixa"</code>).</p>{% endif %}
+  </article>
+</section>
+{% endif %}
+{% endblock %}

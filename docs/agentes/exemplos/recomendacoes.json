@@ -1,0 +1,31 @@
+{
+  "period": "3T26",
+  "title": "3T26: menos commodities, mais internacional",
+  "summary": "Reduzir CSN depois da queda de lucro e levar a renda variável internacional até a meta de 35%.",
+  "model": "claude-opus-5-5",
+  "body_md": "## Tese do trimestre\nJuros em queda favorecem bancos e elétricas; commodities seguem pressionadas.\n\n## Como isso encaixa nas metas\n- Renda fixa 20 p.p. acima da meta: os próximos aportes vão todos para renda variável.\n- Internacional em 22% contra meta de 35%.\n\n## Prioridades\n1. Não aportar em CSNA3.\n2. Completar a exposição internacional via SPXI11.",
+  "sources": ["Relatórios trimestrais 2T26 de cada empresa (financas analise listar)"],
+  "changes": [
+    {"action": "reduzir", "ticker": "CSNA3", "target_weight": 0.02, "conviction": 4,
+     "rationale": "Lucro 12M caiu 64% e o payout passou de 200%; dividendo alto não se sustenta."},
+    {"action": "aumentar", "ticker": "SPXI11", "target_weight": 0.45, "conviction": 3,
+     "rationale": "Leva a exposição internacional para a meta de 35% da renda variável."},
+    {"action": "comprar", "ticker": "ITUB4", "name": "Itaú Unibanco", "asset_class": "Ação", "region": "nacional",
+     "target_weight": 0.05, "conviction": 4, "fair_price": 45.0,
+     "rationale": "ROE acima de 20% com P/L abaixo de 9x; complementa SANB11 com mais qualidade."}
+  ],
+  "portfolios": [
+    {
+      "name": "Dividendos com qualidade",
+      "risk_profile": "moderado",
+      "description": "Parecida com a carteira atual, com menos cíclicas e mais previsibilidade de proventos.",
+      "rationale_md": "Mantém **PSSA3** e **ALUP11**, troca CSNA3 por ITUB4 e cumpre a meta internacional.",
+      "items": [
+        {"ticker": "PSSA3", "target_weight": 0.25, "rationale": "Payout alto e ROE acima de 20%."},
+        {"ticker": "ALUP11", "target_weight": 0.2, "rationale": "Receita regulada, dividend yield de 8,7%."},
+        {"ticker": "ITUB4", "target_weight": 0.2, "rationale": "Melhor banco em rentabilidade."},
+        {"ticker": "SPXI11", "target_weight": 0.35, "rationale": "Meta internacional."}
+      ]
+    }
+  ]
+}

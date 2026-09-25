@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_ui.html" import badge %}
+{% block title %}{{ report.ticker or report.subject or "Análise" }} · {{ report.period or "" }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="sub"><a class="link" href="/analises">Análises</a>{% if report.ticker %} / <a class="link" href="/ativo/{{ report.ticker }}">{{ report.ticker }}</a>{% elif report.subject %} / {{ report.subject }}{% endif %}</div>
+    <h1>{{ report.title }}</h1>
+    <div class="sub">{{ report.period or "sem período" }} · {{ {"trimestral": "Análise trimestral"}.get(report.kind, report.kind|capitalize) }} · {{ report.author }}{% if report.model %} ({{ report.model }}){% endif %} · {{ report.created_at|date_br }}</div>
+  </div>
+</div>
+
+<section class="grid">
+  <article class="card span-8 report-full">
+    <div class="verdict-row">
+      {% if report.verdict %}{{ badge({'barata': 'ok', 'justa': 'neutral', 'cara': 'warn'}[report.verdict], report.verdict|capitalize) }}{% endif %}
+      {% if report.score is not none %}<span>Nota <b>{{ report.score|round(1) }}</b>/10</span>{% endif %}
+      {% if report.fair_price_cents %}<span>Preço justo <b>{{ report.fair_price_cents|brl }}</b></span>{% endif %}
+    </div>
+    {% if report.summary %}<p><b>{{ report.summary }}</b></p>{% endif %}
+    {{ report.body_md|md }}
+    {% if report.sources %}
+    <h3>Fontes</h3>
+    <ol class="footnote">{% for s in report.sources %}<li>{% if s is string and s.startswith('http') %}<a class="link" href="{{ s }}" target="_blank" rel="noreferrer">{{ s }}</a>{% else %}{{ s }}{% endif %}</li>{% endfor %}</ol>
+    {% endif %}
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Histórico</h2></div>
+    {% if siblings %}
+    <div class="list">
+      {% for r in siblings %}
+      <a class="list-row{% if r.id == report.id %} is-current{% endif %}" href="/analises/{{ r.id }}">
+        <span>{{ r.period or "—" }} · {{ r.title }}<small>{{ r.author }} · {{ r.created_at|date_br }}</small></span>
+        <span class="right">{% if r.verdict %}{{ badge({'barata': 'ok', 'justa': 'neutral', 'cara': 'warn'}[r.verdict], r.verdict|capitalize) }}{% endif %}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Único relatório deste assunto.</p>{% endif %}
+  </article>
+</section>
+{% endblock %}

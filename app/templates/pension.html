@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% from "_ui.html" import kpi, ranges %}
+{% block title %}Previdência{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Previdência</h1><div class="sub">PGBL e VGBL · lançados a partir do extrato do banco</div></div>
+</div>
+
+{% if summary.plans %}
+<section class="kpis">
+  {% call kpi("Saldo", summary.total|brl, hero=True) %}{{ summary.plans|length }} plano(s) · extrato de {{ summary.as_of|date_br }}{% if summary.net != summary.total %} · líquido {{ summary.net|brl_compact }}{% endif %}{% endcall %}
+  {{ kpi("Contribuído", summary.contributed|brl_compact if summary.contributed is not none else "—", "Total aportado até o extrato") }}
+  {% call kpi("Rendimento", summary.gain|brl_signed if summary.gain is not none else "—", value_tone=summary.gain|tone) %}{% if summary.gain_pct is not none %}<span class="{{ summary.gain_pct|tone }}">{{ summary.gain_pct|pct }}</span> sobre o contribuído{% else %}Informe o total contribuído{% endif %}{% endcall %}
+  {% call kpi("Rentabilidade no período", summary.period_return|pct if summary.period_return is not none else "—", value_tone=summary.period_return|tone) %}{% if summary.period_return is not none %}desde {{ summary.period_start|date_br }} · CDI {{ summary.period_cdi|pct }}{% else %}Precisa de dois extratos com contribuído{% endif %}{% endcall %}
+</section>
+
+<section class="grid">
+  <article class="card span-8">
+    <div class="card-head"><h2 class="card-title">Saldo e contribuições</h2>{{ ranges("ALL") }}</div>
+    <div class="chart" data-chart="pension"></div>
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Planos</h2></div>
+    <div class="list">
+      {% for p in summary.plans %}
+      <div class="list-row">
+        <span>{{ p.name }}<small>{{ p.indexer or "Plano" }}{% if p.rate %} · {{ p.rate }}{% endif %} · {{ p.account }}{% if p.purchase %} · desde {{ p.purchase|date_br }}{% endif %}</small></span>
+        <span class="right"><b>{{ p.gross|brl }}</b>{% if p.gain_pct is not none %}<small class="{{ p.gain_pct|tone }}">{{ p.gain_pct|pct }}</small>{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% else %}
+<div class="card empty">
+  <h2>Nenhum plano lançado</h2>
+  <p>PGBL e VGBL são produtos de seguradora e ficam no Open Insurance, não no Open Finance: a Pluggy não os traz.
+     Abra o extrato da previdência no app do banco e registre o saldo abaixo.</p>
+</div>
+{% endif %}
+
+<section class="grid">
+  <article class="card span-6">
+    <div class="card-head"><h2 class="card-title">Registrar saldo do extrato</h2></div>
+    <form method="post" action="/previdencia" class="form-grid footnote">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if plans %}
+      <label class="field">Plano
+        <select name="product_key">
+          {% for p in plans %}<option value="{{ p.product_key }}">{{ p.name }}</option>{% endfor %}
+          <option value="">Novo plano…</option>
+        </select>
+      </label>
+      {% endif %}
+      <label class="field">Nome do plano{% if plans %} (só para plano novo){% endif %}<input name="name" maxlength="120" autocomplete="off" placeholder="Ex.: Itaú Flexprev PGBL"></label>
+      <div class="form-row">
+        <label class="field">Instituição<input name="institution" maxlength="40" value="Itaú" autocomplete="off"></label>
+        <label class="field">Tipo
+          <select name="plan_type"><option value="">—</option>{% for t in plan_types %}<option>{{ t }}</option>{% endfor %}</select>
+        </label>
+        <label class="field">Tributação
+          <select name="regime"><option value="">—</option>{% for r in regimes %}<option>{{ r }}</option>{% endfor %}</select>
+        </label>
+      </div>
+      <div class="form-row">
+        <label class="field">Data do saldo<input name="as_of_date" type="date" value="{{ today }}" max="{{ today }}" required></label>
+        <label class="field">Início do plano<input name="start_date" type="date" max="{{ today }}"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Saldo bruto<input name="gross" inputmode="decimal" autocomplete="off" placeholder="12.345,67" required></label>
+        <label class="field">Total contribuído<input name="contributed" inputmode="decimal" autocomplete="off" placeholder="Opcional"></label>
+        <label class="field">Saldo líquido de IR<input name="net" inputmode="decimal" autocomplete="off" placeholder="Opcional"></label>
+      </div>
+      <p class="muted">Tipo, tributação e início em branco mantêm o que já está salvo no plano. Lançar de novo na mesma data corrige o saldo.</p>
+      <div><button class="btn btn-primary" type="submit">Registrar</button></div>
+    </form>
+  </article>
+  <article class="card card-flush span-6">
+    <div class="card-head"><h2 class="card-title">Lançamentos</h2></div>
+    {% if entries %}
+    <div class="table-wrap scroll-y">
+      <table class="data">
+        <thead><tr><th>Data</th><th>Plano</th><th class="num">Contribuído</th><th class="num">Saldo</th><th></th></tr></thead>
+        <tbody>
+        {% for e in entries %}
+          <tr>
+            <td class="text-2">{{ e.as_of_date|date_br }}</td>
+            <td>{{ e.name }}{% if e.source != 'manual' %} <span class="muted">· Open Finance</span>{% endif %}</td>
+            <td class="num">{{ e.invested_cents|brl }}</td>
+            <td class="num">{{ e.gross_value_cents|brl }}</td>
+            <td>{% if e.source == 'manual' %}
+              <form method="post" action="/previdencia/excluir">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="entry_id" value="{{ e.id }}">
+                <button class="btn btn-ghost" type="submit" aria-label="Excluir lançamento de {{ e.as_of_date|date_br }}">Excluir</button>
+              </form>
+            {% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="empty"><p class="muted">Nenhum lançamento.</p></div>{% endif %}
+  </article>
+</section>
+<script type="application/json" id="data-pension">{{ summary.history|tojson }}</script>
+{% endblock %}

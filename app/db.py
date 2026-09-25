@@ -16,11 +16,13 @@ REQUIRED_SCHEMA_OBJECTS = {
     "daily_quote", "reconciliation_note", "v_latest_position_per_account",
     "v_portfolio_positions", "v_asset_valuation", "v_portfolio_totals",
     "v_bank_latest_balances", "v_personal_totals", "v_position_reconciliation",
-    "v_bank_balance_reconciliation",
+    "v_bank_balance_reconciliation", "fixed_income_snapshot", "benchmark_quote",
 }
 REQUIRED_SCHEMA_COLUMNS = {
     "sync_run": {"external_updated_at"},
-    "cash_transaction": {"status"},
+    "cash_transaction": {"status", "category", "statement_ref"},
+    "financial_account": {"credit_limit_cents", "available_limit_cents"},
+    "fixed_income_snapshot": {"purchase_date"},
 }
 
 

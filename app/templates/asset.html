@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% from "_ui.html" import kpi, ranges, delta, badge %}
+{% block title %}{{ asset.ticker }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="sub"><a class="link" href="/carteira">Ações e FIIs</a> / {{ asset.asset_class }}</div>
+    {% set company = (ind.profile.company_name if ind and ind.profile.company_name else asset.name) %}
+    <h1>{{ asset.ticker }}{% if company and company|upper != asset.ticker|upper %} <span class="muted">· {{ (company|title)|replace(' S.a.', ' S.A.')|replace(' S/a', ' S/A') if company.isupper() else company }}</span>{% endif %}</h1>
+  </div>
+  <div class="kpi-value tabular">{{ asset.close|brl }} <span class="{{ asset.day_pct|tone }}">{{ asset.day_pct|pct }}</span></div>
+</div>
+
+<section class="kpis">
+  {% call kpi("Posição", asset.value|brl, hero=True) %}{{ asset.qty|quantity }} unidades · {{ asset.weight|pct(1, False) }} da carteira{% endcall %}
+  {% call kpi("Preço médio", asset.average_price|brl) %}Custo {{ asset.cost|brl_compact }}{% if asset.cost_status == 'estimated' %} <span class="warn">estimado</span>{% endif %}{% endcall %}
+  {% call kpi("Resultado", asset.unrealized|brl_signed, value_tone=asset.unrealized|tone) %}<span class="{{ asset.unrealized_pct|tone }}">{{ asset.unrealized_pct|pct }}</span> não realizado{% endcall %}
+  {% call kpi("Proventos", asset.income|brl_compact) %}12M {{ asset.income_12m|brl_compact }} · YoC {{ asset.yoc|pct(2, False) }}{% endcall %}
+  {% call kpi("Faixa 52 semanas", (asset.low52|brl)[3:] ~ " – " ~ (asset.high52|brl)[3:]) %}{{ asset.from_high|pct(1) }} da máxima{% endcall %}
+</section>
+
+<section class="grid">
+  <article class="card span-8">
+    <div class="card-head"><h2 class="card-title">Cotação{% if asset.average_price %} e preço médio{% endif %}</h2>{{ ranges("12M") }}</div>
+    <div class="chart" data-chart="price"></div>
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Retorno do preço</h2></div>
+    <dl class="stat-pairs">
+      <div><dt>1 mês</dt><dd class="{{ asset.r1m|tone }}">{{ asset.r1m|pct }}</dd></div>
+      <div><dt>3 meses</dt><dd class="{{ asset.r3m|tone }}">{{ asset.r3m|pct }}</dd></div>
+      <div><dt>12 meses</dt><dd class="{{ asset.r12m|tone }}">{{ asset.r12m|pct }}</dd></div>
+      <div><dt>Dividend yield 12M</dt><dd>{{ asset.dy|pct(2, False) }}</dd></div>
+      <div><dt>Lucro realizado</dt><dd class="{{ asset.realized|tone }}">{{ asset.realized|brl_signed }}</dd></div>
+      <div><dt>Última cotação</dt><dd>{{ asset.quote_date|date_br }}</dd></div>
+    </dl>
+  </article>
+</section>
+
+{% if ind %}
+{% set v = ind["values"] %}
+<section class="grid" id="fundamentos">
+  <article class="card span-8">
+    <div class="card-head">
+      <h2 class="card-title">Fundamentos <span class="card-note">{{ ind.last_label or "—" }} · 12 meses · preço de hoje</span></h2>
+      {% if reports and reports[0].verdict %}{{ badge({'barata': 'ok', 'justa': 'neutral', 'cara': 'warn'}[reports[0].verdict], reports[0].verdict|capitalize ~ ' pelo agente') }}{% endif %}
+    </div>
+    <dl class="stat-pairs stat-grid">
+      {% for key, meta in indicator_meta.items() if v[key] is not none %}
+      <div title="{{ meta[2] }}"><dt>{{ meta[0] }}</dt><dd class="{{ v[key]|tone if key.endswith('growth') else '' }}">{{ v[key]|indicator(meta[1]) }}</dd></div>
+      {% endfor %}
+      <div><dt>Valor de mercado</dt><dd>{{ ((ind.market_cap or 0) * 100)|int|brl_compact }}</dd></div>
+      {% if ind.ev %}<div><dt>Valor da firma (EV)</dt><dd>{{ (ind.ev * 100)|int|brl_compact }}</dd></div>{% endif %}
+    </dl>
+    {% if agent_metrics %}
+    <dl class="stat-pairs stat-grid footnote">
+      {% for m in agent_metrics %}<div title="{{ m.source }} · {{ m.period_end|date_br }}"><dt>{{ m.metric|replace('_', ' ')|capitalize }}</dt><dd>{{ m.value|metric_value(m.unit) }}</dd></div>{% endfor %}
+    </dl>
+    {% endif %}
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Avisos</h2></div>
+    {% if fund_alerts %}
+    <div class="list">
+      {% for a in fund_alerts %}
+      <div class="list-row">
+        <span>{{ badge({'critico': 'err', 'atencao': 'warn', 'info': 'neutral', 'positivo': 'ok'}[a.severity], {'critico': 'Crítico', 'atencao': 'Atenção', 'info': 'Info', 'positivo': 'Positivo'}[a.severity]) }} {{ a.message }}<small>{{ 'Regra automática' if a.source == 'regras' else a.source|capitalize }}</small></span>
+        <form method="post" action="/alertas/resolver">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="alert_id" value="{{ a.id }}">
+          <input type="hidden" name="back" value="/ativo/{{ asset.ticker }}#fundamentos">
+          <button class="btn btn-ghost" type="submit">Visto</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Nenhum aviso.</p>{% endif %}
+    {% if ind.profile.summary or ind.profile.sector %}
+    <details class="more footnote">
+      <summary>Sobre a empresa</summary>
+      <p><b>{{ ind.profile.company_name }}</b> · {{ ind.profile.sector or "" }}{% if ind.profile.industry %} · {{ ind.profile.industry }}{% endif %}</p>
+      {% if ind.profile.summary %}<p class="prewrap">{{ ind.profile.summary }}</p>{% endif %}
+    </details>
+    {% endif %}
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card span-5">
+    <div class="card-head"><h2 class="card-title">Receita e lucro por trimestre</h2></div>
+    <div class="chart" data-chart="quarters"></div>
+  </article>
+  <article class="card card-flush span-7">
+    <div class="card-head"><h2 class="card-title">Resultados trimestrais</h2><span class="card-note">Trimestre isolado; ROE e alavancagem em 12M</span></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr>
+          <th>Tri.</th>{% if not ind.financial %}<th class="num">Receita</th><th class="num">EBIT</th>{% endif %}
+          <th class="num">Lucro</th>{% if not ind.financial %}<th class="num">Margem</th>{% endif %}
+          <th class="num">ROE 12M</th>{% if not ind.financial %}<th class="num">Dív./EBITDA</th>{% endif %}<th class="num">Dividendos</th>
+        </tr></thead>
+        <tbody>
+        {% for q in quarters %}
+          <tr>
+            <td>{{ q.label }}</td>
+            {% if not ind.financial %}
+            <td class="num">{{ ((q.revenue or 0) * 100)|int|brl_compact if q.revenue is not none else "—" }}</td>
+            <td class="num">{{ ((q.ebit or 0) * 100)|int|brl_compact if q.ebit is not none else "—" }}</td>
+            {% endif %}
+            <td class="num {{ q.net_income|tone }}">{{ ((q.net_income or 0) * 100)|int|brl_compact if q.net_income is not none else "—" }}</td>
+            {% if not ind.financial %}<td class="num">{{ q.q_margin|pct(1) }}</td>{% endif %}
+            <td class="num">{{ q.roe|pct(1, False) }}</td>
+            {% if not ind.financial %}<td class="num">{{ q.net_debt_ebitda|multiple }}</td>{% endif %}
+            <td class="num text-2">{{ (q.dividends_paid * 100)|int|brl_compact if q.dividends_paid and q.dividends_paid > 0 else "—" }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+
+{% endif %}
+
+<section class="grid" id="analise">
+  <article class="card span-8 report-full">
+    {% set r = reports[0] if reports else none %}
+    <div class="card-head">
+      <h2 class="card-title">Análise mais recente{% if r %} <span class="card-note">{{ r.period or "" }} · {{ r.author }}{% if r.model %} ({{ r.model }}){% endif %} · {{ r.created_at|date_br }}</span>{% endif %}</h2>
+      {% if r %}<a class="link" href="/analises/{{ r.id }}">Abrir em página</a>{% endif %}
+    </div>
+    {% if r %}
+    <h3>{{ r.title }}</h3>
+    <div class="verdict-row">
+      {% if r.verdict %}{{ badge({'barata': 'ok', 'justa': 'neutral', 'cara': 'warn'}[r.verdict], r.verdict|capitalize) }}{% endif %}
+      {% if r.score is not none %}<span>Nota <b>{{ r.score|round(1) }}</b>/10</span>{% endif %}
+      {% if r.fair_price_cents %}<span>Preço justo <b>{{ r.fair_price_cents|brl }}</b>{% if asset.close %} <small class="{{ (r.fair_price_cents - asset.close)|tone }}">({{ ((r.fair_price_cents - asset.close) / asset.close)|pct(0) }} vs cotação)</small>{% endif %}</span>{% endif %}
+    </div>
+    {% if r.summary %}<p><b>{{ r.summary }}</b></p>{% endif %}
+    {{ r.body_md|md }}
+    {% if r.sources %}<p class="footnote">Fontes: {% for s in r.sources %}{% if s is string and s.startswith('http') %}<a class="link" href="{{ s }}" target="_blank" rel="noreferrer">{{ loop.index }}</a>{% else %}{{ s }}{% endif %}{{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
+    {% else %}
+    <p class="muted">Nenhuma análise ainda. Peça ao agente a análise trimestral (skill <code>financas-analise-trimestral</code>); o relatório completo aparece aqui e fica guardado no histórico.</p>
+    {% endif %}
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Histórico de análises</h2><span class="card-note">{{ reports|length }}</span></div>
+    {% if reports|length > 1 %}
+    <div class="list">
+      {% for h in reports[1:] %}
+      <a class="list-row" href="/analises/{{ h.id }}">
+        <span>{{ h.period or "—" }} · {{ h.title }}<small>{{ h.author }} · {{ h.created_at|date_br }}</small></span>
+        <span class="right">{% if h.verdict %}{{ badge({'barata': 'ok', 'justa': 'neutral', 'cara': 'warn'}[h.verdict], h.verdict|capitalize) }}{% endif %}{% if h.score is not none %}<small>nota {{ h.score|round(1) }}</small>{% endif %}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Os relatórios de trimestres anteriores aparecem aqui.</p>{% endif %}
+    {% if ind %}
+    <div class="card-head"><h2 class="card-title">Documentos na CVM</h2></div>
+    {% if filings %}
+    <div class="list">
+      {% for f in filings %}
+      <div class="list-row"><span>{{ f.doc_type }} {{ f.period_end|date_br }}<small>entregue {{ f.received_at|date_br }}{% if f.version and f.version > 1 %} · versão {{ f.version }}{% endif %}</small></span>
+        {% if f.link %}<a class="link" href="{{ f.link }}" target="_blank" rel="noreferrer">Abrir</a>{% endif %}</div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">—</p>{% endif %}
+    {% endif %}
+  </article>
+</section>
+
+<section class="card card-flush">
+  <div class="card-head"><h2 class="card-title">Eventos</h2><span class="card-note">{{ events|length }} registro(s)</span></div>
+  {% if events %}
+  <div class="table-wrap scroll-y">
+    <table class="data">
+      <thead><tr><th>Data</th><th>Tipo</th><th class="num">Quantidade</th><th class="num">Valor</th><th>Conta</th><th>Origem</th></tr></thead>
+      <tbody>
+      {% set labels = {"BUY": "Compra", "SELL": "Venda", "DIVIDEND": "Dividendo", "JCP": "JCP", "INCOME": "Rendimento", "SPLIT": "Desdobro", "BONUS": "Bonificação", "OPENING": "Posição inicial", "TRANSFER_IN": "Transferência +", "TRANSFER_OUT": "Transferência −"} %}
+      {% for e in events %}
+        <tr>
+          <td>{{ e.event_date|date_br }}</td>
+          <td>{{ labels.get(e.event_type, e.event_type|title) }}</td>
+          <td class="num">{{ e.quantity_micros|quantity if e.quantity_micros else "—" }}</td>
+          <td class="num">{{ e.amount_cents|brl }}</td>
+          <td class="text-2">{{ e.account_name }}</td>
+          <td class="muted">{{ {"b3": "B3", "b3_mov": "B3 mov.", "pluggy": "Open Finance", "manual": "CSV", "manual_ops": "CSV"}.get(e.source, e.source) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty"><p>Sem operações. Importe a Negociação e a Movimentação da B3 para ter preço médio e proventos.</p></div>{% endif %}
+</section>
+<script type="application/json" id="data-price">{{ chart_price|tojson }}</script>
+<script type="application/json" id="data-quarters">{{ chart_quarters|tojson }}</script>
+{% endblock %}
