@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Manual de conexões · Tabimoney</title>
+<link rel="icon" href="img:mascote-128.png">
+<style>
+@font-face { font-family: "Inter"; font-weight: 100 900; font-display: swap; src: url("font:inter-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Inter"; font-weight: 100 900; font-display: swap; src: url("font:inter-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+A720-A7FF; }
+
+:root {
+  --brand: #22d489; --brand-strong: #00c176; --brand-soft: rgba(34, 212, 137, 0.12); --brand-line: rgba(34, 212, 137, 0.3);
+  --page: #0b0f0e; --surface: #111715; --surface-2: #161e1b; --surface-3: #1d2724;
+  --border: rgba(255, 255, 255, 0.07); --border-strong: rgba(255, 255, 255, 0.13);
+  --text: #f4f6f5; --text-2: #c9d2ce; --muted: #94a3b8;
+  --warn: #f5b942; --warn-soft: rgba(245, 185, 66, 0.1); --down: #ef4444; --down-soft: rgba(239, 68, 68, 0.1);
+  --blue: #4c8dff; --blue-soft: rgba(76, 141, 255, 0.1);
+  --pluggy: #ef294b; --radius: 16px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+body { margin: 0; background: var(--page); color: var(--text); font: 15.5px/1.65 "Inter", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; }
+a { color: var(--brand); text-decoration: none; font-weight: 550; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+code, kbd { font: 500 0.88em/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace; background: var(--surface-3);
+  border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; color: var(--text); white-space: nowrap; }
+b, strong { color: var(--text); font-weight: 650; }
+
+/* ---------- layout */
+.wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+.layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px; max-width: 1180px; margin: 0 auto; padding: 0 24px 96px; }
+nav.toc { position: sticky; top: 24px; align-self: start; padding-top: 40px; font-size: 13.5px; }
+nav.toc .label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin: 18px 0 8px; }
+nav.toc a { display: block; color: var(--text-2); font-weight: 500; padding: 5px 10px; border-radius: 8px; }
+nav.toc a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
+nav.toc a.sub { padding-left: 22px; color: var(--muted); font-size: 13px; }
+main { min-width: 0; }
+
+/* ---------- capa */
+.cover { position: relative; overflow: hidden; border-bottom: 1px solid var(--border);
+  background: radial-gradient(1000px 420px at 85% -10%, rgba(34, 212, 137, 0.18), transparent 60%),
+              radial-gradient(700px 380px at 0% 120%, rgba(34, 212, 137, 0.08), transparent 60%), var(--page); }
+.cover .wrap { max-width: 1180px; display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 40px; align-items: center; padding: 56px 24px 64px; }
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 44px; }
+.brand img { width: 44px; height: 44px; }
+.wordmark { font-weight: 800; font-size: 22px; letter-spacing: -0.03em; }
+.wordmark em { font-style: normal; color: var(--brand); }
+.tagline { display: block; color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; color: var(--brand); background: var(--brand-soft); border: 1px solid var(--brand-line);
+  font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 5px 12px; border-radius: 99px; }
+.cover h1 { font-size: clamp(34px, 5vw, 52px); line-height: 1.05; letter-spacing: -0.04em; margin: 18px 0 16px; font-weight: 800; }
+.cover h1 span { color: var(--brand); }
+.cover p.lead { font-size: 18px; color: var(--text-2); max-width: 580px; margin: 0 0 28px; }
+.cover-meta { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 99px;
+  padding: 7px 14px; font-size: 13px; color: var(--text-2); }
+.chip b { color: var(--text); }
+.mascot { width: 260px; filter: drop-shadow(0 30px 60px rgba(34, 212, 137, 0.25)); }
+
+/* ---------- seções */
+section.part { padding-top: 56px; }
+.part-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.part-tag { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h2 { font-size: 30px; letter-spacing: -0.03em; line-height: 1.15; margin: 4px 0 12px; }
+h3 { font-size: 19px; letter-spacing: -0.02em; margin: 0 0 6px; line-height: 1.3; }
+p { margin: 0 0 14px; color: var(--text-2); }
+.intro { font-size: 16.5px; color: var(--text-2); max-width: 680px; }
+.logo-dot { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: 16px; flex: none; }
+.logo-dot.pluggy { background: rgba(239, 41, 75, 0.14); color: var(--pluggy); border: 1px solid rgba(239, 41, 75, 0.35); }
+.logo-dot.brapi { background: var(--brand-soft); color: var(--brand); border: 1px solid var(--brand-line); }
+.logo-dot.tabi { background: var(--surface-3); border: 1px solid var(--border-strong); }
+.logo-dot.tabi img { width: 26px; }
+.logo-dot.help { background: var(--blue-soft); color: var(--blue); border: 1px solid rgba(76, 141, 255, 0.35); }
+
+/* cartões de visão geral */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 22px 0 8px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; }
+.card h3 { display: flex; align-items: center; gap: 10px; }
+.card p { font-size: 14.5px; margin: 8px 0 0; }
+.badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 99px; letter-spacing: 0.02em; }
+.badge.need { color: var(--brand); background: var(--brand-soft); }
+.badge.opt { color: var(--muted); background: rgba(148, 163, 184, 0.14); }
+
+/* tabela "o que você vai copiar" */
+table.keys { width: 100%; border-collapse: collapse; margin: 18px 0 6px; font-size: 14.5px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+table.keys th { text-align: left; color: var(--muted); font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+table.keys td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-2); }
+table.keys tr:last-child td { border-bottom: 0; }
+table.keys td:first-child { color: var(--text); font-weight: 650; white-space: nowrap; }
+.secret { color: var(--warn); font-size: 12px; font-weight: 700; margin-left: 6px; }
+
+/* passos */
+.step { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 18px; padding: 28px 0 8px; }
+.step::before { content: ""; position: absolute; left: 21px; top: 80px; bottom: -20px; width: 2px; background: linear-gradient(var(--border-strong), transparent); }
+.step:last-of-type::before { display: none; }
+.num { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 17px;
+  background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); position: relative; z-index: 1; }
+.pluggy-part .num { color: var(--pluggy); border-color: rgba(239, 41, 75, 0.45); background: rgba(239, 41, 75, 0.08); }
+.brapi-part .num, .tabi-part .num { color: var(--brand); border-color: var(--brand-line); background: var(--brand-soft); }
+.step ol, .step ul { margin: 6px 0 14px; padding-left: 20px; color: var(--text-2); }
+.step li { margin: 5px 0; }
+.step li::marker { color: var(--muted); font-weight: 600; }
+
+/* capturas */
+figure { margin: 16px 0 8px; }
+.shot { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); }
+.shot .bar { display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-bottom: 1px solid var(--border); background: var(--surface-3); }
+.shot .bar i { width: 10px; height: 10px; border-radius: 50%; background: #3a4642; }
+.shot .bar i:nth-child(1) { background: #ef4444aa; } .shot .bar i:nth-child(2) { background: #f5b942aa; } .shot .bar i:nth-child(3) { background: #22d489aa; }
+.shot .bar span { margin-left: 10px; font: 500 12px ui-monospace, Consolas, monospace; color: var(--muted); }
+.shot img { display: block; width: 100%; height: auto; }
+.shot.narrow { max-width: 520px; }
+figcaption { color: var(--muted); font-size: 13px; margin-top: 10px; padding-left: 2px; }
+figcaption b { color: var(--text-2); }
+
+/* avisos */
+.note { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; padding: 14px 16px; border-radius: 12px; margin: 14px 0;
+  font-size: 14.5px; border: 1px solid; }
+.note p { margin: 0; color: inherit; }
+.note svg { width: 20px; height: 20px; margin-top: 2px; }
+.note.tip { background: var(--brand-soft); border-color: var(--brand-line); color: #c8f5e0; }
+.note.tip svg { stroke: var(--brand); }
+.note.warn { background: var(--warn-soft); border-color: rgba(245, 185, 66, 0.35); color: #f7e2b5; }
+.note.warn svg { stroke: var(--warn); }
+.note.lock { background: var(--blue-soft); border-color: rgba(76, 141, 255, 0.35); color: #d2e1ff; }
+.note.lock svg { stroke: var(--blue); }
+.note b { color: #fff; }
+
+/* botão de endereço com copiar */
+.link-row { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--border-strong); border-radius: 10px; overflow: hidden; margin: 4px 0 12px; }
+.link-row a { padding: 8px 14px; font: 600 13.5px ui-monospace, Consolas, monospace; background: var(--surface-2); }
+.link-row button { border: 0; border-left: 1px solid var(--border-strong); background: var(--surface-3); color: var(--text-2); cursor: pointer;
+  font: 600 12.5px "Inter", sans-serif; padding: 8px 12px; }
+.link-row button:hover { color: var(--brand); }
+
+/* perguntas */
+details.faq { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin: 10px 0; }
+details.faq summary { cursor: pointer; padding: 14px 18px; font-weight: 650; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq summary::after { content: "+"; color: var(--muted); font-weight: 400; font-size: 20px; line-height: 1; }
+details.faq[open] summary::after { content: "−"; }
+details.faq > div { padding: 0 18px 14px; color: var(--text-2); font-size: 14.5px; }
+details.faq > div p { margin: 0 0 8px; }
+.err { display: block; font: 500 13px/1.5 ui-monospace, Consolas, monospace; color: #fca5a5; background: var(--down-soft);
+  border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 8px 12px; margin: 4px 0 10px; }
+
+.done { text-align: center; padding: 48px 24px 8px; }
+.done img { width: 110px; }
+.done h2 { margin-top: 12px; }
+footer { color: var(--muted); font-size: 12.5px; text-align: center; padding: 32px 24px 48px; border-top: 1px solid var(--border); }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 16px 72px; }
+  nav.toc { display: none; }
+  .cover .wrap { grid-template-columns: minmax(0, 1fr); padding: 40px 16px 48px; }
+  .mascot { width: 150px; order: -1; }
+  .brand { margin-bottom: 28px; }
+  .step { grid-template-columns: 34px minmax(0, 1fr); gap: 12px; }
+  .num { width: 34px; height: 34px; font-size: 14px; }
+  .step::before { left: 16px; top: 66px; }
+  table.keys td:first-child { white-space: normal; }
+}
+
+/* impressão / salvar em PDF (Ctrl+P) */
+@media print {
+  @page { size: A4; margin: 14mm 14mm 16mm; }
+  :root { --page: #fff; --surface: #f6f8f7; --surface-2: #f1f4f3; --surface-3: #e9eeec; --text: #0e1a16; --text-2: #34423d; --muted: #66756f;
+    --border: #dfe6e3; --border-strong: #cfd9d5; }
+  body { font-size: 11pt; background: #fff; }
+  nav.toc, .link-row button { display: none; }
+  .layout { display: block; padding: 0; }
+  .cover { background: #0b0f0e; color: #f4f6f5; border: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; page-break-after: always; }
+  .cover p.lead, .chip { color: #c9d2ce; } .chip { background: #111715; border-color: #243029; } .chip b { color: #fff; }
+  .shot { box-shadow: none; } .step, figure, .note, details.faq, table.keys, .card { break-inside: avoid; }
+  section.part { break-before: page; padding-top: 0; }
+  details.faq > div { display: block; }
+  .note.tip { color: #0f5132; } .note.warn { color: #664d03; } .note.lock { color: #1e3a8a; } .note b { color: inherit; }
+  a { color: #0a8a57; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+
+<header class="cover">
+  <div class="wrap">
+    <div>
+      <div class="brand">
+        <img src="img:mascote-128.png" alt="">
+        <div><span class="wordmark">Tabi<em>money</em></span><span class="tagline">Finanças sérias (mais ou menos)</span></div>
+      </div>
+      <span class="eyebrow">Manual de conexões</span>
+      <h1>Seus bancos e a bolsa<br><span>no Tabimoney</span></h1>
+      <p class="lead">Passo a passo para criar as chaves do <b>Meu Pluggy</b> (Open Finance) e da <b>brapi</b> (cotações) e colocá-las no app. Sem programar nada.</p>
+      <div class="cover-meta">
+        <span class="chip">⏱ <b>15 a 20 minutos</b></span>
+        <span class="chip">💸 <b>Gratuito</b></span>
+        <span class="chip">🔒 Chaves guardadas <b>só no seu PC</b></span>
+        <span class="chip">Tabimoney <b>{{VERSAO}}</b></span>
+      </div>
+    </div>
+    <img class="mascot" src="img:mascote.png" alt="Mascote do Tabimoney">
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Sumário">
+    <div class="label">Sumário</div>
+    <a href="#visao">Antes de começar</a>
+    <div class="label">Meu Pluggy</div>
+    <a class="sub" href="#p1">1. Criar a conta</a>
+    <a class="sub" href="#p2">2. Conectar os bancos</a>
+    <a class="sub" href="#p3">3. Criar sua aplicação</a>
+    <a class="sub" href="#p4">4. Client ID e Secret</a>
+    <a class="sub" href="#p5">5. Ligar o Meu Pluggy</a>
+    <a class="sub" href="#p6">6. Copiar o Item ID</a>
+    <div class="label">brapi</div>
+    <a class="sub" href="#b1">1. Criar a conta</a>
+    <a class="sub" href="#b2">2. Copiar a chave</a>
+    <div class="label">Tabimoney</div>
+    <a class="sub" href="#t1">1. Colar as chaves</a>
+    <a class="sub" href="#t2">2. Sincronizar</a>
+    <div class="label">Ajuda</div>
+    <a href="#problemas">Se algo der errado</a>
+  </nav>
+
+  <main>
+    <!-- ================================================================ visão geral -->
+    <section class="part" id="visao">
+      <div class="part-tag">Antes de começar</div>
+      <h2>O que você vai conectar</h2>
+      <p class="intro">O Tabimoney roda só no seu computador. Para buscar os dados sozinho, ele precisa de duas autorizações: uma para ler os bancos e outra para ler as cotações da bolsa.</p>
+      <div class="cards">
+        <div class="card">
+          <h3><span class="logo-dot pluggy">P</span> Meu Pluggy <span class="badge need">recomendado</span></h3>
+          <p>Lê saldos, extrato, cartão e investimentos dos seus bancos pelo <b>Open Finance</b>, o sistema oficial do Banco Central. Você autoriza cada banco no app dele; ninguém recebe sua senha.</p>
+        </div>
+        <div class="card">
+          <h3><span class="logo-dot brapi">b</span> brapi <span class="badge opt">opcional</span></h3>
+          <p>Traz o preço diário de ações, FIIs e ETFs e o Ibovespa. Sem ela, só alguns ativos têm cotação automática; o resto você pode importar à mão.</p>
+        </div>
+      </div>
+      <p>No fim você vai ter <b>quatro informações</b> para colar no Tabimoney:</p>
+      <table class="keys">
+        <thead><tr><th>Informação</th><th>Onde pegar</th><th>Parece com</th></tr></thead>
+        <tbody>
+          <tr><td>Client ID</td><td>Dashboard Pluggy › Aplicações › a aplicação que você criar</td><td><code>1a2b3c4d-…</code> (código longo)</td></tr>
+          <tr><td>Client Secret <span class="secret">SEGREDO</span></td><td>Mesmo lugar, no ícone de olho</td><td>código longo</td></tr>
+          <tr><td>Item ID (um por banco)</td><td>Dashboard Pluggy › sua aplicação › ▷ › item MeuPluggy</td><td><code>1a2b3c4d-5e6f-…</code> (36 caracteres)</td></tr>
+          <tr><td>Token brapi <span class="secret">SEGREDO</span></td><td>brapi.dev › Painel da API › Chave da API</td><td>código com letras e números</td></tr>
+        </tbody>
+      </table>
+      <div class="note lock">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+        <p><b>Guarde os segredos como senha.</b> Não mande o Client Secret nem o token da brapi por WhatsApp ou e-mail, nem para quem te passou o app. O Tabimoney guarda esses dois no <b>Gerenciador de Credenciais do Windows</b>, e eles nunca saem do seu computador.</p>
+      </div>
+      <div class="note tip">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z"/></svg>
+        <p><b>Dica:</b> deixe um bloco de notas aberto e cole ali cada código assim que copiar. No fim, é só passar para o Tabimoney e apagar o bloco de notas.</p>
+      </div>
+    </section>
+
+    <!-- ================================================================ meu pluggy -->
+    <section class="part pluggy-part" id="pluggy">
+      <div class="part-head"><span class="logo-dot pluggy">P</span><span class="part-tag">Parte 1 · Open Finance</span></div>
+      <h2>Meu Pluggy</h2>
+      <p class="intro">Aqui você usa dois sites da mesma empresa. No <b>Meu Pluggy</b> você conecta os bancos. No <b>Dashboard Pluggy</b> você pega as chaves para o Tabimoney ler esses bancos.</p>
+
+      <div class="step" id="p1">
+        <div class="num">1</div>
+        <div>
+          <h3>Crie sua conta no Meu Pluggy</h3>
+          <p>Abra o site e clique em <b>Criar conta grátis</b> (<i>Create free account</i>). Use seu e-mail pessoal.</p>
+          <div class="link-row"><a href="https://meu.pluggy.ai" target="_blank" rel="noreferrer">meu.pluggy.ai</a><button type="button" data-copy="https://meu.pluggy.ai">Copiar</button></div>
+          <figure>
+            <div class="shot"><div class="bar"><i></i><i></i><i></i><span>meu.pluggy.ai</span></div><img src="img:01-meupluggy-inicio.png" alt="Página inicial do Meu Pluggy com o botão Create free account"></div>
+            <figcaption>Página inicial. Se estiver em inglês, dá para trocar para <b>PT</b> no topo.</figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="step" id="p2">
+        <div class="num">2</div>
+        <div>
+          <h3>Conecte seus bancos</h3>
+          <ol>
+            <li>No menu do Meu Pluggy, abra <b>Conexões</b>.</li>
+            <li>Clique em <b>+ Nova conexão</b> e escolha o banco (Nubank, Itaú, Inter, BB…).</li>
+            <li>Você é levado ao app ou site do banco para <b>autorizar o compartilhamento</b>. Confirme e volte.</li>
+            <li>Repita para cada banco que quiser ver no Tabimoney.</li>
+          </ol>
+          <figure>
+            <div class="shot"><div class="bar"><i></i><i></i><i></i><span>meu.pluggy.ai › Conexões</span></div><img src="img:02-meupluggy-conexoes.png" alt="Tela Data Passport com o botão Nova conexão"></div>
+            <figcaption>Em <b>Conexões</b> aparecem os bancos já ligados (“2 ativas” no exemplo).</figcaption>
+          </figure>
+          <div class="note tip">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z"/></svg>
+            <p>A autorização do Open Finance vale por um prazo definido pelo banco, geralmente 12 meses. Quando vencer, o Meu Pluggy avisa e você renova ali mesmo. As chaves no Tabimoney continuam as mesmas.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step" id="p3">
+        <div class="num">3</div>
+        <div>
+          <h3>Crie a sua aplicação no Dashboard Pluggy</h3>
+          <p>Entre no painel com o <b>mesmo e-mail</b> do Meu Pluggy (se pedir cadastro, crie com esse e-mail).</p>
+          <div class="link-row"><a href="https://dashboard.pluggy.ai" target="_blank" rel="noreferrer">dashboard.pluggy.ai</a><button type="button" data-copy="https://dashboard.pluggy.ai">Copiar</button></div>
+          <ol>
+            <li>No menu lateral, clique em <b>Aplicações</b>.</li>
+            <li>Clique no botão vermelho <b>Novo</b>, ao lado do título.</li>
+            <li>Dê um nome fácil de reconhecer, por exemplo <b>Tabimoney</b>, e confirme.</li>
+            <li>A sua aplicação aparece na lista <b>Aplicações de Desenvolvimento</b>. Daqui em diante, use sempre ela.</li>
+          </ol>
+          <figure>
+            <div class="shot"><div class="bar"><i></i><i></i><i></i><span>dashboard.pluggy.ai › Aplicações</span></div><img src="img:03-dashboard-aplicacoes.png" alt="Dashboard Pluggy, página Aplicações, com o botão Novo"></div>
+            <figcaption>O botão <b>Novo</b> fica à direita do título <b>Aplicações</b>. Na captura, a lista ainda só tem a <i>Pluggy Demo App</i>; depois de criar, a sua aparece ali também. Os avisos amarelos no topo (conectores fora do ar, período de teste) não atrapalham este passo a passo.</figcaption>
+          </figure>
+          <div class="note warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+            <p><b>Não use a Pluggy Demo App</b>, que já vem pronta na lista. Ela é só uma demonstração da Pluggy. As chaves e os itens do Tabimoney têm que ser da aplicação que você criou.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step" id="p4">
+        <div class="num">4</div>
+        <div>
+          <h3>Copie o Client ID e o Client Secret da sua aplicação</h3>
+          <p>Na lista de aplicações, olhe a linha da aplicação que você criou (<b>Tabimoney</b>, se usou esse nome):</p>
+          <ol>
+            <li><b>Client ID:</b> clique no ícone de copiar (dois quadradinhos) ao lado do código e cole no bloco de notas.</li>
+            <li><b>Client Secret:</b> clique no <b>olho</b> para revelar e copie o código inteiro. Ele é um segredo.</li>
+          </ol>
+          <figure>
+            <div class="shot"><div class="bar"><i></i><i></i><i></i><span>Aplicações › sua aplicação</span></div><img src="img:04-demo-app-credenciais.png" alt="Linha de uma aplicação com Client ID e Client Secret"></div>
+            <figcaption>Toda aplicação tem esta linha, com <b>Client ID</b>, <b>Client Secret</b> e os botões ▷ e engrenagem. A captura é da Pluggy Demo App, com o Client ID do autor coberto. Na sua, o nome é o que você deu, e o código aparece completo.</figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="step" id="p5">
+        <div class="num">5</div>
+        <div>
+          <h3>Ligue o Meu Pluggy à sua aplicação</h3>
+          <p>Este passo deixa o Tabimoney ler os bancos que você conectou no passo 2.</p>
+          <ol>
+            <li>Na linha da <b>sua aplicação</b>, clique no botão <b>▷</b>. Abre a página de conexões dela.</li>
+            <li>Clique em <b>+ Conectar Conta</b>.</li>
+            <li>Na busca, digite <kbd>meu</kbd> e escolha <b>MeuPluggy</b>.</li>
+            <li>Entre com a sua conta do Meu Pluggy e escolha o banco que quer compartilhar.</li>
+            <li>Para mais de um banco, repita: cada banco vira um item <b>MeuPluggy</b> na lista da esquerda.</li>
+          </ol>
+          <figure>
+            <div class="shot"><div class="bar"><i></i><i></i><i></i><span>sua aplicação › ▷</span></div><img src="img:05-demo-conectar-conta.png" alt="Página de conexões da aplicação com o botão Conectar Conta e a lista de itens conectados"></div>
+            <figcaption>Página de conexões da aplicação. O botão <b>Conectar Conta</b> fica no canto superior direito, e os itens conectados aparecem à esquerda. Na captura, o título e a etiqueta mostram a aplicação de demonstração; na sua, aparece o nome que você deu.</figcaption>
+          </figure>
+          <figure>
+            <div class="shot narrow"><div class="bar"><i></i><i></i><i></i><span>Selecione a instituição</span></div><img src="img:06-conector-meupluggy.png" alt="Busca de instituição com MeuPluggy como primeiro resultado"></div>
+            <figcaption>Digite <b>meu</b> e escolha <b>MeuPluggy</b>, o primeiro da lista. Não escolha o seu banco direto aqui: a conexão com o banco já foi feita no Meu Pluggy.</figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="step" id="p6">
+        <div class="num">6</div>
+        <div>
+          <h3>Copie o Item ID de cada banco</h3>
+          <ol>
+            <li>Na página de conexões da sua aplicação (a do passo 5), clique no item conectado, à esquerda.</li>
+            <li>Acima do nome aparece um código pequeno com um ícone de copiar. Esse é o <b>Item ID</b>.</li>
+            <li>Copie e anote de qual banco ele é. Faça o mesmo para cada item.</li>
+          </ol>
+          <figure>
+            <div class="shot"><div class="bar"><i></i><i></i><i></i><span>sua aplicação › item</span></div><img src="img:07-item-conectado.png" alt="Item conectado com o código do Item ID acima do nome"></div>
+            <figcaption>O exemplo mostra o <b>Pluggy Bank</b>, um banco de teste. No seu caso o nome será <b>MeuPluggy</b>, com os dados do seu banco.</figcaption>
+          </figure>
+          <figure>
+            <div class="shot narrow"><div class="bar"><i></i><i></i><i></i><span>Item ID</span></div><img src="img:08-item-id.png" alt="Detalhe do Item ID acima do nome do item"></div>
+            <figcaption>O Item ID tem o formato <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code> (36 caracteres).</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ brapi -->
+    <section class="part brapi-part" id="brapi">
+      <div class="part-head"><span class="logo-dot brapi">b</span><span class="part-tag">Parte 2 · Cotações · opcional</span></div>
+      <h2>brapi</h2>
+      <p class="intro">Se você não tem ações, FIIs ou ETFs, pode pular esta parte. O CDI vem do Banco Central e não precisa de chave.</p>
+
+      <div class="step" id="b1">
+        <div class="num">1</div>
+        <div>
+          <h3>Crie sua conta na brapi</h3>
+          <p>Cadastre-se no site. O <b>plano gratuito</b> basta para o Tabimoney.</p>
+          <div class="link-row"><a href="https://brapi.dev" target="_blank" rel="noreferrer">brapi.dev</a><button type="button" data-copy="https://brapi.dev">Copiar</button></div>
+        </div>
+      </div>
+
+      <div class="step" id="b2">
+        <div class="num">2</div>
+        <div>
+          <h3>Copie a chave da API</h3>
+          <p>No menu lateral, abra <b>Painel da API</b>. No campo <b>Chave da API</b>, clique no botão de copiar, à direita, e cole no bloco de notas.</p>
+          <figure>
+            <div class="shot"><div class="bar"><i></i><i></i><i></i><span>brapi.dev › Painel da API</span></div><img src="img:10-brapi-painel.png" alt="Painel da API da brapi com o campo Chave da API"></div>
+            <figcaption>O botão de copiar fica à direita do campo <b>Chave da API</b>. “API conectada” no topo indica que a chave está ativa.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ tabimoney -->
+    <section class="part tabi-part" id="tabimoney">
+      <div class="part-head"><span class="logo-dot tabi"><img src="img:mascote-128.png" alt=""></span><span class="part-tag">Parte 3 · No app</span></div>
+      <h2>Colocar no Tabimoney</h2>
+      <p class="intro">Abra o Tabimoney: dois cliques no <code>Tabimoney.exe</code>. O app abre no navegador.</p>
+
+      <div class="step" id="t1">
+        <div class="num">1</div>
+        <div>
+          <h3>Cole as chaves em Configurações</h3>
+          <ol>
+            <li>No menu lateral, clique em <b>Configurações</b>.</li>
+            <li>No quadro <b>Open Finance · Meu Pluggy</b>, cole:
+              <ul>
+                <li><b>Client ID</b> e <b>Client Secret</b>, do passo 4;</li>
+                <li><b>Item IDs</b>, do passo 6. Se tiver mais de um, separe com vírgula: <code>id-do-nubank, id-do-itau</code>.</li>
+              </ul>
+            </li>
+            <li>No quadro <b>Mercado · brapi e Banco Central</b>, cole o <b>Token brapi</b>. Deixe marcado <i>Atualizar cotações após 19h30</i> se quiser a atualização automática.</li>
+            <li>Clique em <b>Salvar</b>, no fim da página.</li>
+          </ol>
+          <figure>
+            <div class="shot"><div class="bar"><i></i><i></i><i></i><span>127.0.0.1:8765 › Configurações</span></div><img src="img:09-tabimoney-configuracoes.png" alt="Configurações do Tabimoney com Client ID, Client Secret e Item IDs"></div>
+            <figcaption>Depois de salvar, os campos de segredo ficam vazios (“Em branco mantém o salvo”) e o topo mostra <b>Configurada</b>. Com eles em branco, o que já foi salvo continua valendo. Os Item IDs e as contas do autor estão cobertos na captura.</figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="step" id="t2">
+        <div class="num">2</div>
+        <div>
+          <h3>Sincronize pela primeira vez</h3>
+          <ol>
+            <li>Vá para a <b>Visão geral</b>.</li>
+            <li>Clique em <b>Open Finance</b> para puxar contas, cartão e investimentos. A primeira vez leva de alguns segundos a um minuto.</li>
+            <li>Clique em <b>Atualizar mercado</b> para buscar as cotações e o CDI.</li>
+            <li>Em <b>Configurações</b>, abaixo dos Item IDs, aparecem as contas encontradas. Confira se estão todos os bancos.</li>
+          </ol>
+          <div class="note tip">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z"/></svg>
+            <p>O Meu Pluggy atualiza os bancos <b>uma vez por dia</b>. Clicar em <b>Open Finance</b> várias vezes no mesmo dia não traz lançamentos novos antes disso.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ problemas -->
+    <section class="part" id="problemas">
+      <div class="part-head"><span class="logo-dot help">?</span><span class="part-tag">Ajuda</span></div>
+      <h2>Se algo der errado</h2>
+      <p class="intro">As mensagens aparecem no topo da página do Tabimoney depois de sincronizar.</p>
+
+      <details class="faq" open>
+        <summary>“Credenciais Pluggy inválidas ou sem permissão para essa conexão.”</summary>
+        <div><p>O Client ID ou o Client Secret está errado. Volte ao <a href="#p4">passo 4</a>, copie de novo (no Secret, revele com o olho antes) e cole em Configurações. Cuidado com espaços no começo ou no fim.</p></div>
+      </details>
+      <details class="faq">
+        <summary>“A Pluggy recusou o acesso. Confira o Item ID e as permissões da aplicação.”</summary>
+        <div><p>O Item ID não pertence à aplicação cujo Client ID está no Tabimoney. Isso acontece quando o item foi conectado em outra aplicação (por exemplo, na Pluggy Demo App) ou foi apagado. Confira se o Client ID, o Client Secret e os Item IDs são todos da <b>mesma aplicação, a que você criou</b>. Se preciso, refaça o <a href="#p5">passo 5</a> nela e copie o Item ID novo.</p></div>
+      </details>
+      <details class="faq">
+        <summary>“O Item ID do Meu Pluggy precisa ser um UUID válido.”</summary>
+        <div><p>O que foi colado não é um Item ID. Ele tem 36 caracteres no formato <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>. Se forem vários, separe só com vírgula.</p></div>
+      </details>
+      <details class="faq">
+        <summary>“A Pluggy limitou as consultas. Tente novamente mais tarde.”</summary>
+        <div><p>Foram muitas sincronizações seguidas. Espere alguns minutos. Os dados já salvos continuam no app.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Um banco parou de atualizar</summary>
+        <div><p>A autorização do Open Finance desse banco provavelmente venceu ou foi revogada. Abra o <a href="https://meu.pluggy.ai" target="_blank" rel="noreferrer">Meu Pluggy</a> › Conexões e renove. Não precisa mexer no Tabimoney.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Cotações: “limite de consultas brapi atingido” ou “o plano/token brapi não permite essa consulta”</summary>
+        <div><p>O plano gratuito tem limite de consultas por mês e não cobre todos os ativos. Tente no dia seguinte. Para um ativo que a brapi não traz, use em <b>Importar</b> o modelo CSV de cotações, ou a Posição B3 com o preço de fechamento.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Mostrei ou mandei um segredo sem querer</summary>
+        <div><p>Troque o segredo. No Dashboard Pluggy, abra as configurações da sua aplicação (ícone de engrenagem) e procure a opção de gerar um novo Client Secret; se não encontrar, peça ao suporte da Pluggy. Na brapi, crie uma chave nova e apague a antiga. Depois, cole os novos em Configurações do Tabimoney e salve.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Quero tirar as chaves do computador</summary>
+        <div><p>Em Configurações, marque <b>Remover credenciais Pluggy</b> e/ou <b>Remover token brapi</b> e salve. Para apagar também a conexão, remova os itens no Dashboard Pluggy e as conexões no Meu Pluggy.</p></div>
+      </details>
+
+      <div class="done">
+        <img src="img:mascote.png" alt="">
+        <h2>Pronto! Finanças conectadas.</h2>
+        <p>Agora é só abrir o Tabimoney de vez em quando. O resto ele faz sozinho (mais ou menos).</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer>Tabimoney {{VERSAO}} · Manual de conexões · Meu Pluggy e brapi são serviços de terceiros; telas e nomes podem mudar com o tempo.</footer>
+
+<script>
+document.querySelectorAll("button[data-copy]").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    var done = function () { var t = btn.textContent; btn.textContent = "Copiado!"; setTimeout(function () { btn.textContent = t; }, 1400); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(btn.dataset.copy).then(done, function () {}); }
+  });
+});
+</script>
+</body>
+</html>

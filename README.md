@@ -62,8 +62,15 @@ Se algo der errado:
 1. Rode `run.bat` uma vez, para criar o `.venv`.
 2. Rode `build.bat`. Leva de 1 a 3 minutos e gera:
    - `dist\Tabimoney.exe` (cerca de 23 MB): pode mandar direto;
-   - `dist\Tabimoney-<versão>.zip`: o exe mais o `LEIA-ME.txt`, para quando o WhatsApp ou o e-mail recusar o
-     `.exe`.
+   - `dist\Manual-de-conexoes.html`: o manual ilustrado que ensina a criar as chaves do Meu Pluggy e da brapi e a
+     colar no app. É um arquivo só, com imagens e fonte embutidas, e abre offline;
+   - `dist\Tabimoney-<versão>.zip`: o exe, o `LEIA-ME.txt` e o manual. É isso que vai para os amigos.
+
+O manual é gerado a partir de `packaging\manual\manual.html`. As capturas em `packaging\manual\imagens\` já
+estão com os dados pessoais cobertos. Para trocar as capturas, tire as novas, rode
+`.venv\Scripts\python.exe packaging\manual
+edigir.py <pasta-das-capturas>` (ajuste as áreas em `SHOTS` se
+mudarem) e confira as imagens antes de commitar. Nunca versione as capturas originais.
 
 O `packaging\tabimoney.spec` define o que vai dentro do exe: templates, arquivos estáticos, migrações, skills
 e docs da IA. Arquivo novo que o app precise ler em tempo de execução tem que entrar na lista `datas` desse
@@ -103,8 +110,8 @@ O agendador diário de preços roda enquanto o aplicativo estiver aberto. Por pa
 ## Conectar os bancos pelo Meu Pluggy
 
 1. Crie uma conta pessoal no [Meu Pluggy](https://meu.pluggy.ai) e conecte cada banco (ex.: Nubank e Itaú) pelo fluxo de consentimento do Open Finance.
-2. Siga o [guia oficial de acesso via API](https://meu.pluggy.ai/api-guide): no Dashboard Pluggy, conecte o item do Meu Pluggy na aplicação demo e obtenha o `Client ID`, o `Client Secret` e o `Item ID` proxy de cada conexão.
-3. Abra **Configurações** no aplicativo, informe esses valores (um Item ID por linha) e salve. A instituição de cada item é reconhecida pelo código do banco da conta.
+2. No [Dashboard Pluggy](https://dashboard.pluggy.ai), em **Aplicações › Novo**, crie a sua aplicação (ex.: *Tabimoney*). Não use a *Pluggy Demo App*. Na linha da sua aplicação, copie o `Client ID` e o `Client Secret`. Depois, clique em ▷, use **Conectar Conta › MeuPluggy** para cada banco e copie o `Item ID` de cada item. O passo a passo ilustrado está no manual de conexões (`dist\Manual-de-conexoes.html`, gerado pelo `build.bat`, e dentro do zip de distribuição).
+3. Abra **Configurações** no aplicativo, informe esses valores (Item IDs separados por vírgula) e salve. Client ID, Secret e Item IDs têm que ser da mesma aplicação. A instituição de cada item é reconhecida pelo código do banco da conta.
 4. No painel, escolha **Open Finance**. Cada item sincroniza separadamente: um item com falha não impede os demais.
 
 Client ID, Client Secret e token da brapi são guardados no Credential Manager do Windows via Keyring. A aplicação cria uma chave de API Pluggy temporária para a sincronização e não pede senha do Nubank. O Meu Pluggy mantém seu consentimento e atualiza as conexões no ciclo diário do próprio serviço.

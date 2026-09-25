@@ -1,6 +1,11 @@
 TABIMONEY - financas serias (mais ou menos)
 ============================================
 
+CONECTAR BANCOS E COTACOES
+- Abra o arquivo Manual-de-conexoes.html (dois cliques; abre no navegador).
+  Ele mostra, com imagens, como criar as chaves do Meu Pluggy e da brapi e
+  onde colar no app. Leva uns 15 minutos.
+
 ABRIR
 1. Tire o Tabimoney.exe do .zip (botao direito > Extrair tudo) e guarde numa pasta sua,
    por exemplo em Documentos. Nao rode de dentro do .zip nem da pasta Downloads temporaria.

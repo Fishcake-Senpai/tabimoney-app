@@ -1,2 +1,4 @@
 # Só para gerar o Tabimoney.exe (build.bat); o app não precisa disto para rodar.
 pyinstaller>=6.10,<7
+# só para cobrir dados pessoais nas capturas do manual (packaging/manual/redigir.py)
+pillow>=10,<13

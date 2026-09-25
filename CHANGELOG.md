@@ -38,6 +38,10 @@ base (sempre por migração automática) e o contrato da CLI.
   - `Tabimoney.exe cli …` é a mesma linha de comando do `financas.bat`.
   - Pasta da IA em `%USERPROFILE%\Tabimoney` (AGENTS.md, skills, contrato e um `financas.bat` que chama o exe),
     recriada a cada abertura, para usar o Claude Code sem clonar o repositório.
+- Manual de conexões (`Manual-de-conexoes.html`, dentro do zip de distribuição): passo a passo ilustrado para
+  criar as chaves do Meu Pluggy e da brapi, colar no app e resolver os erros mais comuns. É um arquivo HTML só,
+  com a marca do Tabimoney, que abre offline e pode ser salvo em PDF pelo navegador. As capturas têm os dados
+  pessoais cobertos (`packaging/manual/redigir.py`).
 - Botão "Encerrar o Tabimoney" no menu lateral, quando o app foi aberto pelo exe ou pelo `run.bat`.
 
 ### Alterado

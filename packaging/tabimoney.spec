@@ -50,7 +50,7 @@ a = Analysis(
     pathex=[str(ROOT)],
     datas=datas,
     hiddenimports=hiddenimports,
-    excludes=["tkinter", "pytest", "IPython"],
+    excludes=["tkinter", "pytest", "IPython", "PIL"],  # PIL: só o gerador do manual usa
     noarchive=False,
 )
 pyz = PYZ(a.pure)
