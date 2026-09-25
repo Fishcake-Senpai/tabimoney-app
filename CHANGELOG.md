@@ -147,13 +147,13 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/SEU-USUARIO/tabimoney/compare/v0.9.0...HEAD
-[0.9.0]: https://github.com/SEU-USUARIO/tabimoney/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/SEU-USUARIO/tabimoney/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/SEU-USUARIO/tabimoney/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/SEU-USUARIO/tabimoney/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/SEU-USUARIO/tabimoney/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/SEU-USUARIO/tabimoney/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/SEU-USUARIO/tabimoney/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/SEU-USUARIO/tabimoney/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/SEU-USUARIO/tabimoney/releases/tag/v0.1.0
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/Fishcake-Senpai/tabimoney-app/releases/tag/v0.1.0

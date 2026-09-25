@@ -228,3 +228,9 @@ Em **Importações**, baixe um backup SQLite ou restaure um anterior. Antes de s
 - `migrations/`: esquema SQLite e views de conciliação/KPIs.
 - `docs/superpowers/specs/2026-09-22-financas-pessoais-local-design.md`: especificação aprovada.
 - `docs/superpowers/plans/2026-09-22-mvp-financas-locais.md`: plano de implementação.
+
+## Licença
+
+O código é distribuído sob a [Licença Apache 2.0](LICENSE). A fonte Inter segue a SIL Open Font License
+(`app/static/fonts/LICENSE-Inter.txt`). O nome, o logo e o mascote Tabimoney (`manual_marca/`, `app/static/brand/`)
+não entram na licença do código: em um fork ou versão modificada, use outro nome e outra marca.

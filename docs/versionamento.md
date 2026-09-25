@@ -52,13 +52,12 @@ MENOR. A `1.0.0` marca a primeira versão pública estável para amigos baixarem
 
 ## Antes de tornar o repositório público
 
-- **Licença:** escolha uma e crie o `LICENSE`. MIT é a mais simples; AGPL-3.0 obriga quem publicar uma versão
-  modificada como serviço a abrir o código.
+- **Licença:** Apache 2.0 (`LICENSE`), com a marca fora da licença (seção Licença do README).
 - **Dados pessoais:** confira que nada pessoal está versionado. A base, os backups e os segredos ficam fora do
   repositório (`%LOCALAPPDATA%`, Credential Manager e `.gitignore`), mas revise exemplos, capturas de tela e o
   histórico do git:
   `git log -p | findstr /i "cpf conta saldo"` e busque seu nome, empresa e números de conta.
-- **Links:** troque `SEU-USUARIO` pelos links reais nos rodapés do `CHANGELOG.md`.
+- **Links:** os rodapés do `CHANGELOG.md` apontam para `Fishcake-Senpai/tabimoney-app`; eles só funcionam depois que as tags `vX.Y.Z` existirem.
 - **README para quem baixa:** requisitos (Windows, Python 3.11+), como rodar (`run.bat`), como conectar o Open
   Finance e o aviso de que os dados ficam só na máquina.
 - **Fonte e marca:** a Inter é distribuída sob a SIL Open Font License (`app/static/fonts/LICENSE-Inter.txt`).
