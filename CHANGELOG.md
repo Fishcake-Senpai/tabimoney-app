@@ -11,6 +11,12 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Adicionado
+- Aviso de versão nova: ao abrir e a cada 12 horas, o app consulta o último Release no GitHub e, se houver versão
+  mais nova, mostra uma faixa no topo com **Baixar** (o zip do sistema do usuário), **Ver novidades** e
+  **Dispensar**. Em Configurações › Atualizações dá para desligar o aviso, ver a última verificação e
+  **Verificar agora**. Nenhum dado do usuário é enviado.
+
 ## [0.10.0] - 2026-09-24
 
 ### Adicionado

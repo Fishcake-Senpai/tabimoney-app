@@ -16,7 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import db
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
-from app.services import analytics, budgets, fundamentals, pension, recommendations, spending, targets
+from app.services import analytics, budgets, fundamentals, pension, recommendations, spending, targets, updates
 from app.services.categories import INCOME_CATEGORIES, INTERNAL_CATEGORIES
 from app.services.markdown import render as render_markdown
 from app.services.formatting import (
@@ -64,11 +64,14 @@ async def lifespan(_: FastAPI):
     stop_event = threading.Event()
     worker = threading.Thread(target=quote_scheduler, args=(stop_event,), daemon=True)
     worker.start()
+    checker = threading.Thread(target=updates.scheduler, args=(stop_event,), daemon=True)
+    checker.start()
     try:
         yield
     finally:
         stop_event.set()
         worker.join(timeout=2)
+        checker.join(timeout=2)
 
 
 app = FastAPI(title="Tabimoney", version=__version__, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -159,8 +162,16 @@ def _flash(request: Request, kind: str, message: str) -> None:
     request.session["flash_messages"] = messages[-8:]
 
 
+def _update_notice():
+    try:
+        return updates.status()
+    except Exception:  # noqa: BLE001 - o aviso de versão nunca pode derrubar uma página
+        return None
+
+
 def _render(request: Request, template: str, **context):
     messages = request.session.pop("flash_messages", [])
+    context.setdefault("update", _update_notice())
     return templates.TemplateResponse(
         request=request,
         name=template,
@@ -727,6 +738,7 @@ def settings_page(request: Request):
         ),
         daily_quotes_enabled=db.get_setting("daily_quotes_enabled", "1") == "1",
         display_name=db.get_setting("display_name"),
+        update_info=updates.summary(),
     )
 
 
@@ -740,6 +752,27 @@ def imports_legacy():
     return RedirectResponse("/importar", status_code=301)
 
 
+@app.post("/atualizacao/verificar")
+def check_update(request: Request, csrf_token: str = Form(...)):
+    _check_csrf(request, csrf_token)
+    info = updates.check(force=True)
+    summary = updates.summary()
+    if summary["error"]:
+        _flash(request, "warning", f"Não deu para verificar agora: {summary['error']}.")
+    elif summary["outdated"]:
+        _flash(request, "success", f"Tem versão nova: Tabimoney {info['version']}. O aviso aparece no topo da página.")
+    else:
+        _flash(request, "success", f"Você está na versão mais recente ({summary['current']}).")
+    return _redirect(request, "/configuracoes#atualizacoes")
+
+
+@app.post("/atualizacao/dispensar")
+def dismiss_update(request: Request, csrf_token: str = Form(...), version: str = Form(...), back: str = Form("/")):
+    _check_csrf(request, csrf_token)
+    updates.dismiss(version)
+    return _redirect(request, _local_path(back, "/"))
+
+
 @app.post("/configuracoes")
 def save_settings(
     request: Request,
@@ -749,6 +782,7 @@ def save_settings(
     pluggy_item_ids: str = Form(""),
     brapi_token: str = Form(""),
     daily_quotes: str = Form(""),
+    update_check: str = Form(""),
     display_name: str = Form(""),
     remove_pluggy: str = Form(""),
     remove_brapi: str = Form(""),
@@ -767,13 +801,14 @@ def save_settings(
         if remove_brapi == "on":
             delete_secret("brapi_token")
     except Exception:
-        _flash(request, "error", "Não foi possível acessar o cofre seguro do Windows. Revise as configurações e tente novamente.")
+        _flash(request, "error", f"Não foi possível acessar o {vault_name()}. Revise as configurações e tente novamente.")
         return _redirect(request, "/configuracoes")
     item_ids, ignored = parse_item_ids(pluggy_item_ids)
     db.set_setting("pluggy_item_ids", ", ".join(item_ids))
     if ignored:
         _flash(request, "warning", "Ignorado por não ser um Item ID válido: " + ", ".join(ignored[:5]) + ".")
     db.set_setting("daily_quotes_enabled", "1" if daily_quotes == "on" else "0")
+    updates.set_enabled(update_check == "on")
     db.set_setting("display_name", " ".join(display_name.split())[:40])
     _flash(request, "success", f"Configurações salvas. Segredos ficam no {vault_name()}.")
     return _redirect(request, "/configuracoes")

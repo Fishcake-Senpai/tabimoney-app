@@ -49,6 +49,17 @@
       </div>
       <p class="footnote">Cotações e Ibovespa via <a class="link" href="https://brapi.dev" target="_blank" rel="noreferrer">brapi</a>; CDI via API pública do Banco Central (sem chave). A primeira atualização busca 12 meses de histórico.</p>
     </article>
+    <article class="card span-6" id="atualizacoes">
+      <div class="card-head"><h2 class="card-title">Atualizações</h2></div>
+      <div class="status-line"><span>Versão instalada</span><b>{{ update_info.current }}</b></div>
+      <div class="status-line"><span>Última publicada</span><b>{% if update_info.latest %}{% if update_info.url %}<a class="link" href="{{ update_info.url }}" target="_blank" rel="noreferrer">{{ update_info.latest }}</a>{% else %}{{ update_info.latest }}{% endif %}{% if update_info.outdated %} <span class="warn">· nova</span>{% endif %}{% else %}—{% endif %}</b></div>
+      <div class="status-line"><span>Última verificação</span><b>{{ update_info.checked_at|date_br if update_info.checked_at else "nunca" }}{% if update_info.error %} <span class="warn">· {{ update_info.error }}</span>{% endif %}</b></div>
+      <div class="form-grid footnote">
+        <label class="check"><input type="checkbox" name="update_check" {% if update_info.enabled %}checked{% endif %}> Avisar quando sair uma versão nova</label>
+        <div><button class="btn btn-sm" type="submit" formaction="/atualizacao/verificar">Verificar agora</button></div>
+      </div>
+      <p class="footnote">O app consulta os <a class="link" href="https://github.com/Fishcake-Senpai/tabimoney-app/releases" target="_blank" rel="noreferrer">Releases do GitHub</a> ao abrir e a cada 12 horas. Nenhum dado seu é enviado.</p>
+    </article>
   </section>
   <button class="btn btn-primary" type="submit">Salvar</button>
 </form>

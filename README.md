@@ -31,7 +31,7 @@ nem de terminal. Pode ser mandado por WhatsApp, e-mail ou pendrive.
 |---|---|
 | Abrir | Dois cliques no `Tabimoney.exe` (ou no atalho). |
 | Reiniciar | Dois cliques de novo. O app aberto é encerrado com segurança e abre outra vez. |
-| Atualizar | Substitua o `Tabimoney.exe` pelo novo e abra. Os dados ficam; a base é atualizada sozinha. |
+| Atualizar | O app avisa no topo quando sai versão nova, com o botão **Baixar**. Substitua o `Tabimoney.exe` pelo novo e abra. Os dados ficam; a base é atualizada sozinha. |
 | Encerrar | No app, menu lateral › **Encerrar o Tabimoney**. Fechar a aba do navegador não encerra. |
 | Apagar tudo | Encerre o app e apague a pasta `%LOCALAPPDATA%\FinancasPessoais`. |
 
@@ -138,6 +138,18 @@ A IA lê e altera os dados só pelo `financas.bat`, com as mesmas proteções do
 backup antes de mudanças em massa e nada de editar o banco direto.
 
 O agendador diário de preços roda enquanto o aplicativo estiver aberto. Por padrão, ele tenta buscar os fechamentos depois de 19h30 (horário de Brasília). Também é possível atualizar manualmente no painel.
+
+## Aviso de versão nova
+
+Ao abrir e a cada 12 horas, o app consulta o último [Release](https://github.com/Fishcake-Senpai/tabimoney-app/releases)
+publicado no GitHub. Se houver versão mais nova que a instalada, aparece uma faixa no topo de todas as páginas.
+A faixa tem **Baixar** (já com o zip do seu sistema: Windows, Mac Apple Silicon ou Mac Intel), **Ver novidades**
+e **Dispensar**, que esconde o aviso daquela versão; a próxima volta a avisar. Rodando pelo código, a faixa pede
+`git pull` em vez do download.
+
+A consulta é um pedido comum à API pública do GitHub e não envia nenhum dado seu. Sem internet, o aviso não
+aparece. Em **Configurações › Atualizações** dá para desligar o aviso, ver a última verificação e verificar na
+hora. O código fica em `app/services/updates.py`.
 
 ## Conectar os bancos pelo Meu Pluggy
 

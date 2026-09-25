@@ -20,7 +20,8 @@ DICA: clique com o botao direito no Tabimoney.exe > "Enviar para" > "Area de tra
 
 REINICIAR OU ATUALIZAR
 - Clicar de novo no Tabimoney.exe reinicia o app.
-- Para atualizar, substitua o Tabimoney.exe pelo novo e abra de novo. Seus dados ficam.
+- Quando sair versao nova, o app avisa no topo da pagina (botao "Baixar").
+  Para atualizar, substitua o Tabimoney.exe pelo novo e abra de novo. Seus dados ficam.
 
 ENCERRAR
 - No app, menu lateral > "Encerrar o Tabimoney". Fechar a aba do navegador NAO encerra.

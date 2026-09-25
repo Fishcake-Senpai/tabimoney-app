@@ -29,7 +29,8 @@ USAR
 - Dois cliques no Tabimoney abrem o app no navegador em http://127.0.0.1:8765
   (leva alguns segundos; nao aparece janela, so o navegador).
 - Clicar de novo reinicia o app.
-- Para atualizar: substitua o Tabimoney.app pelo novo e abra. Seus dados ficam.
+- Quando sair versao nova, o app avisa no topo da pagina (botao "Baixar").
+  Para atualizar: substitua o Tabimoney.app pelo novo e abra. Seus dados ficam.
 - Para encerrar: no app, menu lateral > "Encerrar o Tabimoney".
   Fechar a aba do navegador NAO encerra.
 

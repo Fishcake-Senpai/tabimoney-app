@@ -55,6 +55,26 @@
     {% endif %}
   </aside>
   <main class="main" id="conteudo">
+    {% if update %}
+    <div class="update-banner" role="status">
+      <img src="/static/brand/mascote-128.png" alt="" width="36" height="36">
+      <div class="update-text">
+        <b>Tabimoney {{ update.version }} disponível</b>
+        <small>Você está na {{ update.current }}.
+          {% if update.frozen %}Baixe, substitua o app antigo pelo novo e abra de novo: seus dados ficam.{% else %}Atualize o código com <code>git pull</code> e abra de novo.{% endif %}</small>
+      </div>
+      <div class="update-actions">
+        {% if update.frozen and update.download_url %}<a class="btn btn-primary btn-sm" href="{{ update.download_url }}" target="_blank" rel="noreferrer">Baixar</a>{% endif %}
+        <a class="btn btn-sm" href="{{ update.url }}" target="_blank" rel="noreferrer">Ver novidades</a>
+        <form method="post" action="/atualizacao/dispensar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="version" value="{{ update.version }}">
+          <input type="hidden" name="back" value="{{ request.url.path }}">
+          <button class="btn btn-ghost btn-sm" type="submit" title="Não avisar mais sobre esta versão">Dispensar</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
     {% if flash_messages %}
     <div class="flash-stack">
       {% for flash in flash_messages %}<div class="flash flash-{{ flash.kind }}" role="status">{{ flash.text }}</div>{% endfor %}
