@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import sys
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -27,12 +28,14 @@ REQUIRED_SCHEMA_COLUMNS = {
 
 
 def data_dir() -> Path:
-    local_app_data = os.environ.get("LOCALAPPDATA")
-    if local_app_data:
-        root = Path(local_app_data)
+    """Pasta dos dados: %LOCALAPPDATA%\\FinancasPessoais no Windows, ~/Library/Application Support/Tabimoney no
+    macOS, $XDG_DATA_HOME/tabimoney (ou ~/.local/share/tabimoney) no Linux."""
+    if os.name == "nt":
+        folder = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "FinancasPessoais"
+    elif sys.platform == "darwin":
+        folder = Path.home() / "Library" / "Application Support" / "Tabimoney"
     else:
-        root = Path.home() / "AppData" / "Local"
-    folder = root / "FinancasPessoais"
+        folder = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "tabimoney"
     folder.mkdir(parents=True, exist_ok=True)
     return folder
 

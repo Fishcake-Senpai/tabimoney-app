@@ -2,7 +2,7 @@
 {% block title %}Configurações{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Configurações</h1><div class="sub">Segredos ficam no Credential Manager do Windows</div></div>
+  <div><h1>Configurações</h1><div class="sub">Segredos ficam no {{ vault_name }}</div></div>
 </div>
 <form method="post" action="/configuracoes">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

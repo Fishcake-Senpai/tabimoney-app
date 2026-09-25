@@ -14,7 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import db
-from app.security import delete_secret, get_secret, save_secret
+from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
 from app.services import analytics, budgets, fundamentals, pension, recommendations, spending, targets
 from app.services.categories import INCOME_CATEGORIES, INTERNAL_CATEGORIES
@@ -135,6 +135,7 @@ templates.env.filters["multiple"] = multiple
 templates.env.filters["indicator"] = indicator
 templates.env.filters["md"] = render_markdown
 templates.env.globals["app_version"] = __version__
+templates.env.globals["vault_name"] = vault_name()
 templates.env.filters["metric_value"] = metric_value
 
 
@@ -774,7 +775,7 @@ def save_settings(
         _flash(request, "warning", "Ignorado por não ser um Item ID válido: " + ", ".join(ignored[:5]) + ".")
     db.set_setting("daily_quotes_enabled", "1" if daily_quotes == "on" else "0")
     db.set_setting("display_name", " ".join(display_name.split())[:40])
-    _flash(request, "success", "Configurações salvas. Segredos ficam no Credential Manager do Windows.")
+    _flash(request, "success", f"Configurações salvas. Segredos ficam no {vault_name()}.")
     return _redirect(request, "/configuracoes")
 
 

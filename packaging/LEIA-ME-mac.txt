@@ -1,0 +1,50 @@
+TABIMONEY - financas serias (mais ou menos) - versao para Mac
+=============================================================
+
+CONECTAR BANCOS E COTACOES
+- Abra o arquivo Manual-de-conexoes.html (dois cliques; abre no navegador).
+  Ele mostra, com imagens, como criar as chaves do Meu Pluggy e da brapi e
+  onde colar no app. Leva uns 15 minutos.
+
+INSTALAR
+1. Dois cliques no .zip para extrair (se o Safari ja nao extraiu sozinho).
+2. Arraste o Tabimoney.app para a pasta Aplicativos (Applications).
+
+ABRIR PELA PRIMEIRA VEZ (aviso da Apple)
+O app nao tem assinatura paga da Apple, entao o Mac bloqueia na primeira vez.
+Isso so precisa ser feito uma vez:
+- macOS 15 (Sequoia) ou mais novo:
+  1. De dois cliques no Tabimoney. Vai aparecer um aviso; clique em "OK" ou "Concluido".
+  2. Abra Ajustes do Sistema > Privacidade e Seguranca, role ate o fim e clique em
+     "Abrir Mesmo Assim" ao lado do Tabimoney. Confirme com sua senha.
+  3. Dois cliques no Tabimoney de novo e clique em "Abrir".
+- macOS 14 (Sonoma) ou mais antigo:
+  botao direito (ou Control + clique) no Tabimoney > Abrir > Abrir.
+
+Se o Mac disser que o app "esta danificado", abra o Terminal e rode:
+    xattr -dr com.apple.quarantine /Applications/Tabimoney.app
+e abra de novo.
+
+USAR
+- Dois cliques no Tabimoney abrem o app no navegador em http://127.0.0.1:8765
+  (leva alguns segundos; nao aparece janela, so o navegador).
+- Clicar de novo reinicia o app.
+- Para atualizar: substitua o Tabimoney.app pelo novo e abra. Seus dados ficam.
+- Para encerrar: no app, menu lateral > "Encerrar o Tabimoney".
+  Fechar a aba do navegador NAO encerra.
+
+SEUS DADOS
+- Ficam so neste Mac, em ~/Library/Application Support/Tabimoney (banco, backups e logs).
+- Senhas e chaves (Pluggy, brapi) ficam no Porta-chaves (Keychain) do macOS.
+  Na primeira vez o Mac pode perguntar se o Tabimoney pode usar o Porta-chaves:
+  clique em "Sempre Permitir".
+- Para apagar tudo: encerre o app e apague a pasta acima.
+
+IA (OPCIONAL)
+- O app cria a pasta ~/Tabimoney (na sua pasta pessoal) com as instrucoes para a IA.
+  Abra o Claude Code (ou outro agente) nessa pasta e peca, por exemplo:
+  "atualize minhas financas" ou "revise meus gastos do mes".
+
+PROBLEMAS
+- "A porta 8765 esta ocupada": feche outro Tabimoney aberto ou reinicie o Mac.
+- O registro de erros fica em ~/Library/Application Support/Tabimoney/logs

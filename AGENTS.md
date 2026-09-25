@@ -42,5 +42,8 @@ pública sobre empresas e títulos (CVM, relações com investidores, Tesouro, n
 - Dinheiro em centavos (int) no banco; quantidades em milionésimos (int). Na CLI, reais (float).
 - Migrações em `migrations/NNN_*.sql`, aplicadas na inicialização; nunca altere uma migração já aplicada.
 - Textos da interface em português do Brasil.
-- O `Tabimoney.exe` (gerado por `build.bat`) só leva os arquivos listados em `datas` de `packaging/tabimoney.spec`.
+- O executável (`Tabimoney.exe` pelo `build.bat`; Windows e Mac pelo GitHub Actions) só leva os arquivos listados em
+  `datas` de `packaging/tabimoney.spec`.
   Arquivo novo que o app ou a pasta da IA leem em tempo de execução precisa entrar nessa lista.
+- O app roda em Windows e Mac: nada de caminho, comando ou cofre só de Windows fora de um `if os.name == "nt"`
+  (pasta de dados em `db.data_dir()`, segredos em `app/security.py`).

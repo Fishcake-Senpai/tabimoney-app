@@ -387,7 +387,7 @@ def _import_workbook(filename: str, content: bytes) -> ImportResult:
         from openpyxl import load_workbook
         workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     except ImportError as exc:
-        raise ValueError("Instale as dependências (openpyxl) executando run.bat novamente.") from exc
+        raise ValueError("Instale as dependências (openpyxl) executando run.bat (ou run.command no Mac) novamente.") from exc
     except Exception as exc:
         raise ValueError("Não foi possível abrir a planilha XLSX.") from exc
     sheets = {_norm(name): _sheet_records(workbook[name]) for name in workbook.sheetnames}

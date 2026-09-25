@@ -1,0 +1,132 @@
+# Gera o Tabimoney para Windows e Mac em máquinas do GitHub.
+# - Todo push na main que mexe no app: gera e testa; os zips ficam em Actions › (execução) › Artifacts.
+# - Tag vX.Y.Z: além disso, publica o Release com os três zips (é o link para mandar aos amigos).
+# - Dá para rodar à mão em Actions › Gerar executáveis › Run workflow.
+name: Gerar executáveis
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "app/**"
+      - "migrations/**"
+      - "packaging/**"
+      - ".claude/skills/**"
+      - "docs/agentes/**"
+      - "docs/agente-financeiro.md"
+      - "requirements*.txt"
+      - ".github/workflows/executaveis.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.nome }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            nome: windows
+          - os: macos-latest        # Apple Silicon (M1/M2/M3/M4)
+            nome: mac-apple-silicon
+          - os: macos-15-intel      # Macs com processador Intel
+            nome: mac-intel
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Dependências
+        run: python -m pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Versão
+        id: v
+        run: echo "versao=$(python -c 'from app import __version__; print(__version__)')" >> "$GITHUB_OUTPUT"
+
+      - name: Gerar o executável
+        run: python -m PyInstaller --noconfirm --clean --distpath dist --workpath build packaging/tabimoney.spec
+
+      - name: Teste rápido (versão, linha de comando, servidor e encerramento)
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then BIN=dist/Tabimoney.exe; else BIN=dist/Tabimoney.app/Contents/MacOS/Tabimoney; fi
+          test "$("$BIN" --versao | tr -d '\r')" = "${{ steps.v.outputs.versao }}"
+          "$BIN" cli gastos categorias > /dev/null
+          "$BIN" --servidor &
+          for i in $(seq 1 90); do curl -sf -o /dev/null http://127.0.0.1:8765/ && break; sleep 1; done
+          curl -sf -o /dev/null http://127.0.0.1:8765/
+          curl -sf http://127.0.0.1:8765/contas | grep -q "Conta e cartão"
+          python - <<'EOF'
+          import json, time
+          import httpx
+          from app.launch import _port_open, lock_path
+          info = json.loads(lock_path().read_text(encoding="utf-8"))
+          httpx.post("http://127.0.0.1:8765/_sistema/encerrar", headers={"X-Tabimoney-Token": info["token"]}, timeout=10)
+          for _ in range(60):
+              if not _port_open():
+                  break
+              time.sleep(0.5)
+          assert not _port_open(), "o servidor não encerrou pelo token"
+          print("servidor subiu, respondeu e encerrou pelo token")
+          EOF
+
+      - name: Manual de conexões
+        run: python packaging/manual/gerar.py dist/Manual-de-conexoes.html
+
+      - name: Empacotar
+        id: pacote
+        run: |
+          NOME="Tabimoney-${{ steps.v.outputs.versao }}-${{ matrix.nome }}"
+          mkdir -p pacote
+          cp dist/Manual-de-conexoes.html pacote/
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp dist/Tabimoney.exe pacote/
+            cp packaging/LEIA-ME.txt pacote/LEIA-ME.txt
+            pwsh -NoProfile -Command "Compress-Archive -Force -Path pacote/* -DestinationPath dist/$NOME.zip"
+          else
+            cp -R dist/Tabimoney.app pacote/
+            cp packaging/LEIA-ME-mac.txt pacote/LEIA-ME.txt
+            ditto -c -k --sequesterRsrc pacote "dist/$NOME.zip"   # ditto preserva links e permissões do .app
+          fi
+          echo "nome=$NOME" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pacote.outputs.nome }}
+          path: dist/${{ steps.pacote.outputs.nome }}.zip
+          if-no-files-found: error
+
+  release:
+    name: Publicar o Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: pacotes
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: pacotes/*.zip
+          body: |
+            ## Qual arquivo baixar
+            | Seu computador | Arquivo |
+            |---|---|
+            | Windows | `…-windows.zip` |
+            | Mac com chip Apple (M1, M2, M3, M4) | `…-mac-apple-silicon.zip` |
+            | Mac com processador Intel | `…-mac-intel.zip` |
+
+            No Mac, veja o chip em  › Sobre este Mac. Cada zip traz o app, o `LEIA-ME.txt` (como abrir pela primeira vez)
+            e o `Manual-de-conexoes.html` (como conectar os bancos e as cotações).
+
+            O que mudou nesta versão: [CHANGELOG](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md).

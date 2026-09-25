@@ -9,7 +9,9 @@ As chamadas autorizadas do Open Finance e da fonte de preços saem desta máquin
 ## Iniciar
 
 Há dois jeitos de usar: o **executável**, para quem só quer usar o app, e o **código**, para quem vai mexer
-nele. Os dois guardam os dados no mesmo lugar e funcionam do mesmo jeito.
+nele. Os dois guardam os dados no mesmo lugar e funcionam do mesmo jeito. Funciona no **Windows** e no **Mac**
+(chip Apple ou Intel). Os executáveis de cada versão ficam nos
+[Releases](https://github.com/Fishcake-Senpai/tabimoney-app/releases) do GitHub.
 
 ### Com o executável (para amigos, sem instalar nada)
 
@@ -50,12 +52,33 @@ Se algo der errado:
 - **Investigar:** abra um terminal na pasta do exe e rode `Tabimoney.exe --primeiro-plano` para ver o log na
   tela.
 
+### No Mac
+
+1. Nos [Releases](https://github.com/Fishcake-Senpai/tabimoney-app/releases), baixe o zip do seu Mac:
+   `…-mac-apple-silicon.zip` (chip M1, M2, M3 ou M4) ou `…-mac-intel.zip`. O chip aparece em  › Sobre este Mac.
+2. Extraia e arraste o `Tabimoney.app` para **Aplicativos**.
+3. **Primeira vez:** o app não tem assinatura paga da Apple, então o Mac bloqueia.
+   - No macOS 15 (Sequoia) ou mais novo: tente abrir e feche o aviso. Depois, em **Ajustes do Sistema ›
+     Privacidade e Segurança**, clique em **Abrir Mesmo Assim** e abra de novo.
+   - No macOS 14 ou mais antigo: botão direito › **Abrir** › **Abrir**.
+   - Se o Mac disser que o app "está danificado": `xattr -dr com.apple.quarantine /Applications/Tabimoney.app`.
+4. Dois cliques abrem o app no navegador. No Mac não aparece janela de progresso; se der erro, surge uma caixa
+   de diálogo. Clicar de novo reinicia, e **Encerrar o Tabimoney** fica no menu lateral, como no Windows.
+
+No Mac, os dados ficam em `~/Library/Application Support/Tabimoney` e as chaves no **Porta-chaves (Keychain)**.
+Na primeira vez que salvar uma chave, o Mac pode pedir permissão: escolha **Sempre Permitir**. A pasta da IA é
+`~/Tabimoney`, com um `financas.sh` no lugar do `financas.bat`. A linha de comando é
+`/Applications/Tabimoney.app/Contents/MacOS/Tabimoney cli …`.
+
 ### Com o código (para desenvolver)
 
-1. Instale Python 3.11 ou mais recente para Windows e mantenha o launcher `py` habilitado.
-2. Execute `run.bat` com duplo clique. Na primeira vez, ele cria o `.venv` e instala as dependências. Depois,
-   abre o app como o executável: o servidor fica em segundo plano, e clicar de novo reinicia.
-3. Para ver o log na tela (e encerrar com `Ctrl+C`), rode `.venv\Scripts\python.exe -m app.launch --primeiro-plano`.
+1. Instale Python 3.11 ou mais recente (no Windows, mantenha o launcher `py` habilitado).
+2. **Windows:** execute `run.bat`. **Mac:** execute `run.command` (dois cliques no Finder abrem o Terminal).
+   Na primeira vez, ele cria o `.venv` e instala as dependências. Depois, abre o app como o executável: o
+   servidor fica em segundo plano, e clicar de novo reinicia.
+3. Para ver o log na tela (e encerrar com `Ctrl+C`), rode `python -m app.launch --primeiro-plano` com o Python
+   do `.venv`.
+4. Linha de comando: `financas.bat` no Windows, `./financas.sh` no Mac.
 
 ### Gerar o executável
 
@@ -68,9 +91,18 @@ Se algo der errado:
 
 O manual é gerado a partir de `packaging\manual\manual.html`. As capturas em `packaging\manual\imagens\` já
 estão com os dados pessoais cobertos. Para trocar as capturas, tire as novas, rode
-`.venv\Scripts\python.exe packaging\manual
-edigir.py <pasta-das-capturas>` (ajuste as áreas em `SHOTS` se
+`.venv\Scripts\python.exe packaging\manual\redigir.py <pasta-das-capturas>` (ajuste as áreas em `SHOTS` se
 mudarem) e confira as imagens antes de commitar. Nunca versione as capturas originais.
+
+**Mac, e as três versões de uma vez:** o PyInstaller só gera o app de Mac rodando num Mac. Por isso, quem gera
+as versões é o GitHub Actions (`.github/workflows/executaveis.yml`), em máquinas Windows, Mac Apple Silicon e
+Mac Intel do próprio GitHub.
+
+- **A cada push na `main` que mexe no app:** ele gera as três versões e testa cada uma (versão, linha de comando,
+  servidor respondendo e encerramento pelo token). Os zips ficam em *Actions › execução › Artifacts*.
+- **Numa tag `vX.Y.Z`:** além disso, ele publica o Release com os três zips. O link do Release é o que você manda
+  para os amigos.
+- **Para rodar à mão:** *Actions › Gerar executáveis › Run workflow*.
 
 O `packaging\tabimoney.spec` define o que vai dentro do exe: templates, arquivos estáticos, migrações, skills
 e docs da IA. Arquivo novo que o app precise ler em tempo de execução tem que entrar na lista `datas` desse
@@ -114,7 +146,7 @@ O agendador diário de preços roda enquanto o aplicativo estiver aberto. Por pa
 3. Abra **Configurações** no aplicativo, informe esses valores (Item IDs separados por vírgula) e salve. Client ID, Secret e Item IDs têm que ser da mesma aplicação. A instituição de cada item é reconhecida pelo código do banco da conta.
 4. No painel, escolha **Open Finance**. Cada item sincroniza separadamente: um item com falha não impede os demais.
 
-Client ID, Client Secret e token da brapi são guardados no Credential Manager do Windows via Keyring. A aplicação cria uma chave de API Pluggy temporária para a sincronização e não pede senha do Nubank. O Meu Pluggy mantém seu consentimento e atualiza as conexões no ciclo diário do próprio serviço.
+Client ID, Client Secret e token da brapi são guardados no cofre de senhas do sistema via Keyring (Credential Manager no Windows, Porta-chaves no Mac). A aplicação cria uma chave de API Pluggy temporária para a sincronização e não pede senha do Nubank. O Meu Pluggy mantém seu consentimento e atualiza as conexões no ciclo diário do próprio serviço.
 
 A sincronização consulta contas, movimentações, posições e operações de investimento que a conexão disponibilizar. A API B3 para a Área do Investidor não tem acesso direto para pessoa física; a custódia do MVP usa o que vier pelo Open Finance ou a importação manual de posição. Consulte o [FAQ da B3 for Developers](https://developers.b3.com.br/faq).
 
@@ -225,7 +257,8 @@ O saldo entra no patrimônio e na alocação como *Previdência*, separado da re
 
 - Banco: `%LOCALAPPDATA%\FinancasPessoais\financas.sqlite3`
 - Backups: `%LOCALAPPDATA%\FinancasPessoais\backups`
-- Credenciais: Credential Manager do Windows, separado do SQLite.
+- Credenciais: Credential Manager do Windows ou Porta-chaves do Mac, separado do SQLite.
+- No Mac, troque `%LOCALAPPDATA%\FinancasPessoais` por `~/Library/Application Support/Tabimoney`.
 
 Em **Importações**, baixe um backup SQLite ou restaure um anterior. Antes de substituir a base, o aplicativo valida integridade/versão e salva uma cópia preventiva dos dados atuais. Guarde backups em local privado.
 

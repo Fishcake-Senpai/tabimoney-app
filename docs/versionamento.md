@@ -45,10 +45,11 @@ MENOR. A `1.0.0` marca a primeira versão pública estável para amigos baixarem
    - atualize os links de comparação no fim do arquivo.
 4. Teste abrindo o app com uma cópia da base (`financas backup`) e passando pelas telas principais.
 5. Faça o commit `chore(release): vX.Y.Z` e crie a tag: `git tag -a vX.Y.Z -m "Tabimoney X.Y.Z"`.
-6. Rode `build.bat` e confira `dist\Tabimoney.exe --versao`. Abra o exe, clique de novo (tem que reiniciar) e
+6. Envie o commit e a tag (`git push --follow-tags`). O GitHub Actions gera e testa as versões Windows, Mac
+   Apple Silicon e Mac Intel e publica o *Release* da tag com os três zips (app, `LEIA-ME.txt` e manual). É o
+   link desse Release que vai para os amigos. Confira em *Actions* se as três passaram.
+7. Opcional, no Windows: rode `build.bat`, abra o `dist\Tabimoney.exe`, clique de novo (tem que reiniciar) e
    encerre pelo menu.
-7. No GitHub, publique um *Release* da tag com o trecho do changelog e anexe `dist\Tabimoney-X.Y.Z.zip`. É esse
-   arquivo (ou o `.exe`) que vai para os amigos.
 
 ## Antes de tornar o repositório público
 

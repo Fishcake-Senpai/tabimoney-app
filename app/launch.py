@@ -1,4 +1,5 @@
-"""Ponto de entrada do Tabimoney (run.bat e Tabimoney.exe).
+"""Ponto de entrada do Tabimoney (run.bat/run.command, Tabimoney.exe no Windows e Tabimoney.app no Mac).
+No Mac, o executável fica em Tabimoney.app/Contents/MacOS/Tabimoney e aceita os mesmos argumentos.
 
     Tabimoney.exe                 abre o app: encerra o que já estava aberto, sobe o servidor em segundo plano
                                   e abre o navegador. A janela mostra o progresso e fecha sozinha.
@@ -83,6 +84,21 @@ def _wait(condition, timeout: float) -> bool:
     return condition()
 
 
+def _kill(pid: int) -> None:
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+        return
+    import signal
+
+    for sig, grace in ((signal.SIGTERM, 5), (signal.SIGKILL, 0)):
+        try:
+            os.kill(pid, sig)
+        except OSError:
+            return
+        if _wait(lambda: not _pid_alive(pid), grace):
+            return
+
+
 def stop_previous(say=print) -> None:
     """Encerra o Tabimoney que estiver aberto. Levanta RuntimeError se a porta estiver com outro programa."""
     info = _read_lock()
@@ -101,12 +117,12 @@ def stop_previous(say=print) -> None:
             pass
         if not _wait(lambda: not _pid_alive(pid) and not _port_open(), 15):
             say("O app aberto não respondeu; finalizando o processo…")
-            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+            _kill(pid)
             _wait(lambda: not _port_open(), 10)
     if _port_open():
         raise RuntimeError(
-            f"A porta {PORT} está ocupada por outro programa (ou por um Tabimoney antigo aberto pelo run.bat). "
-            "Feche a outra janela do Tabimoney, ou reinicie o computador, e abra de novo."
+            f"A porta {PORT} está ocupada por outro programa (ou por um Tabimoney antigo aberto pelo terminal). "
+            "Feche o outro Tabimoney, ou reinicie o computador, e abra de novo."
         )
 
 
@@ -157,8 +173,21 @@ def _server_command() -> list[str]:
     return [sys.executable, "-m", "app.launch", "--servidor"]
 
 
+def _has_console() -> bool:
+    return bool(sys.stdin and sys.stdin.isatty())
+
+
+def _alert(message: str) -> None:
+    """No Mac o Tabimoney.app abre sem terminal: o erro vira uma caixa de diálogo, senão ninguém vê."""
+    if sys.platform != "darwin" or _has_console():
+        return
+    text = message.replace("\\", "\\\\").replace('"', '\\"')
+    script = f'display dialog "{text}" with title "Tabimoney" buttons {{"OK"}} default button "OK" with icon caution'
+    subprocess.run(["osascript", "-e", script], capture_output=True)
+
+
 def _pause_and_exit(code: int) -> None:
-    if sys.stdin and sys.stdin.isatty():
+    if _has_console():
         try:
             input("\nPressione Enter para fechar esta janela.")
         except EOFError:
@@ -179,29 +208,37 @@ def open_app() -> None:
     try:
         stop_previous()
         print("Iniciando…")
-        flags = 0
+        # o servidor precisa sobreviver a esta janela: sem console no Windows, sessão própria no Mac/Linux
+        options: dict = {"start_new_session": True}
         if os.name == "nt":
-            flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+            options = {"creationflags": subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP}
         root = Path(__file__).resolve().parent.parent
         # No exe de arquivo único, um filho reaproveitaria a pasta extraída desta janela, que é apagada quando
         # ela fecha. Com a variável abaixo (PyInstaller 6.9+), o servidor extrai a própria cópia e fica independente.
         env = dict(os.environ, PYINSTALLER_RESET_ENVIRONMENT="1")
         process = subprocess.Popen(
-            _server_command(), cwd=None if FROZEN else root, env=env, creationflags=flags, close_fds=True,
+            _server_command(), cwd=None if FROZEN else root, env=env, close_fds=True, **options,
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         if not _wait(lambda: _port_open() or process.poll() is not None, 90) or not _port_open():
             raise RuntimeError(f"O servidor não iniciou. Veja o registro em {log_path()}")
     except RuntimeError as exc:
         print(f"\nNão deu para abrir o Tabimoney: {exc}")
+        _alert(f"Não deu para abrir o Tabimoney: {exc}")
         _pause_and_exit(1)
     webbrowser.open(URL, new=2)
     print(f"\nPronto! O Tabimoney está aberto no navegador: {URL}")
     print("Esta janela fecha sozinha. Para reiniciar ou atualizar, abra o Tabimoney de novo.")
-    time.sleep(4)
+    if _has_console():
+        time.sleep(4)
 
 
 def main(argv: list[str] | None = None) -> None:
+    # app sem terminal (Tabimoney.app aberto pelo Finder) pode vir sem stdout/stderr
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+    if sys.stderr is None:
+        sys.stderr = sys.stdout
     args = list(sys.argv[1:] if argv is None else argv)
     if args and args[0] == "cli":
         from app import cli

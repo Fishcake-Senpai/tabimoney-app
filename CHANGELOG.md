@@ -38,6 +38,13 @@ base (sempre por migração automática) e o contrato da CLI.
   - `Tabimoney.exe cli …` é a mesma linha de comando do `financas.bat`.
   - Pasta da IA em `%USERPROFILE%\Tabimoney` (AGENTS.md, skills, contrato e um `financas.bat` que chama o exe),
     recriada a cada abertura, para usar o Claude Code sem clonar o repositório.
+- Versão para Mac (Apple Silicon e Intel): `Tabimoney.app`, com o mesmo comportamento do exe.
+  - Chaves no Porta-chaves (Keychain) do macOS e dados em `~/Library/Application Support/Tabimoney`.
+  - Reinício ao abrir de novo e erros mostrados numa caixa de diálogo, já que o app abre sem terminal.
+  - Pasta da IA em `~/Tabimoney`, com `financas.sh`.
+  - `run.command` e `financas.sh` para rodar pelo código.
+- GitHub Actions (`executaveis.yml`): gera e testa as versões Windows, Mac Apple Silicon e Mac Intel a cada push
+  que mexe no app. Numa tag `vX.Y.Z`, publica o Release com os três zips (app, LEIA-ME e manual).
 - Manual de conexões (`Manual-de-conexoes.html`, dentro do zip de distribuição): passo a passo ilustrado para
   criar as chaves do Meu Pluggy e da brapi, colar no app e resolver os erros mais comuns. É um arquivo HTML só,
   com a marca do Tabimoney, que abre offline e pode ser salvo em PDF pelo navegador. As capturas têm os dados

@@ -1,8 +1,9 @@
-"""Pasta de trabalho da IA para quem usa o Tabimoney.exe (sem o repositório).
+"""Pasta de trabalho da IA para quem usa o executável (Tabimoney.exe / Tabimoney.app), sem o repositório.
 
-A cada abertura, o executável grava em %USERPROFILE%\\Tabimoney as instruções (AGENTS.md), as skills, o contrato
-e um financas.bat que chama `Tabimoney.exe cli`. O agente (Claude Code, Codex…) aberto nessa pasta trabalha igual
-ao repositório. Tudo vem de dentro do executável, então atualizar o exe atualiza as skills.
+A cada abertura, o executável grava na pasta Tabimoney do usuário (%USERPROFILE%\\Tabimoney no Windows,
+~/Tabimoney no Mac) as instruções (AGENTS.md), as skills, o contrato e um atalho da linha de comando que chama
+`Tabimoney cli` (financas.bat no Windows, financas.sh no Mac). O agente (Claude Code, Codex…) aberto nessa pasta
+trabalha igual ao repositório. Tudo vem de dentro do executável, então atualizar o app atualiza as skills.
 """
 from __future__ import annotations
 
@@ -26,20 +27,47 @@ def _write(path: Path, text: str) -> None:
         path.write_text(text, encoding="utf-8", newline="")
 
 
+def _cli_wrapper(target: Path, exe: Path) -> str:
+    """Grava o atalho da linha de comando e devolve como os roteiros devem chamá-lo."""
+    if os.name == "nt":
+        _write(target / "financas.bat", (
+            "@echo off\r\n"
+            "rem Gerado pelo Tabimoney; é atualizado toda vez que o app abre.\r\n"
+            f'if not exist "{exe}" (\r\n'
+            "  echo {\"erro\": \"Tabimoney.exe nao encontrado. Abra o Tabimoney uma vez para atualizar este atalho.\"}\r\n"
+            "  exit /b 1\r\n"
+            ")\r\n"
+            f'"{exe}" cli %*\r\n'
+        ))
+        return ".\\financas.bat"
+    script = target / "financas.sh"
+    quoted = str(exe).replace("'", "'\\''")
+    _write(script, (
+        "#!/bin/sh\n"
+        "# Gerado pelo Tabimoney; é atualizado toda vez que o app abre.\n"
+        f"EXE='{quoted}'\n"
+        'if [ ! -x "$EXE" ]; then\n'
+        '  echo \'{"erro": "Tabimoney não encontrado. Abra o Tabimoney uma vez para atualizar este atalho."}\'\n'
+        "  exit 1\n"
+        "fi\n"
+        'exec "$EXE" cli "$@"\n'
+    ))
+    script.chmod(0o755)
+    return "./financas.sh"
+
+
 def sync(exe: Path) -> Path:
     target = folder()
     target.mkdir(parents=True, exist_ok=True)
-    _write(target / "AGENTS.md", (ROOT / "docs" / "agentes" / "pasta-ia" / "AGENTS.md").read_text(encoding="utf-8"))
+    command = _cli_wrapper(target, exe)
+    agents = (ROOT / "docs" / "agentes" / "pasta-ia" / "AGENTS.md").read_text(encoding="utf-8")
+    if command != ".\\financas.bat":
+        # os roteiros foram escritos para Windows; no Mac/Linux o atalho é financas.sh
+        agents = agents.replace(".\\financas.bat", command).replace("`financas.bat`", f"`{command[2:]}`")
+        agents += (f"\n## Sistema\n\nEste computador não é Windows: onde os roteiros disserem `.\\financas.bat`, "
+                   f"use `{command}` (mesmos argumentos, mesma saída em JSON).\n")
+    _write(target / "AGENTS.md", agents)
     _write(target / "CLAUDE.md", "@AGENTS.md\n")
-    _write(target / "financas.bat", (
-        "@echo off\r\n"
-        "rem Gerado pelo Tabimoney; é atualizado toda vez que o app abre.\r\n"
-        f'if not exist "{exe}" (\r\n'
-        "  echo {\"erro\": \"Tabimoney.exe nao encontrado. Abra o Tabimoney uma vez para atualizar este atalho.\"}\r\n"
-        "  exit /b 1\r\n"
-        ")\r\n"
-        f'"{exe}" cli %*\r\n'
-    ))
     _write(target / ".tabimoney-versao", __version__ + "\n")
 
     skills_src, skills_dst = ROOT / ".claude" / "skills", target / ".claude" / "skills"

@@ -13,7 +13,7 @@ from app.db import get_setting, rows, set_setting, transaction
 from app.providers.bcb import BcbError, cdi_daily_rates
 from app.providers.brapi import BrapiError, daily_history
 from app.providers.pluggy import PluggyClient, PluggyData, PluggyError
-from app.security import get_secret
+from app.security import get_secret, vault_name
 from app.services.accounts import link_accounts
 from app.services.categories import PLUGGY_CATEGORIES, categorize
 from app.services.fundamentals import auto_sync_weekly
@@ -709,7 +709,7 @@ def sync_daily_quotes() -> dict[str, Any]:
     try:
         token = get_secret("brapi_token")
     except Exception as exc:
-        message = str(exc) if isinstance(exc, RuntimeError) else "Não foi possível acessar o token no Credential Manager do Windows."
+        message = str(exc) if isinstance(exc, RuntimeError) else f"Não foi possível acessar o token no {vault_name()}."
         _run_finish(run_id, "failed", 0, 0, message)
         raise SyncError(message) from exc
     fetched: list[tuple[str, list[tuple[str, int]]]] = []
