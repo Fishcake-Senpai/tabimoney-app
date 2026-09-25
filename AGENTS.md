@@ -39,6 +39,11 @@ pública sobre empresas e títulos (CVM, relações com investidores, Tesouro, n
 - **Versão e changelog:** toda mudança entra em `[Não lançado]` no `CHANGELOG.md` no mesmo commit. A versão
   fica só em `app/__init__.py`. Numeração e lançamento: `docs/versionamento.md`.
 
+- **Testes:** rode `pytest` (Windows: `.venv\Scripts\python.exe -m pytest`; Mac: `.venv/bin/python -m pytest`)
+  antes de commitar. Tudo roda isolado: base temporária, cofre falso e sem rede (`tests/conftest.py`), então não
+  mexe nos dados do usuário. Página nova já é coberta por `tests/test_paginas.py`. Mudou uma regra ou corrigiu um
+  bug? Escreva o teste que teria pegado. O GitHub Actions roda a suíte em Windows e Mac e não gera executável se
+  algum teste falhar.
 - Dinheiro em centavos (int) no banco; quantidades em milionésimos (int). Na CLI, reais (float).
 - Migrações em `migrations/NNN_*.sql`, aplicadas na inicialização; nunca altere uma migração já aplicada.
 - Textos da interface em português do Brasil.

@@ -11,6 +11,15 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Interno
+- Testes automatizados (pytest, `tests/`), sem mudança para quem usa o app:
+  - abrem todas as páginas com a base vazia e com dados de exemplo;
+  - cobrem os formulários principais, as categorias, o aviso de versão, a linha de comando e o comportamento em
+    Windows e Mac;
+  - cobrem os bugs já corrigidos: compras da fatura aberta, compras em dólar e página com variável faltando.
+  Rodam isolados (base temporária, cofre falso, sem rede). No GitHub Actions, rodam em Windows e Mac antes do
+  build, e nenhum executável é gerado se algum falhar.
+
 ## [0.11.0] - 2026-09-24
 
 ### Adicionado

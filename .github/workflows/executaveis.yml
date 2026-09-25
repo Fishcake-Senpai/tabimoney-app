@@ -1,4 +1,4 @@
-# Gera o Tabimoney para Windows e Mac em máquinas do GitHub.
+# Testa e gera o Tabimoney para Windows e Mac em máquinas do GitHub. Se um teste falhar, nada é gerado.
 # - Todo push na main que mexe no app: gera e testa; os zips ficam em Actions › (execução) › Artifacts.
 # - Tag vX.Y.Z: além disso, publica o Release com os três zips (é o link para mandar aos amigos).
 # - Dá para rodar à mão em Actions › Gerar executáveis › Run workflow.
@@ -16,6 +16,8 @@ on:
       - "docs/agentes/**"
       - "docs/agente-financeiro.md"
       - "requirements*.txt"
+      - "tests/**"
+      - "pytest.ini"
       - ".github/workflows/executaveis.yml"
   workflow_dispatch:
 
@@ -24,7 +26,7 @@ permissions:
 
 jobs:
   build:
-    name: ${{ matrix.nome }}
+    name: ${{ matrix.nome }}  # testes + executável
     strategy:
       fail-fast: false
       matrix:
@@ -47,7 +49,10 @@ jobs:
           python-version: "3.12"
 
       - name: Dependências
-        run: python -m pip install -r requirements.txt -r requirements-build.txt
+        run: python -m pip install -r requirements-dev.txt -r requirements-build.txt
+
+      - name: Testes
+        run: python -m pytest
 
       - name: Versão
         id: v

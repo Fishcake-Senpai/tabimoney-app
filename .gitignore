@@ -12,3 +12,4 @@ build/
 dist/
 # manual de marca: fica só na máquina do autor
 manual_marca/
+.pytest_cache/

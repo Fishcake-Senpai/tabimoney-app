@@ -79,6 +79,11 @@ Na primeira vez que salvar uma chave, o Mac pode pedir permissão: escolha **Sem
 3. Para ver o log na tela (e encerrar com `Ctrl+C`), rode `python -m app.launch --primeiro-plano` com o Python
    do `.venv`.
 4. Linha de comando: `financas.bat` no Windows, `./financas.sh` no Mac.
+5. Testes: `python -m pip install -r requirements-dev.txt` uma vez e depois `python -m pytest` (com o Python do
+   `.venv`). Levam menos de 15 segundos e rodam isolados: base temporária, cofre de senhas falso e sem internet.
+   Nunca tocam nos seus dados. `tests/test_paginas.py` abre todas as páginas do app com a base vazia e com dados de
+   exemplo, então página nova já entra no teste. O GitHub Actions roda os testes em Windows e Mac antes de gerar os
+   executáveis.
 
 ### Gerar o executável
 
