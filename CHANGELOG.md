@@ -11,6 +11,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.11.0] - 2026-09-24
+
 ### Adicionado
 - Aviso de versão nova: ao abrir e a cada 12 horas, o app consulta o último Release no GitHub e, se houver versão
   mais nova, mostra uma faixa no topo com **Baixar** (o zip do sistema do usuário), **Ver novidades** e
@@ -166,7 +168,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.10.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Fishcake-Senpai/tabimoney-app/releases/tag/v0.10.0
 [0.9.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.7.0...v0.8.0
