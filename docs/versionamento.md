@@ -61,4 +61,4 @@ MENOR. A `1.0.0` marca a primeira versão pública estável para amigos baixarem
 - **README para quem baixa:** requisitos (Windows, Python 3.11+), como rodar (`run.bat`), como conectar o Open
   Finance e o aviso de que os dados ficam só na máquina.
 - **Fonte e marca:** a Inter é distribuída sob a SIL Open Font License (`app/static/fonts/LICENSE-Inter.txt`).
-  A marca Tabimoney (`manual_marca/`, `app/static/brand/`) é do autor; diga na licença se ela pode ser reutilizada.
+  A marca Tabimoney (`app/static/brand/`) é do autor e fica fora da licença; o manual de marca (`manual_marca/`) não é versionado.

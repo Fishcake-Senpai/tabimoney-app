@@ -1,6 +1,6 @@
 # Tabimoney — finanças sérias (mais ou menos)
 
-Aplicação local de finanças pessoais. A identidade visual (logo, mascote, paleta verde sobre fundo escuro e a fonte Inter) segue o manual em `manual_marca/`. Os ícones do app e do navegador ficam em `app/static/brand/`, e a fonte Inter em `app/static/fonts/`, servida localmente (licença OFL em `LICENSE-Inter.txt`).
+Aplicação local de finanças pessoais. A identidade visual (logo, mascote, paleta verde sobre fundo escuro e a fonte Inter) segue um manual de marca que não é distribuído com o código. Os ícones do app e do navegador ficam em `app/static/brand/`, e a fonte Inter em `app/static/fonts/`, servida localmente (licença OFL em `LICENSE-Inter.txt`).
 
 Aplicativo pessoal para acompanhar saldos dos bancos (Nubank, Itaú…), posições de investimento e cotações diárias. A interface abre no navegador, mas o servidor aceita conexões somente em `127.0.0.1`. O banco SQLite fica no perfil local do Windows; não há GitHub, hospedagem ou cópia de dados na nuvem.
 
@@ -232,5 +232,5 @@ Em **Importações**, baixe um backup SQLite ou restaure um anterior. Antes de s
 ## Licença
 
 O código é distribuído sob a [Licença Apache 2.0](LICENSE). A fonte Inter segue a SIL Open Font License
-(`app/static/fonts/LICENSE-Inter.txt`). O nome, o logo e o mascote Tabimoney (`manual_marca/`, `app/static/brand/`)
+(`app/static/fonts/LICENSE-Inter.txt`). O nome, o logo e o mascote Tabimoney (`app/static/brand/`)
 não entram na licença do código: em um fork ou versão modificada, use outro nome e outra marca.
