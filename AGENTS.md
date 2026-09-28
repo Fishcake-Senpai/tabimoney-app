@@ -42,8 +42,12 @@ pública sobre empresas e títulos (CVM, relações com investidores, Tesouro, n
 - **Testes:** rode `pytest` (Windows: `.venv\Scripts\python.exe -m pytest`; Mac: `.venv/bin/python -m pytest`)
   antes de commitar. Tudo roda isolado: base temporária, cofre falso e sem rede (`tests/conftest.py`), então não
   mexe nos dados do usuário. Página nova já é coberta por `tests/test_paginas.py`. Mudou uma regra ou corrigiu um
-  bug? Escreva o teste que teria pegado. O GitHub Actions roda a suíte em Windows e Mac e não gera executável se
-  algum teste falhar.
+  bug? Escreva o teste que teria pegado. Tela ou formulário novo? Cubra também em `tests/e2e` (navegador de
+  verdade; precisa de `requirements-e2e.txt` e `python -m playwright install chromium`).
+- **Branches:** trabalhe na `dev` (ou numa branch saindo dela). Nunca faça commit direto na `main`: ela só recebe
+  merge da `dev` por PR, com o check **Testes ok** do GitHub Actions passando. O merge na `main` gera os
+  executáveis e, se a versão de `app/__init__.py` ainda não tiver tag, publica o Release. Fluxo completo em
+  `docs/versionamento.md`.
 - Dinheiro em centavos (int) no banco; quantidades em milionésimos (int). Na CLI, reais (float).
 - Migrações em `migrations/NNN_*.sql`, aplicadas na inicialização; nunca altere uma migração já aplicada.
 - Textos da interface em português do Brasil.

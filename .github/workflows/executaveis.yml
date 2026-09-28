@@ -1,13 +1,13 @@
 # Testa e gera o Tabimoney para Windows e Mac em máquinas do GitHub. Se um teste falhar, nada é gerado.
-# - Todo push na main que mexe no app: gera e testa; os zips ficam em Actions › (execução) › Artifacts.
-# - Tag vX.Y.Z: além disso, publica o Release com os três zips (é o link para mandar aos amigos).
-# - Dá para rodar à mão em Actions › Gerar executáveis › Run workflow.
+# - Todo merge na main que mexe no app: gera e testa; os zips ficam em Actions › (execução) › Artifacts.
+# - Se a versão de app/__init__.py ainda não tem tag vX.Y.Z, o merge também cria a tag e publica o Release com
+#   os três zips (é o link para mandar aos amigos). Lançar = subir a versão na dev e fazer o merge na main.
+# - Dá para rodar à mão em Actions › Gerar executáveis › Run workflow (na main, também lança se a versão for nova).
 name: Gerar executáveis
 
 on:
   push:
     branches: [main]
-    tags: ["v*"]
     paths:
       - "app/**"
       - "migrations/**"
@@ -24,9 +24,40 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: executaveis-${{ github.ref }}
+  cancel-in-progress: false  # um lançamento em andamento termina antes do próximo
+
 jobs:
+  versao:
+    name: Versão nova?
+    runs-on: ubuntu-latest
+    outputs:
+      versao: ${{ steps.v.outputs.versao }}
+      nova: ${{ steps.v.outputs.nova }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # traz as tags
+      - id: v
+        run: |
+          VERSAO=$(python3 -c 'import re; print(re.search(r"__version__\s*=\s*\"([^\"]+)\"", open("app/__init__.py").read()).group(1))')
+          echo "versao=$VERSAO" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$VERSAO" > /dev/null; then
+            echo "nova=false" >> "$GITHUB_OUTPUT"
+            echo "v$VERSAO já foi lançada: gera os executáveis sem publicar Release."
+          else
+            if [ "$GITHUB_REF" = "refs/heads/main" ] && ! grep -q "^## \[$VERSAO\]" CHANGELOG.md; then
+              echo "::error::A versão $VERSAO não tem seção '## [$VERSAO]' no CHANGELOG.md. Veja docs/versionamento.md."
+              exit 1
+            fi
+            echo "nova=true" >> "$GITHUB_OUTPUT"
+            echo "v$VERSAO é nova: na main, publica o Release."
+          fi
+
   build:
     name: ${{ matrix.nome }}  # testes + executável
+    needs: versao
     strategy:
       fail-fast: false
       matrix:
@@ -112,8 +143,8 @@ jobs:
 
   release:
     name: Publicar o Release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [versao, build]
+    if: github.ref == 'refs/heads/main' && needs.versao.outputs.nova == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -122,6 +153,9 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ needs.versao.outputs.versao }}
+          target_commitish: ${{ github.sha }}
+          name: Tabimoney ${{ needs.versao.outputs.versao }}
           files: pacotes/*.zip
           body: |
             ## Qual arquivo baixar
@@ -134,4 +168,4 @@ jobs:
             No Mac, veja o chip em  › Sobre este Mac. Cada zip traz o app, o `LEIA-ME.txt` (como abrir pela primeira vez)
             e o `Manual-de-conexoes.html` (como conectar os bancos e as cotações).
 
-            O que mudou nesta versão: [CHANGELOG](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md).
+            O que mudou nesta versão: [CHANGELOG](https://github.com/${{ github.repository }}/blob/v${{ needs.versao.outputs.versao }}/CHANGELOG.md).

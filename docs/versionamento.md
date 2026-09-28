@@ -36,20 +36,55 @@ MENOR. A `1.0.0` marca a primeira versão pública estável para amigos baixarem
 - Nunca altere uma migração que já foi lançada: quem atualizar perde a mudança.
 - As migrações rodam sozinhas ao abrir o app, e a restauração de backup recusa bases de versão mais nova.
 
+## Branches e testes
+
+| Branch | Para quê |
+|---|---|
+| `dev` | Onde o trabalho acontece. Todo push roda o workflow **Testes**. Features maiores podem sair numa branch própria (`feat/...`) com PR para a `dev`. |
+| `main` | O que está lançado ou prestes a ser lançado. Só recebe merge da `dev` por PR, com o check **Testes ok** passando. |
+
+O workflow **Testes** (`.github/workflows/testes.yml`) roda em todo push na `dev` e em todo PR:
+
+- `pytest` em Windows e Mac (unidade, telas pelo TestClient, CLI, plataforma);
+- testes de navegador (`tests/e2e`, Playwright com Chromium) no Linux; nas falhas, capturas e traces ficam em
+  *Artifacts* (`resultados-e2e`; abra o trace em <https://trace.playwright.dev>);
+- **Testes ok**, que só passa se os dois anteriores passaram. É o check que a regra da `main` exige.
+
+### Regra da `main` (uma vez, no GitHub)
+
+Em *Settings › Rules › Rulesets › New branch ruleset*:
+
+1. **Ruleset name:** `main protegida` · **Enforcement status:** Active.
+2. **Target branches:** *Add target › Include default branch* (a `main`).
+3. Marque **Restrict deletions** e **Block force pushes**.
+4. Marque **Require a pull request before merging**, com *Required approvals* = 0 (quem mantém é uma pessoa só).
+5. Marque **Require status checks to pass** e adicione o check **Testes ok** (ele só aparece na lista depois de
+   rodar uma vez, então faça o primeiro push na `dev` antes). Marque também *Require branches to be up to date
+   before merging*.
+6. Em *Bypass list*, deixe vazio. Numa emergência dá para desativar a regra por alguns minutos.
+
 ## Como lançar uma versão
 
-1. Confira que `[Não lançado]` descreve tudo o que entra.
+O lançamento acontece no merge da `dev` na `main`. Quem decide é o número da versão: se `__version__` ainda não
+tem tag, o merge publica o Release; se já tem, o merge só gera os executáveis (ficam em *Actions › Artifacts*).
+
+1. Na `dev`, confira que `[Não lançado]` descreve tudo o que entra.
 2. Escolha o número pelas regras acima e atualize `__version__` em `app/__init__.py`.
 3. No `CHANGELOG.md`:
    - renomeie `[Não lançado]` para `[X.Y.Z] - AAAA-MM-DD` e crie uma seção `[Não lançado]` vazia acima dela;
    - atualize os links de comparação no fim do arquivo.
 4. Teste abrindo o app com uma cópia da base (`financas backup`) e passando pelas telas principais.
-5. Faça o commit `chore(release): vX.Y.Z` e crie a tag: `git tag -a vX.Y.Z -m "Tabimoney X.Y.Z"`.
-6. Envie o commit e a tag (`git push --follow-tags`). O GitHub Actions gera e testa as versões Windows, Mac
-   Apple Silicon e Mac Intel e publica o *Release* da tag com os três zips (app, `LEIA-ME.txt` e manual). É o
-   link desse Release que vai para os amigos. Confira em *Actions* se as três passaram.
-7. Opcional, no Windows: rode `build.bat`, abra o `dist\Tabimoney.exe`, clique de novo (tem que reiniciar) e
+5. Faça o commit `chore(release): vX.Y.Z` na `dev` e envie (`git push`). Espere o **Testes** ficar verde.
+6. Abra o PR `dev → main` (título `Tabimoney X.Y.Z`) e faça o merge quando o **Testes ok** passar. Use *Create
+   a merge commit*, para a `dev` e a `main` continuarem com o mesmo histórico.
+7. O workflow **Gerar executáveis** confere que o CHANGELOG tem a seção `## [X.Y.Z]`, gera e testa as versões
+   Windows, Mac Apple Silicon e Mac Intel, cria a tag `vX.Y.Z` e publica o *Release* com os três zips (app,
+   `LEIA-ME.txt` e manual). É o link desse Release que vai para os amigos. Não crie a tag à mão.
+8. Opcional, no Windows: rode `build.bat`, abra o `dist\Tabimoney.exe`, clique de novo (tem que reiniciar) e
    encerre pelo menu.
+
+Merge na `main` sem subir a versão (uma correção de documentação, por exemplo) não publica nada novo: quem usa o
+app só recebe aviso de versão nova quando há Release.
 
 ## Antes de tornar o repositório público
 
