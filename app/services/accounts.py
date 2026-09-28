@@ -8,12 +8,15 @@ def link_accounts(connection) -> int:
     conta aparece com dois apelidos e as movimentações são somadas duas vezes. Só vincula quando o par
     é inequívoco: na mesma instituição, uma única conta Open Finance e uma única conta de arquivo daquele tipo
     (com Nubank e Itaú conectados, cada banco forma seu próprio par).
+    Arquivos importados são do titular principal, então o par só é procurado entre as contas Open Finance
+    dele: o Nubank do outro titular não atrapalha o vínculo.
     Roda depois de cada importação e sincronização, pois a importação de OFX regrava o apelido.
     """
     renamed = 0
     for account_type in ("BANK", "CREDIT"):
         pluggy = connection.execute(
-            "SELECT institution, account_name FROM financial_account WHERE provider = 'pluggy' AND account_type = ?",
+            "SELECT institution, account_name FROM financial_account WHERE provider = 'pluggy' AND account_type = ? "
+            "AND COALESCE(member_id, 1) = 1",
             (account_type,),
         ).fetchall()
         files = connection.execute(

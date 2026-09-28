@@ -1,38 +1,120 @@
 {% extends "base.html" %}
 {% block title %}Configurações{% endblock %}
 {% block content %}
+{% set type_labels = {"BANK": "Conta", "CREDIT": "Cartão", "INVESTMENT": "Investimentos"} %}
 <div class="page-head">
   <div><h1>Configurações</h1><div class="sub">Segredos ficam no {{ vault_name }}</div></div>
 </div>
+<section class="grid">
+  <article class="card span-6" id="open-finance">
+    <div class="card-head"><h2 class="card-title">Open Finance · Meu Pluggy</h2></div>
+    {% for c in connections %}
+    <form method="post" action="/configuracoes/pluggy" class="footnote">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="connection_id" value="{{ c.id }}">
+      <h3 class="card-title">{{ c.label }}</h3>
+      <div class="status-line"><span>Client ID</span><b>{{ c.id_status }}</b></div>
+      <div class="status-line"><span>Client Secret</span><b>{{ c.secret_status }}</b></div>
+      {% for i in c["items"] %}
+      <div class="status-line"><span>{{ i.institution or "Ainda não sincronizado" }} · item {{ i.item_id[:8] }}…</span><b>{{ i.member_name }}</b></div>
+      {% endfor %}
+      <div class="form-grid">
+        <label class="field">Nome da conexão<input name="label" value="{{ c.label }}" maxlength="40" autocomplete="off"></label>
+        <label class="field">Client ID<input name="client_id" autocomplete="off" placeholder="Em branco mantém o salvo"></label>
+        <label class="field">Client Secret<input name="client_secret" type="password" autocomplete="new-password" placeholder="Em branco mantém o salvo"></label>
+        <label class="field">Adicionar Item IDs<input name="item_ids" autocomplete="off" spellcheck="false" placeholder="ID do Nubank, ID do Itaú"></label>
+        {% if members|length > 1 %}
+        <label class="field">Titular dos Item IDs adicionados<select name="member_id">{% for m in members %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}</select></label>
+        {% endif %}
+        <label class="check"><input type="checkbox" name="remove_credentials"> Remover credenciais desta conexão</label>
+        <div><button class="btn btn-sm" type="submit">Salvar conexão</button></div>
+      </div>
+    </form>
+    {% if c["items"] %}
+    <details class="more footnote">
+      <summary>Titular e remoção de cada Item ID</summary>
+      {% for i in c["items"] %}
+      <form method="post" action="/configuracoes/pluggy/item" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="item_id" value="{{ i.item_id }}">
+        <label class="field">{{ i.institution or "Item" }} · {{ i.item_id[:8] }}…<select name="member_id">{% for m in members %}<option value="{{ m.id }}"{% if m.id == i.member_id %} selected{% endif %}>{{ m.name }}</option>{% endfor %}</select></label>
+        <label class="check"><input type="checkbox" name="remove"> Parar de sincronizar este item</label>
+        <div><button class="btn btn-sm" type="submit">Salvar item</button></div>
+      </form>
+      {% endfor %}
+    </details>
+    {% endif %}
+    {% if c.id != 1 %}
+    <form method="post" action="/configuracoes/pluggy/excluir" class="footnote" data-confirm="Excluir a conexão {{ c.label }}? As contas e o histórico já importados continuam.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="connection_id" value="{{ c.id }}">
+      <button class="btn btn-ghost btn-sm" type="submit">Excluir conexão</button>
+    </form>
+    {% endif %}
+    {% endfor %}
+    <details class="more footnote">
+      <summary>Nova conexão (outro Client ID e Secret)</summary>
+      <form method="post" action="/configuracoes/pluggy" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="field">Nome da conexão<input name="label" maxlength="40" autocomplete="off" placeholder="Ex.: Pluggy da Ana"></label>
+        <label class="field">Client ID<input name="client_id" autocomplete="off"></label>
+        <label class="field">Client Secret<input name="client_secret" type="password" autocomplete="new-password"></label>
+        <label class="field">Item IDs<input name="item_ids" autocomplete="off" spellcheck="false"></label>
+        <label class="field">Titular dos Item IDs<select name="member_id">{% for m in members %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}</select></label>
+        <div><button class="btn btn-sm" type="submit">Criar conexão</button></div>
+      </form>
+      <p class="footnote">Só é preciso quando outra pessoa tem o próprio app no Dashboard Pluggy. Se o casal usa o mesmo app, basta adicionar os Item IDs dela na conexão acima e escolher o titular.</p>
+    </details>
+    {% if pluggy_accounts %}
+    <div class="list footnote">
+      {% for a in pluggy_accounts %}
+      <div class="list-row"><span>{{ a.account_name }}<small>{{ a.institution }} · {{ type_labels.get(a.account_type, a.account_type) }} · {{ a.member_name }} · item {{ a.external_key.split(":")[1][:8] }}…</small></span></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <details class="more footnote">
+      <summary>Como obter</summary>
+      <ol class="steps footnote">
+        <li>Cada pessoa conecta os próprios bancos (Nubank, Itaú…) em <a href="https://meu.pluggy.ai" target="_blank" rel="noreferrer">meu.pluggy.ai</a>: o consentimento do Open Finance é dado pelo titular da conta.</li>
+        <li>No <a href="https://dashboard.pluggy.ai" target="_blank" rel="noreferrer">Dashboard Pluggy</a>, copie Client ID, Secret e o Item ID de cada conexão.</li>
+        <li>Cole os Item IDs e escolha o titular. A instituição de cada item é reconhecida pelas contas.</li>
+      </ol>
+    </details>
+  </article>
+
+  <article class="card span-6" id="titulares">
+    <div class="card-head"><h2 class="card-title">Titulares</h2></div>
+    <p class="footnote">Para a gestão a dois: cadastre quem mais tem contas conectadas. As contas de cada pessoa ficam separadas, o seletor no menu mostra a casa ou uma pessoa, e o Pix entre vocês não conta como gasto. O CPF é opcional: fica guardado só como código (não dá para ler de volta) e serve para reconhecer o Pix entre titulares.</p>
+    {% for m in members %}
+    <form method="post" action="/configuracoes/titulares/editar" class="form-grid footnote">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="member_id" value="{{ m.id }}">
+      <label class="field">{% if m.is_primary %}Você (titular principal){% else %}Titular{% endif %}<input name="name" value="{{ m.name }}" maxlength="30" autocomplete="off"></label>
+      <label class="field">CPF {% if m.has_document %}(cadastrado){% else %}(opcional){% endif %}<input name="cpf" inputmode="numeric" autocomplete="off" placeholder="{% if m.has_document %}Em branco mantém o salvo{% else %}000.000.000-00{% endif %}"></label>
+      {% if m.has_document %}<label class="check"><input type="checkbox" name="remove_document"> Apagar CPF</label>{% endif %}
+      <div class="status-line"><span>{{ m.accounts }} conta(s) · {{ m["items"] }} Item ID(s)</span><b><button class="btn btn-sm" type="submit">Salvar</button></b></div>
+    </form>
+    {% if not m.is_primary %}
+    <form method="post" action="/configuracoes/titulares/excluir" class="footnote" data-confirm="Excluir {{ m.name }}?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="member_id" value="{{ m.id }}">
+      <button class="btn btn-ghost btn-sm" type="submit">Excluir {{ m.name }}</button>
+    </form>
+    {% endif %}
+    {% endfor %}
+    <form method="post" action="/configuracoes/titulares" class="form-grid footnote">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="field">Novo titular<input name="name" maxlength="30" autocomplete="off" placeholder="Ex.: Ana"></label>
+      <label class="field">CPF (opcional)<input name="cpf" inputmode="numeric" autocomplete="off"></label>
+      <div><button class="btn btn-sm" type="submit">Adicionar titular</button></div>
+    </form>
+    <p class="footnote">Arquivos importados (OFX, CSV, B3) entram como do titular principal.</p>
+  </article>
+</section>
+
 <form method="post" action="/configuracoes">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <section class="grid">
-    <article class="card span-6">
-      <div class="card-head"><h2 class="card-title">Open Finance · Meu Pluggy</h2></div>
-      <div class="status-line"><span>Client ID</span><b>{{ pluggy_client_id_status }}</b></div>
-      <div class="status-line"><span>Client Secret</span><b>{{ pluggy_client_secret_status }}</b></div>
-      <div class="form-grid footnote">
-        <label class="field">Client ID<input name="pluggy_client_id" autocomplete="off" placeholder="Em branco mantém o salvo"></label>
-        <label class="field">Client Secret<input name="pluggy_client_secret" type="password" autocomplete="new-password" placeholder="Em branco mantém o salvo"></label>
-        <label class="field">Item IDs<input name="pluggy_item_ids" value="{{ item_ids }}" autocomplete="off" spellcheck="false" placeholder="ID do Nubank, ID do Itaú"></label>
-        <label class="check"><input type="checkbox" name="remove_pluggy"> Remover credenciais Pluggy</label>
-      </div>
-      {% if pluggy_accounts %}
-      <div class="list footnote">
-        {% for a in pluggy_accounts %}
-        <div class="list-row"><span>{{ a.account_name }}<small>{{ a.institution }} · {{ {"BANK": "Conta", "CREDIT": "Cartão", "INVESTMENT": "Investimentos"}.get(a.account_type, a.account_type) }} · item {{ a.external_key.split(":")[1][:8] }}…</small></span></div>
-        {% endfor %}
-      </div>
-      {% endif %}
-      <details class="more footnote">
-        <summary>Como obter</summary>
-        <ol class="steps footnote">
-          <li>Conecte cada banco (Nubank, Itaú…) em <a href="https://meu.pluggy.ai" target="_blank" rel="noreferrer">meu.pluggy.ai</a>.</li>
-          <li>No <a href="https://dashboard.pluggy.ai" target="_blank" rel="noreferrer">Dashboard Pluggy</a>, copie Client ID, Secret e o Item ID de cada conexão.</li>
-          <li>Cole os Item IDs separados por vírgula. A instituição de cada item é reconhecida pelas contas.</li>
-        </ol>
-      </details>
-    </article>
     <article class="card span-6">
       <div class="card-head"><h2 class="card-title">Você</h2></div>
       <div class="form-grid footnote">

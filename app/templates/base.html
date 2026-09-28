@@ -31,6 +31,14 @@
       <img class="brand-mascot" src="/static/brand/mascote-128.png" alt="" width="40" height="40">
       <span class="brand-text"><span class="wordmark">Tabi<em>money</em></span><span class="tagline">Finanças sérias (mais ou menos)</span></span>
     </a>
+    {% if view %}
+    <form method="post" action="/titular" class="member-switch" aria-label="De quem são os números">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="back" value="{{ request.url.path }}">
+      <button type="submit" name="member" value="casa"{% if view.current is none %} aria-pressed="true"{% endif %}>Casa</button>
+      {% for m in view.members %}<button type="submit" name="member" value="{{ m.id }}"{% if view.current == m.id %} aria-pressed="true"{% endif %}>{{ m.name }}</button>{% endfor %}
+    </form>
+    {% endif %}
     <nav class="nav" aria-label="Principal">
       <div class="nav-label">Análise</div>
       {{ navlink("/", "Visão geral", '<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>', path == "/") }}
@@ -79,6 +87,9 @@
     <div class="flash-stack">
       {% for flash in flash_messages %}<div class="flash flash-{{ flash.kind }}" role="status">{{ flash.text }}</div>{% endfor %}
     </div>
+    {% endif %}
+    {% if view and view.current is not none %}
+    <div class="flash member-note"><span>Mostrando só as contas de <b>{{ view.label }}</b>. Metas de gastos continuam sendo da casa.</span></div>
     {% endif %}
     {% block content %}{% endblock %}
   </main>

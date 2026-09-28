@@ -11,6 +11,35 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Adicionado
+- Gestão a dois (ou mais): em **Configurações › Titulares**, cadastre quem mais tem contas conectadas. Cada Item
+  ID tem um titular, e as contas de quem não é o titular principal ganham o sufixo " · Nome" (ex.:
+  "Nubank Cartão · Ana"). Com mais de um titular, o menu lateral mostra o seletor **Casa / cada pessoa**, que
+  filtra todas as telas. Metas de gastos continuam sendo da casa.
+- Metas de alocação por titular: na visão de uma pessoa, salvar as metas cria metas só dela, e **Usar as metas
+  da casa** desfaz.
+- Várias conexões Pluggy: cada conexão tem Client ID e Secret próprios (quando cada pessoa tem o próprio app no
+  Dashboard Pluggy). Uma conexão com falha não impede as outras. A conexão que já existia vira a "Principal",
+  com as mesmas credenciais.
+- Pix entre titulares: com o CPF de cada titular (opcional, guardado só como código), o Pix de um para o outro
+  vira "Transferência entre titulares", que fica fora de receitas e despesas. Sem CPF, um Pix que sai da conta de
+  um titular e entra na do outro com o mesmo valor em até 1 dia também é conciliado. Quando a Pluggy informa o
+  CPF do dono do item, ele é preenchido sozinho.
+- CLI: `financas titulares` lista titulares, conexões e as contas de cada um. `financas --titular Ana <comando>`
+  restringe carteira, metas e gastos a uma pessoa. Os lançamentos passam a trazer o campo `titular`.
+
+### Corrigido
+- Dois titulares no mesmo banco apagavam dados um do outro: as contas ganhavam o mesmo nome ("Nubank /
+  NuInvest", "Nubank Cartão"), a posição de um ativo que os dois tinham ficava só com a de um, e o saldo de um
+  dos cartões sumia.
+- Com o Nubank de outro titular conectado, o extrato importado por arquivo deixava de ser vinculado ao Nubank do
+  titular principal e podia ser contado em dobro.
+- Na Conciliação, no celular, o caminho da base estourava a largura da tela.
+
+### Mudado
+- Configurações: o Open Finance ganhou formulários próprios por conexão. Os Item IDs saíram da configuração
+  `pluggy_item_ids` e foram para a tabela `pluggy_item` (migração 009, automática).
+
 ### Interno
 - Testes automatizados (pytest, `tests/`), sem mudança para quem usa o app:
   - abrem todas as páginas com a base vazia e com dados de exemplo;
@@ -19,6 +48,13 @@ base (sempre por migração automática) e o contrato da CLI.
   - cobrem os bugs já corrigidos: compras da fatura aberta, compras em dólar e página com variável faltando.
   Rodam isolados (base temporária, cofre falso, sem rede). No GitHub Actions, rodam em Windows e Mac antes do
   build, e nenhum executável é gerado se algum falhar.
+- Testes de navegador (Playwright, `tests/e2e`): sobem o app de verdade com dados de exemplo e conferem menus,
+  gráficos, erros de JavaScript, formulários de titulares, conexões, metas e categorias, e a largura no celular.
+- Fluxo de branches: o trabalho vai para a `dev`, e o workflow **Testes** (pytest em Windows e Mac e navegador no
+  Linux) roda a cada push e em todo PR. A `main` só recebe merge com o check **Testes ok** passando.
+- Lançamento automático: o merge na `main` gera os executáveis e, se a versão de `app/__init__.py` ainda não
+  tiver tag, cria a tag `vX.Y.Z` e publica o Release. Sem seção `## [X.Y.Z]` no CHANGELOG, o lançamento para com
+  erro.
 
 ## [0.11.0] - 2026-09-24
 

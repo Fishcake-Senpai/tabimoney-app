@@ -3,8 +3,11 @@ from __future__ import annotations
 import re
 import unicodedata
 
-# Categorias que não são receita nem despesa: dinheiro mudando de lugar dentro do próprio patrimônio.
-INTERNAL_CATEGORIES = {"Investimentos", "Pagamento de fatura", "Transferência própria"}
+# Categorias que não são receita nem despesa: dinheiro mudando de lugar dentro do próprio patrimônio
+# (ou do patrimônio da casa: o Pix entre titulares).
+OWN_TRANSFER = "Transferência própria"
+HOUSEHOLD_TRANSFER = "Transferência entre titulares"
+INTERNAL_CATEGORIES = {"Investimentos", "Pagamento de fatura", OWN_TRANSFER, HOUSEHOLD_TRANSFER}
 # Entradas que contam como receita; qualquer outra entrada positiva é estorno e abate a despesa da categoria.
 INCOME_CATEGORIES = {"Salário", "Proventos", "Rendimentos", "Pix e transferências", "Outros"}
 

@@ -4,20 +4,23 @@ from __future__ import annotations
 from urllib.parse import quote
 
 from app import db, security
-from app.services import analytics, budgets, spending
+from app.services import analytics, budgets, household, spending
 
 from .conftest import avisos, csrf
 
 
 def test_salvar_configuracoes_guarda_segredos_no_cofre(client, cofre):
-    r = client.post("/configuracoes", data={
-        "csrf_token": csrf(client), "pluggy_client_id": " id-123 ", "pluggy_client_secret": "segredo",
-        "pluggy_item_ids": "0f8fad5b-d9cb-469f-a165-70867728950e, nao-e-uuid", "brapi_token": "tok",
-        "daily_quotes": "on", "update_check": "on", "display_name": "Ana",
+    token = csrf(client)
+    client.post("/configuracoes", data={
+        "csrf_token": token, "brapi_token": "tok", "daily_quotes": "on", "update_check": "on", "display_name": "Ana",
+    })
+    r = client.post("/configuracoes/pluggy", data={
+        "csrf_token": token, "connection_id": "1", "label": "Principal", "client_id": " id-123 ",
+        "client_secret": "segredo", "item_ids": "0f8fad5b-d9cb-469f-a165-70867728950e, nao-e-uuid",
     })
     assert cofre.dados[(security.SERVICE_NAME, "pluggy_client_id")] == "id-123"
     assert cofre.dados[(security.SERVICE_NAME, "brapi_token")] == "tok"
-    assert db.get_setting("pluggy_item_ids") == "0f8fad5b-d9cb-469f-a165-70867728950e"
+    assert household.item_ids() == ["0f8fad5b-d9cb-469f-a165-70867728950e"]
     tipos = dict(avisos(r.text))
     assert "warning" in tipos and "nao-e-uuid" in tipos["warning"]
     assert "Configurada" in client.get("/configuracoes").text

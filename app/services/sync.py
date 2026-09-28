@@ -6,7 +6,6 @@ import threading
 import unicodedata
 from datetime import date, datetime
 from typing import Any
-from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from app.db import get_setting, rows, set_setting, transaction
@@ -15,7 +14,8 @@ from app.providers.brapi import BrapiError, daily_history
 from app.providers.pluggy import PluggyClient, PluggyData, PluggyError
 from app.security import get_secret, vault_name
 from app.services.accounts import link_accounts
-from app.services.categories import PLUGGY_CATEGORIES, categorize
+from app.services import household
+from app.services.categories import HOUSEHOLD_TRANSFER, OWN_TRANSFER, PLUGGY_CATEGORIES, categorize
 from app.services.fundamentals import auto_sync_weekly
 from app.services.importers import api_amount_to_cents, api_quantity_to_micros, safe_ticker
 
@@ -207,12 +207,17 @@ def _document(party: object) -> str:
     return re.sub(r"\D", "", str(value or ""))
 
 
-def _source_category(item: dict[str, Any]) -> str | None:
-    """Mesmo CPF/CNPJ de pagador e recebedor é transferência própria, independente do rótulo da Pluggy."""
+def _source_category(item: dict[str, Any], documents: household.Documents | None = None) -> str | None:
+    """Mesmo CPF/CNPJ de pagador e recebedor é transferência própria, independente do rótulo da Pluggy.
+    Pagador e recebedor que são titulares diferentes da casa: transferência entre titulares."""
     payment = item.get("paymentData") if isinstance(item.get("paymentData"), dict) else {}
     payer, receiver = _document(payment.get("payer")), _document(payment.get("receiver"))
     if payer and payer == receiver:
-        return "Transferência própria"
+        return OWN_TRANSFER
+    if documents and payer and receiver:
+        payer_member, receiver_member = documents.member_of(payer), documents.member_of(receiver)
+        if payer_member and receiver_member:
+            return OWN_TRANSFER if payer_member == receiver_member else HOUSEHOLD_TRANSFER
     return PLUGGY_CATEGORIES.get(str(item.get("category") or ""))
 
 
@@ -254,9 +259,14 @@ def _signed_event_quantity(event_type: str, raw_quantity: object) -> int:
 
 
 def _write_pluggy_data(
-    connection, item_id: str, payload: PluggyData, run_id: int, institution: str
+    connection, item_id: str, payload: PluggyData, run_id: int, institution: str,
+    member_id: int = household.PRIMARY_ID, member_name: str | None = None,
+    documents: household.Documents | None = None,
 ) -> tuple[int, int]:
+    """Grava um item. As contas de um titular que não é o dono do app levam o sufixo " · Nome"."""
     written = 0
+    name_suffix = household.suffix(member_id, member_name)
+    account_member = None if member_id == household.PRIMARY_ID else member_id
     unconverted = 0
     records_read = len(payload.accounts) + len(payload.investments)
     snapshot_day = _day(
@@ -277,12 +287,14 @@ def _write_pluggy_data(
             account_name = f"{base_name} ••••{account_suffix}" if account_suffix else base_name
         else:
             account_name = f"{institution} / {account.get('subtype') or account_type}"
+        account_name += name_suffix
         connection.execute(
-            "INSERT INTO financial_account(institution, account_name, account_type, currency, provider, external_key) "
-            "VALUES (?, ?, ?, ?, 'pluggy', ?) "
+            "INSERT INTO financial_account(institution, account_name, account_type, currency, provider, external_key, "
+            "member_id) VALUES (?, ?, ?, ?, 'pluggy', ?, ?) "
             "ON CONFLICT(provider, external_key) DO UPDATE SET institution = excluded.institution, "
-            "account_name = excluded.account_name, account_type = excluded.account_type, currency = excluded.currency",
-            (institution, account_name, account_type, currency, external_key),
+            "account_name = excluded.account_name, account_type = excluded.account_type, currency = excluded.currency, "
+            "member_id = excluded.member_id",
+            (institution, account_name, account_type, currency, external_key, account_member),
         )
         account_id = int(
             connection.execute(
@@ -341,18 +353,19 @@ def _write_pluggy_data(
                 "currency = excluded.currency, sync_run_id = excluded.sync_run_id, category = excluded.category, "
                 "original_currency = excluded.original_currency, original_amount_cents = excluded.original_amount_cents",
                 (account_id, run_id, transaction_key, transaction_day, description, signed_amount, transaction_status,
-                 currency, categorize(description, _source_category(item)), statement_ref,
+                 currency, categorize(description, _source_category(item, documents)), statement_ref,
                  original_currency, original_amount),
             )
             written += 1
 
     investment_account_key = f"item:{item_id}:investments"
-    investment_alias = investment_account_name(institution)
+    investment_alias = investment_account_name(institution) + name_suffix
     connection.execute(
-        "INSERT INTO financial_account(institution, account_name, account_type, currency, provider, external_key) "
-        "VALUES (?, ?, 'INVESTMENT', 'BRL', 'pluggy', ?) "
-        "ON CONFLICT(provider, external_key) DO UPDATE SET institution = excluded.institution, account_name = excluded.account_name",
-        (institution, investment_alias, investment_account_key),
+        "INSERT INTO financial_account(institution, account_name, account_type, currency, provider, external_key, member_id) "
+        "VALUES (?, ?, 'INVESTMENT', 'BRL', 'pluggy', ?, ?) "
+        "ON CONFLICT(provider, external_key) DO UPDATE SET institution = excluded.institution, "
+        "account_name = excluded.account_name, member_id = excluded.member_id",
+        (institution, investment_alias, investment_account_key, account_member),
     )
     investment_account_id = int(
         connection.execute(
@@ -522,31 +535,12 @@ def _write_pluggy_data(
     return records_read, written
 
 
-UUID_PATTERN = re.compile(r"[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}", re.IGNORECASE)
-
-
-def parse_item_ids(text: str | None) -> tuple[list[str], list[str]]:
-    """Extrai Item IDs de qualquer texto colado: vírgula, ponto e vírgula, espaço ou quebra de linha,
-    aspas, maiúsculas e até a URL do dashboard. Devolve (ids válidos sem repetição, trechos ignorados)."""
-    valid: list[str] = []
-    ignored: list[str] = []
-    for token in re.split(r"[\s,;|]+", text or ""):
-        token = token.strip("\"'`[](){}<>.")
-        if not token:
-            continue
-        found = UUID_PATTERN.findall(token)
-        if not found:
-            ignored.append(token[:40])
-        for value in found:
-            normalized = str(UUID(value))
-            if normalized not in valid:
-                valid.append(normalized)
-    return valid, ignored
+parse_item_ids = household.parse_item_ids
 
 
 def pluggy_item_ids() -> list[str]:
-    """Itens configurados (a migração 003 trouxe o Item ID único das versões anteriores)."""
-    return parse_item_ids(get_setting("pluggy_item_ids"))[0]
+    """Itens cadastrados em todas as conexões (a migração 009 trouxe os da configuração antiga)."""
+    return household.item_ids()
 
 
 def _check_listed_positions(item_id: str, bundle: PluggyData) -> None:
@@ -580,20 +574,27 @@ def _check_listed_positions(item_id: str, bundle: PluggyData) -> None:
         )
 
 
-def _sync_item(client: PluggyClient, item_id: str) -> dict[str, Any]:
+def _sync_item(client: PluggyClient, item: dict[str, Any], documents: household.Documents | None = None,
+               learn_identity: bool = False) -> dict[str, Any]:
+    item_id = item["item_id"]
+    member_id = int(item.get("member_id") or household.PRIMARY_ID)
+    member_name = item.get("member_name")
     run_id = _run_start("Meu Pluggy")
     try:
         bundle = client.collect(item_id)
         normalized_item_id = str(bundle.item.get("id") or item_id).strip().lower()
         institution = detect_institution(bundle)
+        if learn_identity and household.learn_document(member_id, client.identity(normalized_item_id)):
+            documents = household.Documents()
+        label = institution + household.suffix(member_id, member_name)
         _check_listed_positions(normalized_item_id, bundle)
         with transaction() as connection:
-            connection.execute("UPDATE sync_run SET source = ? WHERE id = ?", (f"Meu Pluggy · {institution}", run_id))
+            connection.execute("UPDATE sync_run SET source = ? WHERE id = ?", (f"Meu Pluggy · {label}", run_id))
             records_read, records_written = _write_pluggy_data(
-                connection, normalized_item_id, bundle, run_id, institution
+                connection, normalized_item_id, bundle, run_id, institution, member_id, member_name, documents
             )
         status = "partial" if bundle.errors or not bundle.positions_complete else "success"
-        message = f"{institution}: sincronização concluída."
+        message = f"{label}: sincronização concluída."
         external_updated_at = next(
             (
                 str(bundle.item[field])
@@ -603,9 +604,9 @@ def _sync_item(client: PluggyClient, item_id: str) -> dict[str, Any]:
             None,
         )
         if bundle.errors:
-            message = f"{institution}: dados válidos foram salvos; " + " ".join(bundle.errors[:3])
+            message = f"{label}: dados válidos foram salvos; " + " ".join(bundle.errors[:3])
         elif not bundle.positions_complete:
-            message = f"{institution}: sincronização parcial; posições anteriores foram preservadas."
+            message = f"{label}: sincronização parcial; posições anteriores foram preservadas."
         _run_finish(run_id, status, records_read, records_written, message, external_updated_at)
         return {"status": status, "records_read": records_read, "records_written": records_written, "message": message}
     except (PluggyError, RuntimeError) as exc:
@@ -618,31 +619,52 @@ def _sync_item(client: PluggyClient, item_id: str) -> dict[str, Any]:
         return {"status": "failed", "records_read": 0, "records_written": 0, "message": message}
 
 
+def _failed_connection(label: str, message: str, count: int) -> list[dict[str, Any]]:
+    run_id = _run_start(f"Meu Pluggy · {label}")
+    _run_finish(run_id, "failed", 0, 0, message[:500])
+    return [{"status": "failed", "records_read": 0, "records_written": 0, "message": message}] * max(count, 1)
+
+
 def sync_pluggy(item_id: str | None = None) -> dict[str, Any]:
-    """Sincroniza cada item configurado (ex.: Nubank e Itaú) com uma sessão só; um item com falha não barra os demais."""
-    item_ids = [item_id] if item_id else pluggy_item_ids()
-    if not item_ids:
+    """Sincroniza os itens de todas as conexões, uma sessão por conexão (cada uma com as próprias credenciais).
+    Uma conexão ou um item com falha não barra os demais."""
+    items = household.items()
+    if item_id:
+        wanted = item_id.strip().lower()
+        items = [i for i in items if i["item_id"] == wanted] or [
+            {"item_id": wanted, "connection_id": 1, "member_id": household.PRIMARY_ID, "member_name": None}
+        ]
+    if not items:
         run_id = _run_start("Meu Pluggy")
         message = "Informe ao menos um Item ID do Meu Pluggy nas configurações."
         _run_finish(run_id, "failed", 0, 0, message)
         raise SyncError(message)
-    try:
-        client = PluggyClient(get_secret("pluggy_client_id") or "", get_secret("pluggy_client_secret") or "")
-    except (PluggyError, RuntimeError) as exc:
-        run_id = _run_start("Meu Pluggy")
-        _run_finish(run_id, "failed", 0, 0, str(exc)[:500])
-        raise SyncError(str(exc)[:500]) from exc
-    with client:
-        results = [_sync_item(client, value) for value in item_ids]
+    labels = {c["id"]: c["label"] for c in household.connections()}
+    many = len({i["connection_id"] for i in items}) > 1
+    documents = household.Documents()
+    shared = household.is_shared()
+    results: list[dict[str, Any]] = []
+    for connection_id in dict.fromkeys(i["connection_id"] for i in items):
+        group = [i for i in items if i["connection_id"] == connection_id]
+        label = labels.get(connection_id, f"Conexão {connection_id}")
+        id_key, secret_key = household.secret_names(connection_id)
+        try:
+            client = PluggyClient(get_secret(id_key) or "", get_secret(secret_key) or "")
+        except (PluggyError, RuntimeError) as exc:
+            message = f"{label}: {exc}" if many else str(exc)
+            results += _failed_connection(label, message, len(group))
+            continue
+        with client:
+            results += [_sync_item(client, item, documents, learn_identity=shared) for item in group]
     failed = [r for r in results if r["status"] == "failed"]
     if len(failed) == len(results):
-        raise SyncError(" ".join(r["message"] for r in failed)[:500])
+        raise SyncError(" ".join(dict.fromkeys(r["message"] for r in failed))[:500])
     status = "partial" if failed or any(r["status"] == "partial" for r in results) else "success"
     return {
         "status": status,
         "records_read": sum(r["records_read"] for r in results),
         "records_written": sum(r["records_written"] for r in results),
-        "message": " ".join(r["message"] for r in results)[:500],
+        "message": " ".join(dict.fromkeys(r["message"] for r in results))[:500],
     }
 
 

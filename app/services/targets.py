@@ -10,6 +10,9 @@ Como o patrimônio é dividido:
 
 Aporte sem vender: primeiro completa a reserva; depois distribui o que sobra entre as classes que estão
 abaixo da meta, na proporção do que falta; se o aporte cobre tudo, o excesso segue as próprias metas.
+
+Titulares: as metas da casa valem para todos. Um titular pode ter metas próprias, que valem na visão dele;
+sem elas, a visão dele usa as da casa.
 """
 from __future__ import annotations
 
@@ -36,20 +39,33 @@ BUCKETS = {
 }
 
 
-def load() -> dict[str, Any]:
+def _key(member: int | None) -> str:
+    return SETTING_KEY if member is None else f"{SETTING_KEY}:{member}"
+
+
+def load(member: int | None = None) -> dict[str, Any]:
+    """Metas do titular, se ele tem metas próprias; senão, as da casa. `own` diz qual das duas valeu."""
+    raw = get_setting(_key(member)) if member is not None else ""
     try:
-        data = json.loads(get_setting(SETTING_KEY) or "{}")
+        data = json.loads(raw or get_setting(SETTING_KEY) or "{}")
     except ValueError:
         data = {}
     return {
         "reserve_cents": data.get("reserve_cents"), "fixed_pct": data.get("fixed_pct"),
         "equity_pct": data.get("equity_pct"), "intl_pct": data.get("intl_pct"),
         "pension_in_fixed": data.get("pension_in_fixed", True),
+        "member": member, "own": member is None or bool(raw),
     }
 
 
+def clear(member: int) -> None:
+    """Apaga as metas próprias do titular: a visão dele volta a usar as da casa."""
+    with transaction() as connection:
+        connection.execute("DELETE FROM app_setting WHERE key = ?", (_key(member),))
+
+
 def save(reserve_cents: int | None, fixed_pct: float | None, equity_pct: float | None, intl_pct: float | None,
-         pension_in_fixed: bool = True) -> dict[str, Any]:
+         pension_in_fixed: bool = True, member: int | None = None) -> dict[str, Any]:
     """Percentuais como fração (0.4 = 40%). Renda fixa + variável precisa fechar 100%; um lado vazio é o complemento."""
     if reserve_cents is not None and reserve_cents < 0:
         raise ValueError("A reserva de emergência não pode ser negativa.")
@@ -66,7 +82,7 @@ def save(reserve_cents: int | None, fixed_pct: float | None, equity_pct: float |
         )
     data = {"reserve_cents": reserve_cents, "fixed_pct": fixed_pct, "equity_pct": equity_pct,
             "intl_pct": intl_pct, "pension_in_fixed": bool(pension_in_fixed)}
-    set_setting(SETTING_KEY, json.dumps(data))
+    set_setting(_key(member), json.dumps(data))
     return data
 
 
@@ -95,7 +111,7 @@ def set_region(ticker: str, region: str | None) -> None:
 
 def snapshot(book, assets: list[dict[str, Any]]) -> dict[str, Any]:
     """Valores atuais por classe, metas em reais e desvios."""
-    targets = load()
+    targets = load(getattr(book, "member", None))
     region_of = regions()
     cash = book.cash_at(book.today)
     card_debt = -book.card_debt_at(book.today)
