@@ -11,6 +11,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.12.0] - 2026-09-29
+
 ### Adicionado
 - Demonstração: o botão **Ver demonstração** na visão geral abre o app com dados fictícios de um casal (Lucas e
   Marina), com todas as telas preenchidas. A demo fica numa base separada e usa um cofre de senhas próprio: seus
@@ -43,7 +45,7 @@ base (sempre por migração automática) e o contrato da CLI.
   titular principal e podia ser contado em dobro.
 - Na Conciliação, no celular, o caminho da base estourava a largura da tela.
 
-### Mudado
+### Alterado
 - Configurações: o Open Finance ganhou formulários próprios por conexão. Os Item IDs saíram da configuração
   `pluggy_item_ids` e foram para a tabela `pluggy_item` (migração 009, automática).
 
@@ -220,7 +222,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.11.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Fishcake-Senpai/tabimoney-app/releases/tag/v0.10.0
 [0.9.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.8.0...v0.9.0
