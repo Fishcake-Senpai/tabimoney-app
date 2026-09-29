@@ -25,6 +25,8 @@ O app é local (FastAPI + SQLite). Tudo o que um agente faz passa pela CLI na ra
 - `atualizar`: backup + Open Finance + cotações/CDI + balanços da CVM, de uma vez.
 - `titulares`: quem é quem na gestão a dois. Com mais de um titular, `--titular NOME` (antes do grupo) restringe
   carteira, metas e gastos a uma pessoa; sem ele, vale a casa toda. Pergunte de quem é a análise se não estiver claro.
+- `--demo` (antes do grupo): roda na demonstração, com dados fictícios. Use para ensaiar um roteiro ou mostrar o
+  resultado sem tocar nos dados do usuário; nunca apresente números da demo como se fossem dele.
 - `carteira contexto`: fotografia completa (metas, posições com fundamentos, últimas análises, renda fixa, previdência). **Comece por aqui** em qualquer tarefa de investimentos.
 - `gastos resumo | listar | recategorizar | regra | regras`
 - `metas mostrar [--aporte X] | definir | regiao` (metas de alocação)

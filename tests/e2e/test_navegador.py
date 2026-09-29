@@ -49,7 +49,7 @@ def test_graficos_desenham(page: Page, caminho):
 def test_ativo_abre_pelo_link_da_carteira(page: Page, base_url):
     page.goto("/carteira")
     page.get_by_role("link", name="ITSA4").first.click()
-    expect(page).to_have_url(base_url + "/ativo/ITSA4")
+    expect(page).to_have_url(re.compile(re.escape(base_url + "/ativo/ITSA4") + r"(#.*)?$"))
     expect(page.locator("h1")).to_contain_text("ITSA4")
 
 
@@ -60,27 +60,27 @@ def test_seletor_de_titular_filtra_e_volta_para_a_casa(page: Page):
     seletor = page.locator(".member-switch")
     expect(seletor.get_by_role("button", name="Casa")).to_have_attribute("aria-pressed", "true")
     tabela = page.locator("#tx")
-    expect(tabela).to_contain_text("Farmácia da Ana")
-    expect(tabela).to_contain_text("Supermercado Bom Preço")
+    expect(tabela).to_contain_text("Carrefour Hiper")
+    expect(tabela).to_contain_text("Supermercado Pão de Açúcar")
 
-    seletor.get_by_role("button", name="Ana").click()
+    seletor.get_by_role("button", name="Marina").click()
     expect(page).to_have_url(re.compile(r"/contas$"))
-    expect(page.locator(".member-note")).to_contain_text("Ana")
-    expect(seletor.get_by_role("button", name="Ana")).to_have_attribute("aria-pressed", "true")
-    expect(tabela).to_contain_text("Farmácia da Ana")
-    expect(tabela).not_to_contain_text("Supermercado Bom Preço")
+    expect(page.locator(".member-note")).to_contain_text("Marina")
+    expect(seletor.get_by_role("button", name="Marina")).to_have_attribute("aria-pressed", "true")
+    expect(tabela).to_contain_text("Carrefour Hiper")
+    expect(tabela).not_to_contain_text("Supermercado Pão de Açúcar")
 
     seletor.get_by_role("button", name="Casa").click()
     expect(page.locator(".member-note")).to_have_count(0)
-    expect(tabela).to_contain_text("Supermercado Bom Preço")
+    expect(tabela).to_contain_text("Supermercado Pão de Açúcar")
 
 
 def test_carteira_do_titular_so_mostra_a_quantidade_dele(page: Page):
     page.goto("/ativo/ITSA4")
-    expect(page.locator("main")).to_contain_text("140")
-    page.locator(".member-switch").get_by_role("button", name="Ana").click()
-    expect(page.locator("main")).to_contain_text("40")
-    expect(page.locator("main")).not_to_contain_text("140")
+    expect(page.locator("main")).to_contain_text("1100")  # 800 do Lucas + 300 da Marina
+    page.locator(".member-switch").get_by_role("button", name="Marina").click()
+    expect(page.locator("main")).to_contain_text("300")
+    expect(page.locator("main")).not_to_contain_text("1100")
 
 
 def test_cadastrar_e_excluir_titular(aceitar_confirmacoes: Page):
@@ -117,13 +117,13 @@ def test_criar_e_excluir_conexao_pluggy(aceitar_confirmacoes: Page):
     nova.get_by_label("Client ID", exact=True).fill("id-e2e")
     nova.get_by_label("Client Secret", exact=True).fill("segredo-e2e")
     nova.get_by_label("Item IDs", exact=True).fill("44444444-4444-4444-8444-444444444444")
-    nova.get_by_label("Titular dos Item IDs").select_option(label="Ana")
+    nova.get_by_label("Titular dos Item IDs").select_option(label="Marina")
     nova.get_by_role("button", name="Criar conexão").click()
     expect(_aviso(page)).to_contain_text("Conexão salva.")
 
     cartao = page.locator("form[action='/configuracoes/pluggy']", has=page.locator("input[value='Pluggy E2E']"))
     expect(cartao).to_contain_text("item 44444444")
-    expect(cartao).to_contain_text("Ana")
+    expect(cartao).to_contain_text("Marina")
     expect(cartao.locator(".status-line", has_text="Client ID")).to_contain_text("Configurada")
     expect(page.locator("body")).not_to_contain_text("segredo-e2e")
 
@@ -162,18 +162,59 @@ def test_busca_da_tabela_filtra_sem_recarregar(page: Page):
 
 def test_metas_do_titular_e_da_casa(page: Page):
     page.goto("/metas")
-    page.locator(".member-switch").get_by_role("button", name="Ana").click()
-    expect(page.get_by_role("heading", name="Definir metas de Ana")).to_be_visible()
-    expect(page.locator("main")).to_contain_text("Ana ainda usa as metas da casa")
+    expect(page.get_by_label("Renda fixa (%)")).to_have_value("40")
+    page.locator(".member-switch").get_by_role("button", name="Marina").click()
+    expect(page.get_by_role("heading", name="Definir metas de Marina")).to_be_visible()
+    expect(page.locator("main")).to_contain_text("Marina tem metas próprias")
     page.get_by_label("Renda fixa (%)").fill("70")
+    page.get_by_label("Renda variável (%)").fill("30")
     page.get_by_role("button", name="Salvar metas").click()
-    expect(_aviso(page)).to_contain_text("Metas de Ana salvas.")
+    expect(_aviso(page)).to_contain_text("Metas de Marina salvas.")
     expect(page.get_by_label("Renda fixa (%)")).to_have_value("70")
 
     page.get_by_role("button", name="Usar as metas da casa").click()
     expect(_aviso(page)).to_contain_text("voltou a usar as metas da casa")
+    expect(page.locator("main")).to_contain_text("Marina ainda usa as metas da casa")
+    expect(page.get_by_label("Renda fixa (%)")).to_have_value("40")
     page.locator(".member-switch").get_by_role("button", name="Casa").click()
     expect(page.get_by_role("heading", name="Definir metas da casa")).to_be_visible()
+
+
+# ---------------------------------------------------------------- dados em todas as telas
+
+@pytest.mark.parametrize("caminho", [c for _, c in MENU])
+def test_nenhum_grafico_vazio(page: Page, caminho):
+    """O servidor de teste usa os dados da demonstração: todo gráfico tem o que desenhar."""
+    page.goto(caminho)
+    expect(page.locator(".chart-empty")).to_have_count(0)
+
+
+def test_ver_demonstracao_pela_visao_geral(aceitar_confirmacoes: Page, base_url):
+    page = aceitar_confirmacoes
+    page.goto("/")
+    page.get_by_role("button", name="Ver demonstração").click()
+    faixa = page.locator(".demo-banner")
+    expect(faixa).to_contain_text("Demonstração · dados fictícios")
+    expect(page.locator("h1")).to_have_text("Olá, Lucas!")
+    for _, caminho in MENU:
+        page.goto(caminho)
+        expect(faixa).to_be_visible()
+        expect(page.locator(".chart-empty")).to_have_count(0)
+
+    page.goto("/configuracoes#titulares")
+    page.locator("form[action='/configuracoes/titulares']").get_by_label("Novo titular").fill("Visitante")
+    page.get_by_role("button", name="Adicionar titular").click()
+    expect(page.locator(".member-switch")).to_contain_text("Visitante")
+    faixa.get_by_role("button", name="Recomeçar").click()
+    expect(_aviso(page)).to_contain_text("Demonstração recomeçada")
+    expect(page.locator(".member-switch")).not_to_contain_text("Visitante")
+
+    page.get_by_role("button", name="Open Finance").click()
+    expect(_aviso(page)).to_contain_text("Na demonstração, sincronizar o Open Finance fica desligado")
+
+    faixa.get_by_role("button", name="Sair da demo").click()
+    expect(page.locator(".demo-banner")).to_have_count(0)
+    expect(page.get_by_role("button", name="Ver demonstração")).to_be_visible()
 
 
 # ---------------------------------------------------------------- celular

@@ -6,6 +6,9 @@ from __future__ import annotations
 
 import os
 import sys
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Iterator
 
 SERVICE_NAME = "FinancasPessoaisLocal"
 
@@ -31,6 +34,25 @@ def _backend_names(backend) -> list[str]:
     return [f"{type(b).__module__}.{type(b).__name__}".lower() for b in items]
 
 
+# Cofre trocado só no contexto atual: a demonstração usa um cofre em memória e nunca toca no do sistema.
+_vault_override: ContextVar[Any] = ContextVar("vault_override", default=None)
+
+
+@contextmanager
+def using_vault(vault: Any) -> Iterator[Any]:
+    token = _vault_override.set(vault)
+    try:
+        yield vault
+    finally:
+        _vault_override.reset(token)
+
+
+def _vault():
+    """O cofre do contexto (a demonstração usa um em memória) ou, fora dele, o do sistema."""
+    override = _vault_override.get()
+    return override if override is not None else _system_vault()
+
+
 def _system_vault():
     accepted = _NATIVE.get("win32" if os.name == "nt" else sys.platform)
     if not accepted:
@@ -48,17 +70,17 @@ def _system_vault():
 def save_secret(name: str, value: str) -> None:
     if not value:
         return
-    keyring = _system_vault()
+    keyring = _vault()
     keyring.set_password(SERVICE_NAME, name, value)
 
 
 def get_secret(name: str) -> str | None:
-    keyring = _system_vault()
+    keyring = _vault()
     return keyring.get_password(SERVICE_NAME, name)
 
 
 def delete_secret(name: str) -> None:
-    keyring = _system_vault()
+    keyring = _vault()
     try:
         keyring.delete_password(SERVICE_NAME, name)
     except keyring.errors.PasswordDeleteError:

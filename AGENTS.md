@@ -44,6 +44,9 @@ pública sobre empresas e títulos (CVM, relações com investidores, Tesouro, n
   mexe nos dados do usuário. Página nova já é coberta por `tests/test_paginas.py`. Mudou uma regra ou corrigiu um
   bug? Escreva o teste que teria pegado. Tela ou formulário novo? Cubra também em `tests/e2e` (navegador de
   verdade; precisa de `requirements-e2e.txt` e `python -m playwright install chromium`).
+- **Demonstração (`app/demo.py`):** toda tela, aba ou recurso novo ganha exemplos fictícios na demo, no mesmo
+  commit. `tests/test_demo.py` abre todas as páginas na demo e falha se alguma aparecer vazia; os testes de
+  navegador (`tests/e2e`) usam os mesmos dados. Dados só inventados: nada da base do usuário vai para a demo.
 - **Branches:** trabalhe na `dev` (ou numa branch saindo dela). Nunca faça commit direto na `main`: ela só recebe
   merge da `dev` por PR, com o check **Testes ok** do GitHub Actions passando. O merge na `main` gera os
   executáveis e, se a versão de `app/__init__.py` ainda não tiver tag, publica o Release. Fluxo completo em

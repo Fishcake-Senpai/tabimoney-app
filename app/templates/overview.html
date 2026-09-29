@@ -4,14 +4,28 @@
 {% block content %}
 <div class="page-head">
   <div><h1>Olá{% if display_name %}, {{ display_name }}{% endif %}!</h1><div class="sub">Bora organizar as finanças?</div></div>
-  <div class="actions">{{ sync_buttons(csrf_token) }}</div>
+  <div class="actions">
+    {% if not demo_mode and has_data %}
+    <form method="post" action="/demo/entrar">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn btn-ghost" type="submit" title="Abre o app com dados fictícios, sem mexer nos seus">Ver demonstração</button>
+    </form>
+    {% endif %}
+    {{ sync_buttons(csrf_token) }}
+  </div>
 </div>
 
 {% if not has_data %}
 <div class="card empty">
   <h2>Nenhum dado ainda</h2>
-  <p>Arraste extratos do Nubank e planilhas da B3 para começar.</p>
-  <a class="btn btn-primary" href="/importar">Importar arquivos</a>
+  <p>Arraste extratos do Nubank e planilhas da B3 para começar, ou veja antes como o app fica com a demonstração.</p>
+  <div class="actions">
+    <a class="btn btn-primary" href="/importar">Importar arquivos</a>
+    <form method="post" action="/demo/entrar">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn" type="submit">Ver demonstração</button>
+    </form>
+  </div>
 </div>
 {% else %}
 <section class="kpis">

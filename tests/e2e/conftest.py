@@ -1,7 +1,7 @@
 """Testes de navegador: o app de verdade (tests/e2e/servidor.py) num Chromium controlado pelo Playwright.
 
 Rodar: pip install -r requirements-e2e.txt, python -m playwright install chromium e python -m pytest tests/e2e.
-O Tabimoney do dia a dia precisa estar fechado: o app só aceita a porta 8765.
+O servidor de teste usa a porta 8799 (TABIMONEY_PORTA), então o Tabimoney do dia a dia pode ficar aberto.
 """
 from __future__ import annotations
 
@@ -14,13 +14,14 @@ from pathlib import Path
 
 import pytest
 
-ENDERECO = "http://127.0.0.1:8765"
+PORTA = 8799
+ENDERECO = f"http://127.0.0.1:{PORTA}"
 
 
 def _porta_aberta() -> bool:
     with socket.socket() as s:
         s.settimeout(0.5)
-        return s.connect_ex(("127.0.0.1", 8765)) == 0
+        return s.connect_ex(("127.0.0.1", PORTA)) == 0
 
 
 @pytest.fixture(scope="session")
@@ -29,12 +30,13 @@ def base_url(tmp_path_factory):
     if _porta_aberta():
         # No CI é erro; na máquina de quem desenvolve, o Tabimoney aberto só adia estes testes.
         (pytest.fail if os.environ.get("CI") else pytest.skip)(
-            "A porta 8765 está em uso. Feche o Tabimoney para rodar os testes de navegador."
+            f"A porta {PORTA} está em uso (um servidor de teste que ficou aberto?)."
         )
     pasta = tmp_path_factory.mktemp("e2e")
     log = (pasta / "servidor.log").open("w", encoding="utf-8")
     processo = subprocess.Popen(
         [sys.executable, str(Path(__file__).with_name("servidor.py")), str(pasta)], stdout=log, stderr=subprocess.STDOUT,
+        env={**os.environ, "TABIMONEY_PORTA": str(PORTA)},
     )
     try:
         for _ in range(120):

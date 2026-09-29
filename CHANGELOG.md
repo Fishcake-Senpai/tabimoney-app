@@ -12,6 +12,13 @@ base (sempre por migração automática) e o contrato da CLI.
 ## [Não lançado]
 
 ### Adicionado
+- Demonstração: o botão **Ver demonstração** na visão geral abre o app com dados fictícios de um casal (Lucas e
+  Marina), com todas as telas preenchidas. A demo fica numa base separada e usa um cofre de senhas próprio: seus
+  dados não aparecem nela e nada do que você fizer na demo chega a eles. Uma faixa no topo lembra que é a demo e
+  tem **Recomeçar** e **Sair da demo**. Sincronizar, atualizar mercado, backup e restauração ficam desligados na
+  demo. A demo se refaz sozinha a cada dia e a cada versão, então as datas estão sempre atuais.
+- CLI: `financas --demo <comando>` roda qualquer comando na demonstração, para testar roteiros de agentes sem
+  dados reais.
 - Gestão a dois (ou mais): em **Configurações › Titulares**, cadastre quem mais tem contas conectadas. Cada Item
   ID tem um titular, e as contas de quem não é o titular principal ganham o sufixo " · Nome" (ex.:
   "Nubank Cartão · Ana"). Com mais de um titular, o menu lateral mostra o seletor **Casa / cada pessoa**, que

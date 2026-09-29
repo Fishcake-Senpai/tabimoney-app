@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import os
 import secrets
 import threading
 from contextlib import asynccontextmanager
@@ -13,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import db
+from app import db, demo
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
 from app.services import analytics, budgets, fundamentals, household, pension, recommendations, spending, targets, updates
@@ -28,7 +29,8 @@ from app.services.smart_import import import_file
 from app.services.sync import SyncError, quote_scheduler, sync_daily_quotes, sync_pluggy
 
 APP_DIR = Path(__file__).resolve().parent
-PORT = 8765
+# TABIMONEY_PORTA só existe para os testes de navegador rodarem com o Tabimoney do dia a dia aberto.
+PORT = int(os.environ.get("TABIMONEY_PORTA") or 8765)
 ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
 
 
@@ -74,8 +76,19 @@ async def lifespan(_: FastAPI):
         checker.join(timeout=2)
 
 
+class DemoMiddleware(BaseHTTPMiddleware):
+    """Na demonstração, a requisição inteira lê e grava em demo.sqlite3 e usa o cofre em memória (app/demo.py)."""
+
+    async def dispatch(self, request: Request, call_next):
+        if not request.session.get("demo"):
+            return await call_next(request)
+        with demo.active():
+            return await call_next(request)
+
+
 app = FastAPI(title="Tabimoney", version=__version__, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.add_middleware(LocalOnlyMiddleware)
+app.add_middleware(DemoMiddleware)  # por dentro da sessão: precisa do cookie já lido
 app.add_middleware(
     SessionMiddleware,
     secret_key=secrets.token_urlsafe(48),
@@ -117,6 +130,7 @@ def shutdown_from_launcher(request: Request):
 @app.post("/sistema/encerrar", response_class=HTMLResponse)
 def shutdown_from_user(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    request.session.pop("demo", None)
     if not _schedule_shutdown(request):
         _flash(request, "warning", "Este Tabimoney foi aberto pelo terminal: encerre com Ctrl+C na janela dele.")
         return _redirect(request, "/configuracoes")
@@ -171,7 +185,8 @@ def _update_notice():
 
 def _render(request: Request, template: str, **context):
     messages = request.session.pop("flash_messages", [])
-    context.setdefault("update", _update_notice())
+    context.setdefault("update", None if request.session.get("demo") else _update_notice())
+    context.setdefault("demo_mode", bool(request.session.get("demo")))
     return templates.TemplateResponse(
         request=request,
         name=template,
@@ -222,6 +237,47 @@ def _household_view(request: Request) -> dict[str, object] | None:
 
 def _page(request: Request, template: str, **context):
     return _render(request, template, nav=_nav_counts(), view=_household_view(request), **context)
+
+
+def _in_demo(request: Request) -> bool:
+    return bool(request.session.get("demo"))
+
+
+def _demo_blocked(request: Request, what: str, back: str = "/") -> RedirectResponse | None:
+    """Na demonstração, o que busca dados de fora ou mexe em arquivos do usuário fica desligado."""
+    if not _in_demo(request):
+        return None
+    _flash(request, "warning", f"Na demonstração, {what} fica desligado. Saia da demo para usar com seus dados.")
+    return _redirect(request, back)
+
+
+@app.post("/demo/entrar")
+def enter_demo(request: Request, csrf_token: str = Form(...)):
+    _check_csrf(request, csrf_token)
+    demo.ensure()
+    request.session["demo"] = True
+    request.session.pop("member", None)
+    _flash(request, "success", "Bem-vindo à demonstração: um casal fictício, com dados inventados. Mexa à vontade.")
+    return _redirect(request, "/")
+
+
+@app.post("/demo/sair")
+def leave_demo(request: Request, csrf_token: str = Form(...)):
+    _check_csrf(request, csrf_token)
+    request.session.pop("demo", None)
+    request.session.pop("member", None)
+    return _redirect(request, "/")
+
+
+@app.post("/demo/recomecar")
+def restart_demo(request: Request, csrf_token: str = Form(...)):
+    _check_csrf(request, csrf_token)
+    if not _in_demo(request):
+        return _redirect(request, "/")
+    demo.build()
+    request.session.pop("member", None)
+    _flash(request, "success", "Demonstração recomeçada: tudo voltou ao original.")
+    return _redirect(request, "/")
 
 
 def _household_transactions(member: int | None, transactions: list[dict]) -> list[dict]:
@@ -437,6 +493,8 @@ def report_page(request: Request, report_id: int):
 @app.post("/fundamentos/atualizar")
 def fundamentals_sync(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "atualizar os balanços da CVM", "/carteira"):
+        return blocked
     try:
         result = fundamentals.sync_fundamentals()
         _flash(request, "success", result["message"])
@@ -814,6 +872,8 @@ def imports_legacy():
 @app.post("/atualizacao/verificar")
 def check_update(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "verificar versão nova", "/configuracoes#atualizacoes"):
+        return blocked
     info = updates.check(force=True)
     summary = updates.summary()
     if summary["error"]:
@@ -1046,6 +1106,8 @@ def upload_quotes(request: Request, csrf_token: str = Form(...), file: UploadFil
 @app.post("/sincronizar/pluggy")
 def pluggy_sync(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "sincronizar o Open Finance"):
+        return blocked
     try:
         result = sync_pluggy()
         kind = "warning" if result["status"] == "partial" else "success"
@@ -1058,6 +1120,8 @@ def pluggy_sync(request: Request, csrf_token: str = Form(...)):
 @app.post("/sincronizar/cotacoes")
 def quote_sync(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "atualizar o mercado"):
+        return blocked
     try:
         result = sync_daily_quotes()
         kind = "error" if result["status"] == "failed" else "warning" if result["status"] == "partial" else "success"
@@ -1159,6 +1223,8 @@ def fixed_income_template():
 @app.post("/backup")
 def download_backup(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "o backup", "/importar"):
+        return blocked
     path = db.create_backup()
     return FileResponse(path, filename=path.name, media_type="application/vnd.sqlite3")
 
@@ -1171,6 +1237,8 @@ def restore_backup(
     file: UploadFile = File(...),
 ):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "restaurar backup", "/importar"):
+        return blocked
     if confirmed != "on":
         _flash(request, "error", "Marque a confirmação para substituir os dados atuais por um backup.")
         return _redirect(request, "/importar")

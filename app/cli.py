@@ -13,6 +13,7 @@
     financas orcamento importar-recomendacoes orc.json   grava as sugestões de orçamento do agente
     financas titulares                          titulares, conexões Pluggy e contas de cada um
     financas --titular Ana carteira contexto    qualquer comando só com as contas de um titular
+    financas --demo carteira contexto           qualquer comando na demonstração (dados fictícios)
 
 Com mais de um titular, --titular (nome ou id) restringe carteira, metas e gastos às contas daquela pessoa;
 sem ele, vale a casa toda. Metas de gastos (orçamento) são sempre da casa.
@@ -25,10 +26,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from contextlib import nullcontext
 from datetime import date
 from typing import Any
 
-from app import __version__, db
+from app import __version__, db, demo
 from app.services import analytics, budgets, fundamentals, household, recommendations, spending, targets
 from app.services.pension import parse_amount
 
@@ -461,6 +463,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="financas", description="Tabimoney: finanças pessoais locais (saída em JSON).")
     parser.add_argument("--version", action="version", version=f"Tabimoney {__version__}")
     parser.add_argument("--titular", help="nome ou id do titular (padrão: a casa toda)")
+    parser.add_argument("--demo", action="store_true",
+                        help="roda na demonstração (dados fictícios, base separada); bom para testar roteiros")
     groups = parser.add_subparsers(dest="grupo", required=True)
 
     g = groups.add_parser("gastos", help="movimentações, categorias e regras").add_subparsers(dest="acao", required=True)
@@ -602,9 +606,15 @@ def main(argv: list[str] | None = None) -> None:
     global _MEMBER
     db.init_db()
     args = build_parser().parse_args(argv)
+    if args.demo:
+        if args.func in (atualizar, backup):
+            _out({"erro": "Na demonstração, atualizar e backup ficam desligados: não há dados de verdade."})
+            raise SystemExit(1)
+        demo.ensure()
     try:
-        _MEMBER = household.resolve(args.titular) if args.titular else None
-        args.func(args)
+        with demo.active() if args.demo else nullcontext():
+            _MEMBER = household.resolve(args.titular) if args.titular else None
+            args.func(args)
     except (ValueError, fundamentals.FundamentalsError, recommendations.RecommendationError, budgets.BudgetError) as exc:
         _out({"erro": str(exc)})
         raise SystemExit(1) from exc

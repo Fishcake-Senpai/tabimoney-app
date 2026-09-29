@@ -63,6 +63,24 @@
     {% endif %}
   </aside>
   <main class="main" id="conteudo">
+    {% if demo_mode %}
+    <div class="demo-banner" role="status">
+      <div class="update-text">
+        <b>Demonstração · dados fictícios</b>
+        <small>Um casal inventado para mostrar o app. Seus dados não aparecem aqui e nada do que você fizer na demo chega a eles.</small>
+      </div>
+      <div class="update-actions">
+        <form method="post" action="/demo/recomecar" data-confirm="Recomeçar a demonstração? O que você mudou nela volta ao original.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-ghost btn-sm" type="submit">Recomeçar</button>
+        </form>
+        <form method="post" action="/demo/sair">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-primary btn-sm" type="submit">Sair da demo</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
     {% if update %}
     <div class="update-banner" role="status">
       <img src="/static/brand/mascote-128.png" alt="" width="36" height="36">

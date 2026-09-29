@@ -162,6 +162,17 @@ A consulta é um pedido comum à API pública do GitHub e não envia nenhum dado
 aparece. Em **Configurações › Atualizações** dá para desligar o aviso, ver a última verificação e verificar na
 hora. O código fica em `app/services/updates.py`.
 
+## Demonstração
+
+Para ver o app antes de conectar os bancos, clique em **Ver demonstração** na visão geral. Abre um casal fictício
+(Lucas e Marina) com todas as telas preenchidas: contas, cartões, carteira, renda fixa, previdência, metas,
+análises e recomendações. A demo usa uma base separada (`demo.sqlite3`, na pasta de dados) e um cofre de senhas
+só dela, então seus dados não aparecem e nada do que você fizer na demo chega a eles. **Recomeçar** volta tudo ao
+original, e **Sair da demo** volta aos seus dados. Na linha de comando: `financas --demo carteira contexto`.
+
+Quem mexe no código: exemplos novos entram em `app/demo.py`, e `tests/test_demo.py` falha se alguma tela
+aparecer vazia na demo.
+
 ## Conectar os bancos pelo Meu Pluggy
 
 1. Crie uma conta pessoal no [Meu Pluggy](https://meu.pluggy.ai) e conecte cada banco (ex.: Nubank e Itaú) pelo fluxo de consentimento do Open Finance.
