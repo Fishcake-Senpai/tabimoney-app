@@ -11,6 +11,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.13.0] - 2026-09-30
+
 ### Adicionado
 - Servidor MCP: conecte o seu agente de IA (Claude Desktop, Claude Code, Codex, Cursor, VS Code, Gemini CLI) ao
   Tabimoney e use a IA em qualquer conversa e em qualquer pasta, sem terminal e sem chave de API. O agente lê
@@ -266,7 +268,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.12.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Fishcake-Senpai/tabimoney-app/releases/tag/v0.10.0
