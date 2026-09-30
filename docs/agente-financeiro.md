@@ -20,6 +20,19 @@ Roteiros passo a passo (skills):
 O modelo do relatório está em `docs/agentes/modelo-relatorio-trimestral.md`. Os exemplos de JSON válidos
 estão em `docs/agentes/exemplos/`.
 
+## 0. Titulares (gestão a dois)
+
+| Comando | Para quê |
+|---|---|
+| `financas titulares` | Titulares, conexões Pluggy (sem segredos) com o titular de cada Item ID, e as contas de cada um |
+| `financas --titular Ana <grupo> <ação>` | Qualquer comando só com as contas daquele titular (nome ou id). Sem a opção, vale a casa toda |
+| `financas --demo <grupo> <ação>` | O mesmo comando na demonstração (casal fictício Lucas e Marina, base separada). Para testar um roteiro sem tocar nos dados do usuário. `atualizar` e `backup` são recusados |
+
+Com mais de um titular, as contas de quem não é o principal têm o sufixo `" · Nome"` no nome. `carteira contexto`
+traz `titular` (`"casa"` ou o nome) e `titulares`; os lançamentos trazem `titular`. As metas de alocação podem ser
+por titular (`metas.de` diz se valem as do titular ou as da casa). As metas de gastos (`orcamento`) são sempre da
+casa e ignoram `--titular`. Ao recomendar, diga de quem é a análise.
+
 ## 1. Gastos e categorias
 
 | Comando | Para quê |
@@ -36,7 +49,7 @@ estão em `docs/agentes/exemplos/`.
 
 A categoria efetiva segue esta ordem: **manual** > **regra** (a de texto mais longo) > **automática**. Sincronizar
 de novo não desfaz as correções. Categorias internas (`Investimentos`, `Pagamento de fatura`,
-`Transferência própria`) não contam como receita nem como despesa.
+`Transferência própria`, `Transferência entre titulares`) não contam como receita nem como despesa.
 
 ## 2. Metas de alocação
 

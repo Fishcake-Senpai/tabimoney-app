@@ -6,6 +6,9 @@ Regras de consolidação (evitam contar o mesmo ativo duas vezes quando há vár
 - Posições: por (apelido da conta, ativo) vale o snapshot mais recente; movimentações posteriores a ele somam.
 - Operações: por (apelido, ativo, grupo) usa uma única origem, pela prioridade B3 > B3 mov. > Open Finance > CSV.
 - Renda fixa e saldos: por apelido da conta, usa a origem com o dado mais recente.
+
+Titulares: as contas de cada pessoa da casa têm apelidos diferentes (ver services/household.py). Com
+`member`, tudo se restringe às contas daquele titular; sem ele, vale a casa toda.
 """
 from __future__ import annotations
 
@@ -17,7 +20,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from app.db import rows
-from app.services.categories import INCOME_CATEGORIES, INTERNAL_CATEGORIES
+from app.services.categories import HOUSEHOLD_TRANSFER, INCOME_CATEGORIES, INTERNAL_CATEGORIES, OWN_TRANSFER
 from app.services.spending import apply_overrides
 
 TRADE_IN = {"BUY", "TRANSFER_IN"}
@@ -48,6 +51,13 @@ def _shift(day: str, days: int) -> str:
 def _asof(dates: list[str], values: list[Any], day: str) -> Any:
     index = bisect_right(dates, day) - 1
     return values[index] if index >= 0 else None
+
+
+def member_scope(member: int | None, alias: str = "a", joiner: str = "WHERE") -> tuple[str, tuple[object, ...]]:
+    """Filtro SQL das contas de um titular (contas sem titular são do principal). Vazio para a casa toda."""
+    if member is None:
+        return "", ()
+    return f" {joiner} COALESCE({alias}.member_id, 1) = ?", (member,)
 
 
 def _pct(numerator: float | None, denominator: float | None) -> float | None:
@@ -99,7 +109,8 @@ class PositionKey:
 class Book:
     """Carrega tudo uma vez por requisição e responde às perguntas das telas."""
 
-    def __init__(self) -> None:
+    def __init__(self, member: int | None = None) -> None:
+        self.member = member
         self.today = date.today().isoformat()
         self.instruments = {
             int(r["id"]): {"ticker": r["ticker"], "name": r["name"], "asset_class": r["asset_class"]}
@@ -146,10 +157,11 @@ class Book:
         def key_for(account: str, iid: int) -> PositionKey:
             return keys.setdefault((account, iid), PositionKey(account, iid))
 
+        scope, params = member_scope(self.member)
         snaps: dict[tuple[str, int], dict[str, tuple[int, int]]] = defaultdict(dict)
         for r in rows(
             "SELECT a.account_name, ps.instrument_id, ps.as_of_date, ps.quantity_micros, ps.source "
-            "FROM position_snapshot ps JOIN financial_account a ON a.id = ps.account_id"
+            "FROM position_snapshot ps JOIN financial_account a ON a.id = ps.account_id" + scope, params
         ):
             k = (r["account_name"], int(r["instrument_id"]))
             rank = SNAPSHOT_PRIORITY.get(r["source"], 9)
@@ -164,8 +176,8 @@ class Book:
 
         events = rows(
             "SELECT a.account_name, e.instrument_id, e.event_date, e.event_type, e.quantity_micros, "
-            "e.amount_cents, e.source, e.id FROM investment_event e JOIN financial_account a ON a.id = e.account_id "
-            "ORDER BY e.event_date, e.id"
+            "e.amount_cents, e.source, e.id FROM investment_event e JOIN financial_account a ON a.id = e.account_id"
+            + scope + " ORDER BY e.event_date, e.id", params,
         )
         best_source: dict[tuple[str, int, str], int] = {}
         for e in events:
@@ -252,9 +264,10 @@ class Book:
         return sum(pk.qty_at(day) for pk in self.by_instrument.get(iid, []))
 
     def _load_fixed_income(self) -> None:
+        scope, params = member_scope(self.member)
         data = rows(
-            "SELECT f.*, a.account_name FROM fixed_income_snapshot f JOIN financial_account a ON a.id = f.account_id "
-            "ORDER BY f.as_of_date"
+            "SELECT f.*, a.account_name FROM fixed_income_snapshot f JOIN financial_account a ON a.id = f.account_id"
+            + scope + " ORDER BY f.as_of_date", params,
         )
         # Por apelido: entre Open Finance e B3 (fotografias completas) vale a mais recente; o CSV manual
         # (caixinhas) soma à B3, que não as enxerga, mas sai quando o Open Finance existe, pois ele já as traz.
@@ -317,11 +330,12 @@ class Book:
         )
 
     def _load_balances(self) -> None:
+        scope, params = member_scope(self.member, joiner="AND")
         data = rows(
             "SELECT s.account_id, s.as_of_date, s.balance_cents, s.source, a.account_name, a.account_type, a.provider, "
             "a.credit_limit_cents, a.available_limit_cents, a.institution "
             "FROM account_balance_snapshot s JOIN financial_account a ON a.id = s.account_id "
-            "WHERE a.account_type IN ('BANK', 'CREDIT') ORDER BY s.as_of_date, s.imported_at"
+            "WHERE a.account_type IN ('BANK', 'CREDIT')" + scope + " ORDER BY s.as_of_date, s.imported_at", params,
         )
         latest_by_account: dict[int, str] = {}
         info: dict[int, Any] = {}
@@ -336,7 +350,7 @@ class Book:
             if current is None or (day, r["provider"] == "pluggy") > (latest_by_account[current], info[current]["provider"] == "pluggy"):
                 winner[k] = account_id
         movements: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-        for t in cash_transactions():
+        for t in cash_transactions(member=self.member):
             movements[t["account_name"]][t["transaction_date"]] += int(t["amount_cents"])
         self.movements = movements
         yield_settings = cdi_yield_settings()
@@ -776,10 +790,11 @@ class Book:
         ]
 
     def asset_history(self, iid: int) -> dict[str, Any]:
+        scope, params = member_scope(self.member, joiner="AND")
         events = rows(
             "SELECT e.event_date, e.event_type, e.quantity_micros, e.amount_cents, e.source, a.account_name "
             "FROM investment_event e JOIN financial_account a ON a.id = e.account_id "
-            "WHERE e.instrument_id = ? ORDER BY e.event_date DESC, e.id DESC LIMIT 300", (iid,),
+            "WHERE e.instrument_id = ?" + scope + " ORDER BY e.event_date DESC, e.id DESC LIMIT 300", (iid, *params),
         )
         prices = [
             {"d": d, "v": v} for d, v in zip(self.quote_dates.get(iid, []), self.quote_values.get(iid, []))
@@ -873,22 +888,24 @@ class Book:
 
 MATCH_WINDOW_DAYS = 3
 TRANSFER_WINDOW_DAYS = 3
+HOUSEHOLD_PIX_WINDOW_DAYS = 1
 BILL_WINDOW_DAYS = 5
 
 
-def cash_transactions(limit: int | None = None) -> list[dict[str, Any]]:
+def cash_transactions(limit: int | None = None, member: int | None = None) -> list[dict[str, Any]]:
     """Movimentações de conta e cartão sem contar duas vezes o que veio de duas origens.
 
     A mesma conta pode chegar por arquivo (OFX/CSV) e por Open Finance, com ids diferentes. Por conta,
     o Open Finance é a origem principal; cada lançamento de arquivo é descartado se casar com um
     lançamento principal ainda livre de mesmo valor em até 3 dias. O casamento é 1 a 1, então duas
     compras iguais legítimas continuam sendo duas. Depois, as transferências entre contas próprias são
-    conciliadas (ver match_transfers).
+    conciliadas (ver match_transfers). A conciliação olha a casa toda; só então fica o titular pedido.
     """
     data = [
         dict(r) for r in rows(
             "SELECT t.id, t.transaction_date, t.description, t.amount_cents, t.status, t.category, t.user_category, "
-            "t.source, t.original_currency, t.original_amount_cents, a.account_name, a.account_type, a.provider, a.institution "
+            "t.source, t.original_currency, t.original_amount_cents, a.account_name, a.account_type, a.provider, a.institution, "
+            "COALESCE(a.member_id, 1) AS member_id "
             "FROM cash_transaction t JOIN financial_account a ON a.id = t.account_id "
             "WHERE a.account_type IN ('BANK', 'CREDIT') AND (t.status <> 'PENDING' OR "
             "(a.account_type = 'CREDIT' AND t.transaction_date <= date('now', 'localtime'))) "
@@ -921,6 +938,8 @@ def cash_transactions(limit: int | None = None) -> list[dict[str, Any]]:
     output = [r for r in data if int(r["id"]) not in dropped]
     apply_overrides(output)
     match_transfers(output)
+    if member is not None:
+        output = [t for t in output if t["member_id"] == member]
     return output[:limit] if limit else output
 
 
@@ -929,6 +948,8 @@ def match_transfers(transactions: list[dict[str, Any]]) -> int:
 
     Uma saída de conta casa 1 a 1 com uma entrada de mesmo valor em outra conta:
     - conta → conta em até 3 dias, se algum dos lados já é transferência própria (CPF igual ou rótulo da origem);
+    - conta → conta de outro titular da casa em até 3 dias, se algum dos lados já é transferência entre titulares
+      (CPFs cadastrados) ou, sem CPF, em até 1 dia quando os dois lados são "Pix e transferências";
     - conta → cartão em até 5 dias, se algum dos lados já é pagamento de fatura.
     Os dois lados passam a ser internos (não são receita nem despesa) e ganham `transfer_with`, a conta do outro lado.
     Sem par, a transferência própria continua interna: veio de uma conta que não está conectada.
@@ -953,11 +974,18 @@ def match_transfers(transactions: list[dict[str, Any]]) -> int:
                 continue
             gap = (date.fromisoformat(candidate["transaction_date"]) - out_day).days
             categories = {out["category"], candidate["category"]}
-            if candidate["account_type"] == "BANK":
-                kind, window = "Transferência própria", TRANSFER_WINDOW_DAYS
-            else:
+            if candidate["account_type"] != "BANK":
                 kind, window = "Pagamento de fatura", BILL_WINDOW_DAYS
-            if kind not in categories or not -1 <= gap <= window:
+                accepted = kind in categories
+            elif out.get("member_id", 1) != candidate.get("member_id", 1):
+                kind, window = HOUSEHOLD_TRANSFER, TRANSFER_WINDOW_DAYS
+                accepted = bool(categories & {HOUSEHOLD_TRANSFER, OWN_TRANSFER})
+                if not accepted and categories == {"Pix e transferências"}:
+                    accepted, window = True, HOUSEHOLD_PIX_WINDOW_DAYS
+            else:
+                kind, window = OWN_TRANSFER, TRANSFER_WINDOW_DAYS
+                accepted = kind in categories
+            if not accepted or not -1 <= gap <= window:
                 continue
             if best is None or abs(gap) < best[0]:
                 best = (abs(gap), candidate, kind)
@@ -972,10 +1000,11 @@ def match_transfers(transactions: list[dict[str, Any]]) -> int:
 
 
 def unmatched_transfers(transactions: list[dict[str, Any]], since: str) -> list[dict[str, Any]]:
-    """Transferências próprias sem o outro lado: o dinheiro foi ou veio de uma conta não conectada."""
+    """Transferências próprias (ou entre titulares) sem o outro lado: o dinheiro foi ou veio de uma conta não conectada."""
     return [
         t for t in transactions
-        if t["category"] == "Transferência própria" and not t.get("transfer_with") and t["transaction_date"] >= since
+        if t["category"] in {OWN_TRANSFER, HOUSEHOLD_TRANSFER} and not t.get("transfer_with")
+        and t["transaction_date"] >= since
     ]
 
 
@@ -1043,12 +1072,13 @@ def cdi_yield_pct(settings: dict[str, float], name: str, kind: str, institution:
     return 100.0 if institution == "Nubank" else 0.0
 
 
-def dividend_credits(transactions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def dividend_credits(transactions: list[dict[str, Any]], member: int | None = None) -> list[dict[str, Any]]:
     """Créditos de proventos na conta, identificados pelo evento do ativo de mesmo valor em até 5 dias."""
+    scope, params = member_scope(member, joiner="AND")
     events = [dict(r) for r in rows(
         "SELECT e.event_date, e.event_type, e.amount_cents, i.ticker FROM investment_event e "
-        "JOIN instrument i ON i.id = e.instrument_id WHERE e.event_type IN ('DIVIDEND', 'JCP', 'INCOME', 'INTEREST') "
-        "AND e.amount_cents IS NOT NULL"
+        "JOIN instrument i ON i.id = e.instrument_id JOIN financial_account a ON a.id = e.account_id "
+        "WHERE e.event_type IN ('DIVIDEND', 'JCP', 'INCOME', 'INTEREST') AND e.amount_cents IS NOT NULL" + scope, params,
     )]
     free: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for e in events:

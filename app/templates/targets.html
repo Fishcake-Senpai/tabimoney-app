@@ -71,7 +71,10 @@
 
 <section class="grid">
   <article class="card span-5">
-    <div class="card-head"><h2 class="card-title">Definir metas</h2></div>
+    <div class="card-head"><h2 class="card-title">Definir metas{% if view and view.current is not none %} de {{ view.label }}{% elif view %} da casa{% endif %}</h2></div>
+    {% if view and view.current is not none %}
+    <p class="footnote muted">{% if t.own %}{{ view.label }} tem metas próprias.{% else %}{{ view.label }} ainda usa as metas da casa. Salvar aqui cria metas só para {{ view.label }}.{% endif %}</p>
+    {% endif %}
     <form method="post" action="/metas" class="form-grid footnote">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label class="field">Reserva de emergência (R$)<input name="reserve" inputmode="decimal" autocomplete="off" value="{{ (t.reserve_cents|brl)[3:] if t.reserve_cents is not none else '' }}" placeholder="Ex.: 30.000"></label>
@@ -82,7 +85,8 @@
       <label class="field">Dentro da renda variável: internacional (%)<input name="intl_pct" inputmode="decimal" autocomplete="off" value="{{ '%g'|format((t.intl_pct * 100)|round(1)) if t.intl_pct is not none else '' }}" placeholder="30 (o resto é nacional)"></label>
       <label class="check"><input type="checkbox" name="pension_in_fixed" {% if t.pension_in_fixed %}checked{% endif %}> Contar a previdência como renda fixa</label>
       <p class="muted">Renda fixa + variável = 100% do que sobra além da reserva. Deixe um dos dois em branco para completar sozinho.</p>
-      <div><button class="btn btn-primary" type="submit">Salvar metas</button></div>
+      <div><button class="btn btn-primary" type="submit">Salvar metas</button>
+        {% if view and view.current is not none and t.own %}<button class="btn btn-ghost" type="submit" name="use_household" value="on">Usar as metas da casa</button>{% endif %}</div>
     </form>
   </article>
   <article class="card card-flush span-7" id="exposicao">

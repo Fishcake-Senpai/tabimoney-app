@@ -4,6 +4,7 @@ import os
 import sqlite3
 import sys
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator
@@ -18,11 +19,12 @@ REQUIRED_SCHEMA_OBJECTS = {
     "v_portfolio_positions", "v_asset_valuation", "v_portfolio_totals",
     "v_bank_latest_balances", "v_personal_totals", "v_position_reconciliation",
     "v_bank_balance_reconciliation", "fixed_income_snapshot", "benchmark_quote",
+    "household_member", "pluggy_connection", "pluggy_item",
 }
 REQUIRED_SCHEMA_COLUMNS = {
     "sync_run": {"external_updated_at"},
     "cash_transaction": {"status", "category", "statement_ref"},
-    "financial_account": {"credit_limit_cents", "available_limit_cents"},
+    "financial_account": {"credit_limit_cents", "available_limit_cents", "member_id"},
     "fixed_income_snapshot": {"purchase_date"},
 }
 
@@ -40,8 +42,22 @@ def data_dir() -> Path:
     return folder
 
 
+# Troca a base só no contexto atual (uma requisição, um comando): é o que isola a demonstração (app/demo.py).
+_database_override: ContextVar[Path | None] = ContextVar("database_override", default=None)
+
+
 def database_path() -> Path:
-    return data_dir() / "financas.sqlite3"
+    return _database_override.get() or data_dir() / "financas.sqlite3"
+
+
+@contextmanager
+def using_database(path: Path) -> Iterator[Path]:
+    """Tudo o que roda dentro do bloco (e nas threads que ele abre) lê e grava em outra base."""
+    token = _database_override.set(path)
+    try:
+        yield path
+    finally:
+        _database_override.reset(token)
 
 
 def connect(path: Path | None = None) -> sqlite3.Connection:

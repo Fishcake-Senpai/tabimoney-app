@@ -54,5 +54,5 @@ criar, ajustar ou remover metas. **Não mude metas diretamente:** quem decide é
 Regras que o app valida:
 
 - cada categoria pertence a uma meta só;
-- categorias internas (`Investimentos`, `Pagamento de fatura`, `Transferência própria`) não entram em metas;
+- categorias internas (`Investimentos`, `Pagamento de fatura`, `Transferência própria`, `Transferência entre titulares`) não entram em metas;
 - um item inválido recusa o lote inteiro.

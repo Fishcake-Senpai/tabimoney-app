@@ -22,7 +22,7 @@ BASE_CATEGORIES = [
     "Alimentação", "Mercado", "Transporte", "Casa", "Saúde", "Educação", "Compras", "Assinaturas", "Lazer",
     "Viagem", "Impostos e taxas", "Pix e transferências", "Outros",
     "Salário", "Proventos", "Rendimentos",
-    "Investimentos", "Pagamento de fatura", "Transferência própria",
+    "Investimentos", "Pagamento de fatura", "Transferência própria", "Transferência entre titulares",
 ]
 
 

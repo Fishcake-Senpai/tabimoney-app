@@ -121,6 +121,15 @@ class PluggyClient:
             params = None
         return output
 
+    def identity(self, item_id: str) -> str | None:
+        """CPF/CNPJ do titular do item, quando o conector informa. Opcional: falha vira None."""
+        try:
+            payload = self._get("/identity", {"itemId": item_id})
+        except PluggyError:
+            return None
+        document = payload.get("document") or payload.get("taxNumber")
+        return str(document) if document else None
+
     def collect(self, item_id: str) -> PluggyData:
         """Lê um item; a mesma sessão serve para vários itens, e quem abriu o cliente o fecha."""
         normalized_item_id = item_id.strip()

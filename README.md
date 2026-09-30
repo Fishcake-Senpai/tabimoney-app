@@ -82,8 +82,14 @@ Na primeira vez que salvar uma chave, o Mac pode pedir permissão: escolha **Sem
 5. Testes: `python -m pip install -r requirements-dev.txt` uma vez e depois `python -m pytest` (com o Python do
    `.venv`). Levam menos de 15 segundos e rodam isolados: base temporária, cofre de senhas falso e sem internet.
    Nunca tocam nos seus dados. `tests/test_paginas.py` abre todas as páginas do app com a base vazia e com dados de
-   exemplo, então página nova já entra no teste. O GitHub Actions roda os testes em Windows e Mac antes de gerar os
-   executáveis.
+   exemplo, então página nova já entra no teste.
+6. Testes de navegador (`tests/e2e`): `python -m pip install -r requirements-e2e.txt` e
+   `python -m playwright install chromium` uma vez. Depois, o mesmo `python -m pytest` também sobe o app num
+   Chromium e confere menus, formulários, JavaScript e a tela do celular. Feche o Tabimoney antes: com a porta
+   8765 ocupada, esses testes são pulados.
+7. Branches: o trabalho vai para a `dev`; a `main` só recebe merge da `dev` por PR, depois que o check **Testes
+   ok** passa. O merge na `main` gera os executáveis e, se a versão for nova, publica o Release
+   ([docs/versionamento.md](docs/versionamento.md)).
 
 ### Gerar o executável
 
@@ -156,12 +162,32 @@ A consulta é um pedido comum à API pública do GitHub e não envia nenhum dado
 aparece. Em **Configurações › Atualizações** dá para desligar o aviso, ver a última verificação e verificar na
 hora. O código fica em `app/services/updates.py`.
 
+## Demonstração
+
+Para ver o app antes de conectar os bancos, clique em **Ver demonstração** na visão geral. Abre um casal fictício
+(Lucas e Marina) com todas as telas preenchidas: contas, cartões, carteira, renda fixa, previdência, metas,
+análises e recomendações. A demo usa uma base separada (`demo.sqlite3`, na pasta de dados) e um cofre de senhas
+só dela, então seus dados não aparecem e nada do que você fizer na demo chega a eles. **Recomeçar** volta tudo ao
+original, e **Sair da demo** volta aos seus dados. Na linha de comando: `financas --demo carteira contexto`.
+
+Quem mexe no código: exemplos novos entram em `app/demo.py`, e `tests/test_demo.py` falha se alguma tela
+aparecer vazia na demo.
+
 ## Conectar os bancos pelo Meu Pluggy
 
 1. Crie uma conta pessoal no [Meu Pluggy](https://meu.pluggy.ai) e conecte cada banco (ex.: Nubank e Itaú) pelo fluxo de consentimento do Open Finance.
 2. No [Dashboard Pluggy](https://dashboard.pluggy.ai), em **Aplicações › Novo**, crie a sua aplicação (ex.: *Tabimoney*). Não use a *Pluggy Demo App*. Na linha da sua aplicação, copie o `Client ID` e o `Client Secret`. Depois, clique em ▷, use **Conectar Conta › MeuPluggy** para cada banco e copie o `Item ID` de cada item. O passo a passo ilustrado está no manual de conexões (`dist\Manual-de-conexoes.html`, gerado pelo `build.bat`, e dentro do zip de distribuição).
-3. Abra **Configurações** no aplicativo, informe esses valores (Item IDs separados por vírgula) e salve. Client ID, Secret e Item IDs têm que ser da mesma aplicação. A instituição de cada item é reconhecida pelo código do banco da conta.
+3. Abra **Configurações** no aplicativo, informe esses valores na conexão **Principal** (Item IDs separados por vírgula) e salve. Client ID, Secret e Item IDs têm que ser da mesma aplicação. A instituição de cada item é reconhecida pelo código do banco da conta.
 4. No painel, escolha **Open Finance**. Cada item sincroniza separadamente: um item com falha não impede os demais.
+
+### Gestão a dois
+
+Cada pessoa conecta os próprios bancos no Meu Pluggy, porque o consentimento do Open Finance é dado pelo titular da conta. Em **Configurações › Titulares**, cadastre a outra pessoa (o CPF é opcional). Depois, adicione os Item IDs dela escolhendo o titular. Se ela tem o próprio app no Dashboard Pluggy, crie uma **Nova conexão** com o Client ID e o Secret dela; se usa o mesmo app, basta colar os Item IDs na conexão Principal.
+
+- As contas de quem não é o titular principal ganham o sufixo " · Nome" (ex.: "Nubank Cartão · Ana"), então dois Nubank não se misturam.
+- O seletor **Casa / cada pessoa** no menu filtra todas as telas. Cada titular pode ter metas de alocação próprias; as metas de gastos são da casa.
+- O Pix entre titulares vira *Transferência entre titulares*, que fica fora de receitas e despesas: pelo CPF dos dois lados ou, sem CPF, quando a saída de um e a entrada do outro têm o mesmo valor em até 1 dia.
+- Arquivos importados (OFX, CSV, B3) entram como do titular principal.
 
 Client ID, Client Secret e token da brapi são guardados no cofre de senhas do sistema via Keyring (Credential Manager no Windows, Porta-chaves no Mac). A aplicação cria uma chave de API Pluggy temporária para a sincronização e não pede senha do Nubank. O Meu Pluggy mantém seu consentimento e atualiza as conexões no ciclo diário do próprio serviço.
 
@@ -194,9 +220,9 @@ A página **Importar** aceita vários arquivos de uma vez e detecta o formato so
 
 O Nubank não oferece um arquivo único com tudo. As Caixinhas/RDB não aparecem na B3 nem em exportação do app, então vêm do Open Finance (Meu Pluggy) ou do modelo CSV. A custódia da NuInvest aparece na B3 com o mesmo apelido do Open Finance (`Nubank / NuInvest`), e as duas origens são consolidadas sem contar em dobro.
 
-Regras de consolidação: por conta e ativo vale o snapshot de posição mais recente, somado às operações posteriores a ele. As operações vêm de uma única origem por prioridade: Negociação B3, depois Movimentação B3, depois Open Finance, depois CSV. Na renda fixa e nos saldos vale, por conta, a origem mais recente. Gastos com categoria *Investimentos*, *Pagamento de fatura* ou *Transferência própria* ficam fora de receitas e despesas.
+Regras de consolidação: por conta e ativo vale o snapshot de posição mais recente, somado às operações posteriores a ele. As operações vêm de uma única origem por prioridade: Negociação B3, depois Movimentação B3, depois Open Finance, depois CSV. Na renda fixa e nos saldos vale, por conta, a origem mais recente. Gastos com categoria *Investimentos*, *Pagamento de fatura*, *Transferência própria* ou *Transferência entre titulares* ficam fora de receitas e despesas.
 
-Conciliação entre contas: uma saída de conta casa 1 a 1 com uma entrada de mesmo valor em outra conta própria (até 3 dias, quando um dos lados é transferência própria — CPF igual de pagador e recebedor ou rótulo da origem) ou no cartão (até 5 dias, quando um dos lados é pagamento de fatura). Os dois lados viram movimento interno; assim o salário que cai no Itaú conta como receita uma vez só, e a TED para o Nubank não vira despesa nem receita. A página **Conciliação** lista os pares e as transferências próprias sem o outro lado (conta não conectada).
+Conciliação entre contas: uma saída de conta casa 1 a 1 com uma entrada de mesmo valor em outra conta própria (até 3 dias, quando um dos lados é transferência própria — CPF igual de pagador e recebedor ou rótulo da origem) ou no cartão (até 5 dias, quando um dos lados é pagamento de fatura). Entre contas de titulares diferentes, o par vale quando um dos lados é transferência entre titulares (CPFs cadastrados) ou, sem CPF, quando os dois lados são *Pix e transferências* em até 1 dia. Os dois lados viram movimento interno; assim o salário que cai no Itaú conta como receita uma vez só, e a TED para o Nubank não vira despesa nem receita. A página **Conciliação** lista os pares e as transferências próprias sem o outro lado (conta não conectada).
 
 Receitas são entradas em conta com categoria Salário, Proventos, Pix e transferências ou Outros; qualquer outra entrada (ex.: estorno no cartão) abate a despesa da categoria. Compra e venda de ações, aplicações, resgates e previdência são *Investimentos* mesmo quando a origem as rotula como compra.
 

@@ -11,6 +11,12 @@
     financas recomendacoes importar recs.json   grava as recomendações trimestrais
     financas orcamento contexto                 metas de gastos × gastos, para a análise orçamentária
     financas orcamento importar-recomendacoes orc.json   grava as sugestões de orçamento do agente
+    financas titulares                          titulares, conexões Pluggy e contas de cada um
+    financas --titular Ana carteira contexto    qualquer comando só com as contas de um titular
+    financas --demo carteira contexto           qualquer comando na demonstração (dados fictícios)
+
+Com mais de um titular, --titular (nome ou id) restringe carteira, metas e gastos às contas daquela pessoa;
+sem ele, vale a casa toda. Metas de gastos (orçamento) são sempre da casa.
 
 Saída sempre em JSON (UTF-8), valores monetários em reais. Nada aqui apaga dados: correções ficam em
 colunas/tabelas próprias e podem ser desfeitas. Contrato completo em docs/agente-financeiro.md.
@@ -20,11 +26,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from contextlib import nullcontext
 from datetime import date
 from typing import Any
 
-from app import __version__, db
-from app.services import analytics, budgets, fundamentals, recommendations, spending, targets
+from app import __version__, db, demo
+from app.services import analytics, budgets, fundamentals, household, recommendations, spending, targets
 from app.services.pension import parse_amount
 
 
@@ -33,11 +40,27 @@ def _out(data: Any) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2, default=str))
 
 
+_MEMBER: int | None = None  # --titular; None = a casa toda
+
+
+def _book() -> analytics.Book:
+    return analytics.Book(_MEMBER)
+
+
+def _transactions() -> list[dict[str, Any]]:
+    return analytics.cash_transactions(member=_MEMBER)
+
+
+def _member_names() -> dict[int, str]:
+    return {m["id"]: m["name"] for m in household.members()}
+
+
 def _tx(t: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": t["id"], "data": t["transaction_date"], "descricao": t["description"], "valor": t["amount_cents"] / 100,
         "categoria": t["category"], "categoria_automatica": t.get("auto_category"), "origem_categoria": t.get("category_source"),
         "conta": t["account_name"], "tipo_conta": t["account_type"], "transferencia_com": t.get("transfer_with"),
+        "titular": _member_names().get(t.get("member_id", household.PRIMARY_ID)),
         **({"moeda_original": t["original_currency"], "valor_original": t["original_amount_cents"] / 100}
            if t.get("original_currency") else {}),
     }
@@ -46,7 +69,7 @@ def _tx(t: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------- gastos
 
 def gastos_resumo(args: argparse.Namespace) -> None:
-    trends = spending.category_trends(analytics.cash_transactions(), window=args.meses)
+    trends = spending.category_trends(_transactions(), window=args.meses)
     _out({
         "meses": trends["months"], "mes_corrente_incompleto": trends["months"][-1],
         "comparacao": f"{trends['last']} contra média de {', '.join(trends['base'])}",
@@ -64,7 +87,7 @@ def gastos_resumo(args: argparse.Namespace) -> None:
 
 
 def gastos_listar(args: argparse.Namespace) -> None:
-    data = analytics.cash_transactions()
+    data = _transactions()
     if args.mes:
         data = [t for t in data if t["transaction_date"].startswith(args.mes)]
     if args.de:
@@ -136,7 +159,7 @@ def gastos_remover_regra(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------- carteira e fundamentos
 
 def carteira_posicoes(_: argparse.Namespace) -> None:
-    book = analytics.Book()
+    book = _book()
     assets = book.assets()
     output = []
     for a in assets:
@@ -163,14 +186,15 @@ def _money(cents: int | None) -> float | None:
 
 def _targets_payload(book, assets, amount_text: str | None = None) -> dict[str, Any]:
     snap = targets.snapshot(book, assets)
-    flow = analytics.cash_flow(analytics.cash_transactions() + book.yield_entries())
+    flow = analytics.cash_flow(analytics.cash_transactions(member=book.member) + book.yield_entries())
     suggested = targets.suggested_amount(flow)
     amount = parse_amount(amount_text, "o aporte", required=False) if amount_text else suggested
     t = snap["targets"]
     return {
         "metas": {"reserva_emergencia": _money(t["reserve_cents"]), "renda_fixa_pct": t["fixed_pct"],
                   "renda_variavel_pct": t["equity_pct"], "internacional_dentro_da_rv_pct": t["intl_pct"],
-                  "previdencia_conta_como_renda_fixa": t["pension_in_fixed"]},
+                  "previdencia_conta_como_renda_fixa": t["pension_in_fixed"],
+                  "de": "casa" if t["member"] is None else ("titular" if t["own"] else "casa (titular sem metas próprias)")},
         "configurado": snap["configured"],
         "reserva": {"atual": _money(snap["reserve"]["value"]), "meta": _money(snap["reserve"]["target_value"]),
                     "falta": _money(snap["reserve"]["gap"]), "caixa_livre": _money(snap["reserve"]["free_cash"]),
@@ -191,12 +215,12 @@ def _targets_payload(book, assets, amount_text: str | None = None) -> dict[str, 
 
 
 def metas_mostrar(args: argparse.Namespace) -> None:
-    book = analytics.Book()
+    book = _book()
     _out(_targets_payload(book, book.assets(), args.aporte))
 
 
 def metas_definir(args: argparse.Namespace) -> None:
-    current = targets.load()
+    current = targets.load(_MEMBER)
 
     def pct(value: float | None, key: str) -> float | None:
         return value / 100 if value is not None else current[key]
@@ -209,7 +233,7 @@ def metas_definir(args: argparse.Namespace) -> None:
     if args.renda_variavel is not None and args.renda_fixa is None:
         fixed = None
     pension_flag = current["pension_in_fixed"] if args.previdencia is None else args.previdencia == "sim"
-    _out(targets.save(reserve, fixed, equity, pct(args.internacional, "intl_pct"), pension_flag))
+    _out(targets.save(reserve, fixed, equity, pct(args.internacional, "intl_pct"), pension_flag, member=_MEMBER))
 
 
 def metas_regiao(args: argparse.Namespace) -> None:
@@ -219,7 +243,7 @@ def metas_regiao(args: argparse.Namespace) -> None:
 
 def carteira_contexto(args: argparse.Namespace) -> None:
     """Um JSON com tudo para recomendar: metas, posições com fundamentos, renda fixa, previdência, análises e avisos."""
-    book = analytics.Book()
+    book = _book()
     assets = book.assets()
     positions = []
     for a in assets:
@@ -243,6 +267,8 @@ def carteira_contexto(args: argparse.Namespace) -> None:
     kpis = book.portfolio_kpis(assets)
     _out({
         "data": date.today().isoformat(),
+        "titular": _member_names().get(_MEMBER) if _MEMBER is not None else "casa",
+        "titulares": [m["name"] for m in household.members()],
         "metas_e_balanco": _targets_payload(book, assets, args.aporte),
         "renda_variavel": {"valor": _money(kpis["value"]), "posicoes": positions,
                            "rentabilidade": kpis["returns"], "volatilidade_12m": kpis["volatility"]},
@@ -346,7 +372,7 @@ def orcamento_mostrar(_: argparse.Namespace) -> None:
 def orcamento_contexto(args: argparse.Namespace) -> None:
     """Tudo para a análise orçamentária: metas × gastos, tendência por categoria, renda e sugestões anteriores."""
     transactions = analytics.cash_transactions()
-    book = analytics.Book()
+    book = analytics.Book()  # orçamento é da casa: ignora --titular
     flow = analytics.cash_flow(transactions + book.yield_entries())
     trends = spending.category_trends(transactions, window=args.meses)
     advice = budgets.latest_advice()
@@ -389,6 +415,27 @@ def orcamento_importar(args: argparse.Namespace) -> None:
     _out(budgets.import_advice(payload, default_author=args.autor))
 
 
+def titulares(_: argparse.Namespace) -> None:
+    """Quem é quem: titulares, conexões (sem segredos) e contas de cada um."""
+    accounts = db.rows(
+        "SELECT account_name, institution, account_type, provider, COALESCE(member_id, 1) AS member_id "
+        "FROM financial_account ORDER BY member_id, institution, account_name"
+    )
+    _out({
+        "titulares": [{
+            "id": m["id"], "nome": m["name"], "principal": m["is_primary"], "cpf_cadastrado": m["has_document"],
+            "contas": [{"conta": a["account_name"], "instituicao": a["institution"], "tipo": a["account_type"],
+                        "origem": a["provider"]} for a in accounts if a["member_id"] == m["id"]],
+        } for m in household.members()],
+        "conexoes_pluggy": [{
+            "id": c["id"], "nome": c["label"],
+            "itens": [{"item": i["item_id"], "instituicao": i["institution"], "titular": i["member_name"]}
+                      for i in c["items"]],
+        } for c in household.connections()],
+        "visao_da_casa": household.is_shared(),
+    })
+
+
 def backup(_: argparse.Namespace) -> None:
     _out({"backup": str(db.create_backup())})
 
@@ -415,6 +462,9 @@ def atualizar(_: argparse.Namespace) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="financas", description="Tabimoney: finanças pessoais locais (saída em JSON).")
     parser.add_argument("--version", action="version", version=f"Tabimoney {__version__}")
+    parser.add_argument("--titular", help="nome ou id do titular (padrão: a casa toda)")
+    parser.add_argument("--demo", action="store_true",
+                        help="roda na demonstração (dados fictícios, base separada); bom para testar roteiros")
     groups = parser.add_subparsers(dest="grupo", required=True)
 
     g = groups.add_parser("gastos", help="movimentações, categorias e regras").add_subparsers(dest="acao", required=True)
@@ -546,16 +596,25 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--autor", default="agente")
     p.set_defaults(func=orcamento_importar)
 
+    groups.add_parser("titulares", help="titulares, conexões Pluggy e contas de cada um").set_defaults(func=titulares)
     groups.add_parser("backup", help="cópia da base antes de mudanças em massa").set_defaults(func=backup)
     groups.add_parser("atualizar", help="backup + Open Finance + cotações/CDI + balanços da CVM").set_defaults(func=atualizar)
     return parser
 
 
 def main(argv: list[str] | None = None) -> None:
+    global _MEMBER
     db.init_db()
     args = build_parser().parse_args(argv)
+    if args.demo:
+        if args.func in (atualizar, backup):
+            _out({"erro": "Na demonstração, atualizar e backup ficam desligados: não há dados de verdade."})
+            raise SystemExit(1)
+        demo.ensure()
     try:
-        args.func(args)
+        with demo.active() if args.demo else nullcontext():
+            _MEMBER = household.resolve(args.titular) if args.titular else None
+            args.func(args)
     except (ValueError, fundamentals.FundamentalsError, recommendations.RecommendationError, budgets.BudgetError) as exc:
         _out({"erro": str(exc)})
         raise SystemExit(1) from exc

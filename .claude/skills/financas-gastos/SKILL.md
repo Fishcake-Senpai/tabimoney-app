@@ -12,6 +12,7 @@ description: Revisar os gastos do usuário, explicar o que mudou por categoria e
    - salário ou reembolso da empresa como despesa ou em categoria de consumo;
    - compra ou venda de ações, CDB ou previdência classificada como "Compras" (o certo é `Investimentos`);
    - PIX para a própria pessoa como gasto (o certo é `Transferência própria`);
+   - PIX entre titulares da casa (veja `financas titulares`) como gasto (o certo é `Transferência entre titulares`);
    - estabelecimento classificado errado pela Pluggy (ex.: "Google One" como Lazer).
 3. **Corrija:**
    - erro que se repete (mesmo estabelecimento ou pagador): `.\financas.bat gastos regra --contem "TEXTO" --categoria "Categoria" --nota "motivo"`;
@@ -27,5 +28,5 @@ description: Revisar os gastos do usuário, explicar o que mudou por categoria e
 Regras de conduta:
 
 - Antes de criar mais de 3 regras ou mexer em mais de 20 lançamentos, mostre a lista ao usuário e peça confirmação.
-- Categorias internas (`Investimentos`, `Pagamento de fatura`, `Transferência própria`) tiram o valor de receitas e despesas. Use-as só quando o dinheiro de fato não saiu do patrimônio.
+- Categorias internas (`Investimentos`, `Pagamento de fatura`, `Transferência própria`, `Transferência entre titulares`) tiram o valor de receitas e despesas. Use-as só quando o dinheiro de fato não saiu do patrimônio.
 - Ao final, diga o que mudou (quantos lançamentos, efeito em reais por categoria) e que o resultado aparece em **Conta e cartão**.

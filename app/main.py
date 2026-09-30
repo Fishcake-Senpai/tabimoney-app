@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import os
 import secrets
 import threading
 from contextlib import asynccontextmanager
@@ -13,10 +14,10 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import db
+from app import db, demo
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
-from app.services import analytics, budgets, fundamentals, pension, recommendations, spending, targets, updates
+from app.services import analytics, budgets, fundamentals, household, pension, recommendations, spending, targets, updates
 from app.services.categories import INCOME_CATEGORIES, INTERNAL_CATEGORIES
 from app.services.markdown import render as render_markdown
 from app.services.formatting import (
@@ -25,10 +26,11 @@ from app.services.formatting import (
 )
 from app.services.importers import import_ofx, import_positions_csv, import_quotes_csv, normalize_ticker
 from app.services.smart_import import import_file
-from app.services.sync import SyncError, parse_item_ids, pluggy_item_ids, quote_scheduler, sync_daily_quotes, sync_pluggy
+from app.services.sync import SyncError, quote_scheduler, sync_daily_quotes, sync_pluggy
 
 APP_DIR = Path(__file__).resolve().parent
-PORT = 8765
+# TABIMONEY_PORTA só existe para os testes de navegador rodarem com o Tabimoney do dia a dia aberto.
+PORT = int(os.environ.get("TABIMONEY_PORTA") or 8765)
 ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
 
 
@@ -74,8 +76,19 @@ async def lifespan(_: FastAPI):
         checker.join(timeout=2)
 
 
+class DemoMiddleware(BaseHTTPMiddleware):
+    """Na demonstração, a requisição inteira lê e grava em demo.sqlite3 e usa o cofre em memória (app/demo.py)."""
+
+    async def dispatch(self, request: Request, call_next):
+        if not request.session.get("demo"):
+            return await call_next(request)
+        with demo.active():
+            return await call_next(request)
+
+
 app = FastAPI(title="Tabimoney", version=__version__, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.add_middleware(LocalOnlyMiddleware)
+app.add_middleware(DemoMiddleware)  # por dentro da sessão: precisa do cookie já lido
 app.add_middleware(
     SessionMiddleware,
     secret_key=secrets.token_urlsafe(48),
@@ -117,6 +130,7 @@ def shutdown_from_launcher(request: Request):
 @app.post("/sistema/encerrar", response_class=HTMLResponse)
 def shutdown_from_user(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    request.session.pop("demo", None)
     if not _schedule_shutdown(request):
         _flash(request, "warning", "Este Tabimoney foi aberto pelo terminal: encerre com Ctrl+C na janela dele.")
         return _redirect(request, "/configuracoes")
@@ -171,7 +185,8 @@ def _update_notice():
 
 def _render(request: Request, template: str, **context):
     messages = request.session.pop("flash_messages", [])
-    context.setdefault("update", _update_notice())
+    context.setdefault("update", None if request.session.get("demo") else _update_notice())
+    context.setdefault("demo_mode", bool(request.session.get("demo")))
     return templates.TemplateResponse(
         request=request,
         name=template,
@@ -198,17 +213,101 @@ def _nav_counts() -> dict[str, int]:
     return {"pending": int(pending[0]["n"]) if pending else 0}
 
 
+def _member(request: Request) -> int | None:
+    """Titular escolhido no seletor (None = a casa toda). Só vale com mais de um titular cadastrado."""
+    value = request.session.get("member")
+    if value is None or not household.is_shared():
+        return None
+    if household.member(int(value)) is None:
+        request.session.pop("member", None)
+        return None
+    return int(value)
+
+
+def _household_view(request: Request) -> dict[str, object] | None:
+    if not household.is_shared():
+        return None
+    current = _member(request)
+    members = household.members()
+    return {
+        "members": members, "current": current,
+        "label": next((m["name"] for m in members if m["id"] == current), "Casa"),
+    }
+
+
 def _page(request: Request, template: str, **context):
-    return _render(request, template, nav=_nav_counts(), **context)
+    return _render(request, template, nav=_nav_counts(), view=_household_view(request), **context)
+
+
+def _in_demo(request: Request) -> bool:
+    return bool(request.session.get("demo"))
+
+
+def _demo_blocked(request: Request, what: str, back: str = "/") -> RedirectResponse | None:
+    """Na demonstração, o que busca dados de fora ou mexe em arquivos do usuário fica desligado."""
+    if not _in_demo(request):
+        return None
+    _flash(request, "warning", f"Na demonstração, {what} fica desligado. Saia da demo para usar com seus dados.")
+    return _redirect(request, back)
+
+
+@app.post("/demo/entrar")
+def enter_demo(request: Request, csrf_token: str = Form(...)):
+    _check_csrf(request, csrf_token)
+    demo.ensure()
+    request.session["demo"] = True
+    request.session.pop("member", None)
+    _flash(request, "success", "Bem-vindo à demonstração: um casal fictício, com dados inventados. Mexa à vontade.")
+    return _redirect(request, "/")
+
+
+@app.post("/demo/sair")
+def leave_demo(request: Request, csrf_token: str = Form(...)):
+    _check_csrf(request, csrf_token)
+    request.session.pop("demo", None)
+    request.session.pop("member", None)
+    return _redirect(request, "/")
+
+
+@app.post("/demo/recomecar")
+def restart_demo(request: Request, csrf_token: str = Form(...)):
+    _check_csrf(request, csrf_token)
+    if not _in_demo(request):
+        return _redirect(request, "/")
+    demo.build()
+    request.session.pop("member", None)
+    _flash(request, "success", "Demonstração recomeçada: tudo voltou ao original.")
+    return _redirect(request, "/")
+
+
+def _household_transactions(member: int | None, transactions: list[dict]) -> list[dict]:
+    """Metas de gastos são da casa: na visão de um titular, o orçamento continua olhando todos os gastos."""
+    return transactions if member is None else analytics.cash_transactions()
+
+
+@app.post("/titular")
+def choose_member(request: Request, csrf_token: str = Form(...), member: str = Form(""), back: str = Form("/")):
+    _check_csrf(request, csrf_token)
+    try:
+        chosen = household.resolve(member)
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+        chosen = None
+    if chosen is None:
+        request.session.pop("member", None)
+    else:
+        request.session["member"] = chosen
+    return _redirect(request, _local_path(back, "/"))
 
 
 @app.get("/", response_class=HTMLResponse)
 def overview(request: Request):
-    book = analytics.Book()
+    member = _member(request)
+    book = analytics.Book(member)
     assets = book.assets()
     kpis = book.portfolio_kpis(assets)
     series = book.series()
-    transactions = analytics.cash_transactions()
+    transactions = analytics.cash_transactions(member=member)
     flow = analytics.cash_flow(transactions + book.yield_entries())
     fixed = book.fixed_income()
     accounts = book.accounts()
@@ -233,7 +332,7 @@ def overview(request: Request):
         "savings_rate": analytics._pct(previous["net"], previous["in"]) if previous and previous["in"] else None,
     }
     balance = targets.snapshot(book, assets)
-    budget = budgets.status(transactions)
+    budget = budgets.status(_household_transactions(member, transactions))
     return _page(
         request, "overview.html", summary=summary, kpis=kpis, movers=movers, balance=balance,
         display_name=db.get_setting("display_name"), budget=budget,
@@ -246,7 +345,7 @@ def overview(request: Request):
 
 @app.get("/carteira", response_class=HTMLResponse)
 def portfolio(request: Request):
-    book = analytics.Book()
+    book = analytics.Book(_member(request))
     assets = book.assets()
     kpis = book.portfolio_kpis(assets)
     series = book.series()
@@ -266,7 +365,7 @@ def portfolio(request: Request):
 @app.get("/ativo/{ticker}", response_class=HTMLResponse)
 def asset_page(request: Request, ticker: str):
     normalized = normalize_ticker(ticker)
-    book = analytics.Book()
+    book = analytics.Book(_member(request))
     asset = next((a for a in book.assets() if a["ticker"] == normalized), None)
     if asset is None:
         raise HTTPException(status_code=404, detail="Ativo não encontrado na carteira.")
@@ -290,10 +389,11 @@ def asset_page(request: Request, ticker: str):
 
 @app.get("/metas", response_class=HTMLResponse)
 def targets_page(request: Request, aporte: str = ""):
-    book = analytics.Book()
+    member = _member(request)
+    book = analytics.Book(member)
     assets = book.assets()
     snap = targets.snapshot(book, assets)
-    flow = analytics.cash_flow(analytics.cash_transactions() + book.yield_entries())
+    flow = analytics.cash_flow(analytics.cash_transactions(member=member) + book.yield_entries())
     suggested = targets.suggested_amount(flow)
     try:
         amount = pension.parse_amount(aporte, "o aporte", required=False) if aporte else suggested
@@ -308,8 +408,14 @@ def targets_page(request: Request, aporte: str = ""):
 
 @app.post("/metas")
 def save_targets(request: Request, csrf_token: str = Form(...), reserve: str = Form(""), fixed_pct: str = Form(""),
-                 equity_pct: str = Form(""), intl_pct: str = Form(""), pension_in_fixed: str = Form("")):
+                 equity_pct: str = Form(""), intl_pct: str = Form(""), pension_in_fixed: str = Form(""),
+                 use_household: str = Form("")):
     _check_csrf(request, csrf_token)
+    member = _member(request)
+    if use_household == "on" and member is not None:
+        targets.clear(member)
+        _flash(request, "success", "A visão deste titular voltou a usar as metas da casa.")
+        return _redirect(request, "/metas")
 
     def pct_value(raw: str, label: str) -> float | None:
         text = raw.strip().replace("%", "").replace(",", ".")
@@ -324,9 +430,10 @@ def save_targets(request: Request, csrf_token: str = Form(...), reserve: str = F
         targets.save(
             pension.parse_amount(reserve, "a reserva", required=False),
             pct_value(fixed_pct, "renda fixa"), pct_value(equity_pct, "renda variável"),
-            pct_value(intl_pct, "internacional"), pension_in_fixed == "on",
+            pct_value(intl_pct, "internacional"), pension_in_fixed == "on", member=member,
         )
-        _flash(request, "success", "Metas salvas.")
+        who = household.member(member)
+        _flash(request, "success", f"Metas de {who['name']} salvas." if who else "Metas salvas.")
     except ValueError as exc:
         _flash(request, "error", str(exc))
     return _redirect(request, "/metas")
@@ -345,7 +452,7 @@ def save_region(request: Request, csrf_token: str = Form(...), ticker: str = For
 
 @app.get("/recomendacoes", response_class=HTMLResponse)
 def recommendations_page(request: Request, id: int | None = None):
-    book = analytics.Book()
+    book = analytics.Book(_member(request))
     assets = book.assets()
     current = recommendations.get(id)
     weights = {a["ticker"]: a["weight"] or 0 for a in assets if a["qty"] > 0}
@@ -386,6 +493,8 @@ def report_page(request: Request, report_id: int):
 @app.post("/fundamentos/atualizar")
 def fundamentals_sync(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "atualizar os balanços da CVM", "/carteira"):
+        return blocked
     try:
         result = fundamentals.sync_fundamentals()
         _flash(request, "success", result["message"])
@@ -404,7 +513,7 @@ def alert_resolve(request: Request, csrf_token: str = Form(...), alert_id: int =
 
 @app.get("/renda-fixa", response_class=HTMLResponse)
 def fixed_income_page(request: Request):
-    book = analytics.Book()
+    book = analytics.Book(_member(request))
     products = book.fixed_income()
     by_type: dict[str, int] = {}
     for p in products:
@@ -432,9 +541,10 @@ def fixed_income_page(request: Request):
 
 @app.get("/rendimentos", response_class=HTMLResponse)
 def income_page(request: Request):
-    book = analytics.Book()
-    transactions = analytics.cash_transactions()
-    credits = analytics.dividend_credits(transactions)
+    member = _member(request)
+    book = analytics.Book(member)
+    transactions = analytics.cash_transactions(member=member)
+    credits = analytics.dividend_credits(transactions, member)
     yields = book.yield_by_month()
     year_ago = analytics._shift(book.today, 365)
     months: dict[str, dict[str, int]] = {}
@@ -501,7 +611,7 @@ async def save_income_config(request: Request):
 
 @app.get("/previdencia", response_class=HTMLResponse)
 def pension_page(request: Request):
-    book = analytics.Book()
+    book = analytics.Book(_member(request))
     return _page(
         request, "pension.html", summary=book.pension(), entries=pension.entries(), plans=pension.plans(),
         plan_types=pension.PLAN_TYPES, regimes=pension.TAX_REGIMES, today=analytics.date.today().isoformat(),
@@ -530,16 +640,18 @@ def delete_pension(request: Request, csrf_token: str = Form(...), entry_id: int 
 
 @app.get("/contas", response_class=HTMLResponse)
 def accounts_page(request: Request):
-    book = analytics.Book()
-    transactions = analytics.cash_transactions()
+    member = _member(request)
+    book = analytics.Book(member)
+    transactions = analytics.cash_transactions(member=member)
+    house = _household_transactions(member, transactions)
     accounts = book.accounts()
     return _page(
         request, "accounts.html", accounts=accounts, transactions=transactions[:400],
         trends=spending.category_trends(transactions), rules=spending.rules(),
         category_overview=spending.categories_overview(transactions), deleted_categories=spending.deleted_categories(),
         category_options=spending.known_categories(),
-        budget=budgets.status(transactions), budget_list=budgets.budgets(),
-        budget_suggestions=budgets.suggestions(transactions), advice=budgets.latest_advice(),
+        budget=budgets.status(house), budget_list=budgets.budgets(),
+        budget_suggestions=budgets.suggestions(house), advice=budgets.latest_advice(),
         spend_categories=[c for c in spending.known_categories()
                           if c not in INTERNAL_CATEGORIES and (c not in INCOME_CATEGORIES or c in ("Outros", "Pix e transferências"))],
         chart_flow=analytics.cash_flow(transactions + book.yield_entries()),
@@ -552,12 +664,13 @@ def accounts_page(request: Request):
 
 @app.get("/contas/gastos/{category:path}", response_class=HTMLResponse)
 def category_page(request: Request, category: str):
-    transactions = analytics.cash_transactions()
+    member = _member(request)
+    transactions = analytics.cash_transactions(member=member)
     detail = spending.category_detail(transactions, category)
     if detail is None:
         _flash(request, "warning", f"Nenhum gasto na categoria {category}.")
         return _redirect(request, "/contas")
-    budget = budgets.status(transactions)
+    budget = budgets.status(_household_transactions(member, transactions))
     trends = spending.category_trends(transactions)
     return _page(
         request, "category.html", detail=detail,
@@ -726,15 +839,19 @@ def reconciliation_page(request: Request):
 
 @app.get("/configuracoes", response_class=HTMLResponse)
 def settings_page(request: Request):
+    connections = household.connections()
+    for connection in connections:
+        id_key, secret_key = household.secret_names(connection["id"])
+        connection["id_status"] = _secret_configured(id_key)
+        connection["secret_status"] = _secret_configured(secret_key)
     return _page(
         request, "settings.html",
-        pluggy_client_id_status=_secret_configured("pluggy_client_id"),
-        pluggy_client_secret_status=_secret_configured("pluggy_client_secret"),
         brapi_token_status=_secret_configured("brapi_token"),
-        item_ids=", ".join(pluggy_item_ids()),
+        connections=connections, members=household.members(),
         pluggy_accounts=db.rows(
-            "SELECT institution, account_name, account_type, external_key FROM financial_account "
-            "WHERE provider = 'pluggy' ORDER BY institution, account_type, account_name"
+            "SELECT a.institution, a.account_name, a.account_type, a.external_key, m.name AS member_name "
+            "FROM financial_account a JOIN household_member m ON m.id = COALESCE(a.member_id, 1) "
+            "WHERE a.provider = 'pluggy' ORDER BY m.id, a.institution, a.account_type, a.account_name"
         ),
         daily_quotes_enabled=db.get_setting("daily_quotes_enabled", "1") == "1",
         display_name=db.get_setting("display_name"),
@@ -755,6 +872,8 @@ def imports_legacy():
 @app.post("/atualizacao/verificar")
 def check_update(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "verificar versão nova", "/configuracoes#atualizacoes"):
+        return blocked
     info = updates.check(force=True)
     summary = updates.summary()
     if summary["error"]:
@@ -777,41 +896,147 @@ def dismiss_update(request: Request, csrf_token: str = Form(...), version: str =
 def save_settings(
     request: Request,
     csrf_token: str = Form(...),
-    pluggy_client_id: str = Form(""),
-    pluggy_client_secret: str = Form(""),
-    pluggy_item_ids: str = Form(""),
     brapi_token: str = Form(""),
     daily_quotes: str = Form(""),
     update_check: str = Form(""),
     display_name: str = Form(""),
-    remove_pluggy: str = Form(""),
     remove_brapi: str = Form(""),
 ):
     _check_csrf(request, csrf_token)
     try:
-        if pluggy_client_id.strip():
-            save_secret("pluggy_client_id", pluggy_client_id.strip())
-        if pluggy_client_secret.strip():
-            save_secret("pluggy_client_secret", pluggy_client_secret.strip())
         if brapi_token.strip():
             save_secret("brapi_token", brapi_token.strip())
-        if remove_pluggy == "on":
-            delete_secret("pluggy_client_id")
-            delete_secret("pluggy_client_secret")
         if remove_brapi == "on":
             delete_secret("brapi_token")
     except Exception:
         _flash(request, "error", f"Não foi possível acessar o {vault_name()}. Revise as configurações e tente novamente.")
         return _redirect(request, "/configuracoes")
-    item_ids, ignored = parse_item_ids(pluggy_item_ids)
-    db.set_setting("pluggy_item_ids", ", ".join(item_ids))
-    if ignored:
-        _flash(request, "warning", "Ignorado por não ser um Item ID válido: " + ", ".join(ignored[:5]) + ".")
     db.set_setting("daily_quotes_enabled", "1" if daily_quotes == "on" else "0")
     updates.set_enabled(update_check == "on")
     db.set_setting("display_name", " ".join(display_name.split())[:40])
     _flash(request, "success", f"Configurações salvas. Segredos ficam no {vault_name()}.")
     return _redirect(request, "/configuracoes")
+
+
+def _vault_error(request: Request) -> RedirectResponse:
+    _flash(request, "error", f"Não foi possível acessar o {vault_name()}. Revise as configurações e tente novamente.")
+    return _redirect(request, "/configuracoes#open-finance")
+
+
+@app.post("/configuracoes/pluggy")
+def save_pluggy_connection(
+    request: Request,
+    csrf_token: str = Form(...),
+    connection_id: str = Form(""),
+    label: str = Form(""),
+    client_id: str = Form(""),
+    client_secret: str = Form(""),
+    item_ids: str = Form(""),
+    member_id: int = Form(household.PRIMARY_ID),
+    remove_credentials: str = Form(""),
+):
+    """Cria (sem connection_id) ou atualiza uma conexão: nome, credenciais e Item IDs novos com o titular deles."""
+    _check_csrf(request, csrf_token)
+    try:
+        if connection_id.strip().isdigit():
+            current = int(connection_id)
+            if label.strip():
+                household.rename_connection(current, label)
+        else:
+            if not (client_id.strip() and client_secret.strip()):
+                raise ValueError("Para uma conexão nova, informe Client ID e Client Secret.")
+            current = household.create_connection(label or "Nova conexão")
+        result = household.add_items(current, item_ids, member_id) if item_ids.strip() else None
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+        return _redirect(request, "/configuracoes#open-finance")
+    id_key, secret_key = household.secret_names(current)
+    try:
+        if client_id.strip():
+            save_secret(id_key, client_id.strip())
+        if client_secret.strip():
+            save_secret(secret_key, client_secret.strip())
+        if remove_credentials == "on":
+            delete_secret(id_key)
+            delete_secret(secret_key)
+    except Exception:
+        return _vault_error(request)
+    if result and result["ignored"]:
+        _flash(request, "warning", "Ignorado por não ser um Item ID válido: " + ", ".join(result["ignored"][:5]) + ".")
+    parts = ["Conexão salva."]
+    if result and (result["added"] or result["moved"]):
+        parts.append(f"{result['added'] + result['moved']} Item ID(s) nesta conexão.")
+    _flash(request, "success", " ".join(parts))
+    return _redirect(request, "/configuracoes#open-finance")
+
+
+@app.post("/configuracoes/pluggy/excluir")
+def delete_pluggy_connection(request: Request, csrf_token: str = Form(...), connection_id: int = Form(...)):
+    _check_csrf(request, csrf_token)
+    try:
+        for name in household.delete_connection(connection_id):
+            try:
+                delete_secret(name)
+            except Exception:
+                return _vault_error(request)
+        _flash(request, "success", "Conexão excluída. As contas e o histórico que ela trouxe continuam no app.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/configuracoes#open-finance")
+
+
+@app.post("/configuracoes/pluggy/item")
+def update_pluggy_item(request: Request, csrf_token: str = Form(...), item_id: str = Form(...),
+                       member_id: int = Form(household.PRIMARY_ID), remove: str = Form("")):
+    _check_csrf(request, csrf_token)
+    try:
+        if remove == "on":
+            household.remove_item(item_id)
+            _flash(request, "success", "Item removido da sincronização. As contas e o histórico dele continuam no app.")
+        else:
+            renamed = household.set_item_member(item_id, member_id)
+            who = household.member(member_id)
+            _flash(request, "success", f"Item agora é de {who['name']}; {renamed} conta(s) atualizada(s).")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/configuracoes#open-finance")
+
+
+@app.post("/configuracoes/titulares")
+def add_household_member(request: Request, csrf_token: str = Form(...), name: str = Form(""), cpf: str = Form("")):
+    _check_csrf(request, csrf_token)
+    try:
+        created = household.add_member(name, cpf)
+        _flash(request, "success", f"{created['name']} cadastrado(a) como titular.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/configuracoes#titulares")
+
+
+@app.post("/configuracoes/titulares/editar")
+def edit_household_member(request: Request, csrf_token: str = Form(...), member_id: int = Form(...),
+                          name: str = Form(""), cpf: str = Form(""), remove_document: str = Form("")):
+    _check_csrf(request, csrf_token)
+    try:
+        updated = household.update_member(member_id, name, cpf, remove_document == "on")
+        _flash(request, "success", f"Titular {updated['name']} salvo.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/configuracoes#titulares")
+
+
+@app.post("/configuracoes/titulares/excluir")
+def delete_household_member(request: Request, csrf_token: str = Form(...), member_id: int = Form(...)):
+    _check_csrf(request, csrf_token)
+    try:
+        household.delete_member(member_id)
+        targets.clear(member_id)
+        if request.session.get("member") == member_id:
+            request.session.pop("member", None)
+        _flash(request, "success", "Titular excluído.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/configuracoes#titulares")
 
 
 def _read_upload(file: UploadFile, max_bytes: int = 10 * 1024 * 1024) -> bytes:
@@ -881,6 +1106,8 @@ def upload_quotes(request: Request, csrf_token: str = Form(...), file: UploadFil
 @app.post("/sincronizar/pluggy")
 def pluggy_sync(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "sincronizar o Open Finance"):
+        return blocked
     try:
         result = sync_pluggy()
         kind = "warning" if result["status"] == "partial" else "success"
@@ -893,6 +1120,8 @@ def pluggy_sync(request: Request, csrf_token: str = Form(...)):
 @app.post("/sincronizar/cotacoes")
 def quote_sync(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "atualizar o mercado"):
+        return blocked
     try:
         result = sync_daily_quotes()
         kind = "error" if result["status"] == "failed" else "warning" if result["status"] == "partial" else "success"
@@ -994,6 +1223,8 @@ def fixed_income_template():
 @app.post("/backup")
 def download_backup(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "o backup", "/importar"):
+        return blocked
     path = db.create_backup()
     return FileResponse(path, filename=path.name, media_type="application/vnd.sqlite3")
 
@@ -1006,6 +1237,8 @@ def restore_backup(
     file: UploadFile = File(...),
 ):
     _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "restaurar backup", "/importar"):
+        return blocked
     if confirmed != "on":
         _flash(request, "error", "Marque a confirmação para substituir os dados atuais por um backup.")
         return _redirect(request, "/importar")

@@ -13,6 +13,12 @@ import pytest
 
 from app import security
 
+# Testes de navegador (tests/e2e) só rodam com o Playwright instalado (requirements-e2e.txt).
+try:
+    import playwright  # noqa: F401
+except ImportError:
+    collect_ignore = ["e2e"]
+
 # o cofre verdadeiro, guardado antes de ser trocado pelo falso (tests/test_plataforma.py testa este)
 COFRE_REAL = security._system_vault
 
@@ -109,6 +115,11 @@ def _mes(hoje: date, meses_atras: int, dia: int) -> str:
 @pytest.fixture
 def dados_exemplo():
     """Conta, cartão e 7 meses de lançamentos variados (compras, salário, fatura, estorno, dólar, pendentes)."""
+    return semear_exemplo()
+
+
+def semear_exemplo() -> date:
+    """Grava os dados de exemplo na base atual. Também usado pelo servidor dos testes de navegador (tests/e2e)."""
     from app import db
 
     hoje = date.today()
