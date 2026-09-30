@@ -1,20 +1,19 @@
 ---
-name: financas-recomendacoes
-description: Montar as recomendações trimestrais da carteira de ações e FIIs do usuário (mudanças na carteira atual e carteiras-modelo com o perfil dele), respeitando as metas de alocação, e gravar na área Recomendações do app. Use depois da análise trimestral ou quando o usuário pedir sugestões de mudança na carteira.
+titulo: Recomendações trimestrais
+descricao: Monta as recomendações trimestrais da carteira de ações e FIIs (mudanças na carteira atual e carteiras-modelo com o perfil do usuário), respeitando as metas de alocação, e grava na área Recomendações do app.
 ---
 
 # Recomendações trimestrais
 
-Pré-requisito: relatórios do trimestre gravados (skill `financas-analise-trimestral`). Se `ultima_analise` estiver
-vazia ou for de trimestre anterior para a maioria dos ativos, faça a análise primeiro ou avise o usuário.
+Pré-requisito: relatórios do trimestre gravados (roteiro `analise-trimestral`). Se `ultima_analise` estiver vazia
+ou for de trimestre anterior para a maioria dos ativos, faça a análise primeiro ou avise o usuário.
 
 ## Passos
 
-1. Rode `.\financas.bat carteira contexto --aporte <valor>` (use o aporte citado pelo usuário ou
-   `aporte_mensal_sugerido`). Isso traz:
+1. Chame `carteira_contexto` com `aporte` (o valor citado pelo usuário ou `aporte_mensal_sugerido`). Isso traz:
    - `metas_e_balanco`: metas, desvios e plano de aporte por classe. **As recomendações têm de caber aqui.**
    - `renda_variavel.posicoes`: peso na renda variável, fundamentos, avisos e a última análise de cada ativo.
-   - `recomendacao_anterior`: compare com ela (`.\financas.bat recomendacoes mostrar`).
+   - `recomendacao_anterior`: compare com ela (`recomendacoes_mostrar`).
 2. **Entenda o perfil do usuário** pela carteira atual (setores, peso em dividendos × crescimento, exposição
    internacional, concentração). As carteiras-modelo precisam parecer algo que ele montaria, só que mais bem
    fundamentado neste trimestre.
@@ -30,13 +29,13 @@ vazia ou for de trimestre anterior para a maioria dos ativos, faça a análise p
    e `items` com pesos que somam 100%.
    - Parta dos ativos que o usuário já tem e troque os mais fracos.
    - Respeite a meta internacional dentro da renda variável.
-5. **Tese (`body_md`)**: use as seções "Tese do trimestre", "Como isso encaixa nas metas" (cite reserva, renda fixa ×
-   variável e internacional), "Prioridades para os próximos aportes", "Riscos" e "O que mudou desde a recomendação anterior".
-6. **Gravação:** monte o JSON (exemplo em `docs/agentes/exemplos/recomendacoes.json`) com `period` no formato `3T26`
-   e rode `.\financas.bat recomendacoes importar caminho.json`. O mesmo período substitui a versão; os trimestres
-   anteriores ficam no histórico.
+5. **Tese (`body_md`)**: use as seções "Tese do trimestre", "Como isso encaixa nas metas" (cite reserva, renda fixa
+   × variável e internacional), "Prioridades para os próximos aportes", "Riscos" e "O que mudou desde a
+   recomendação anterior".
+6. **Gravação:** chame `recomendacoes_importar` com o conjunto (exemplo em `tabimoney://exemplos/recomendacoes`),
+   `period` no formato `3T26`. O mesmo período substitui a versão; os trimestres anteriores ficam no histórico.
 7. **Resposta ao usuário:** três a cinco bullets com as mudanças principais, a carteira-modelo mais próxima da dele
-   e a lembrança de que tudo está em **Recomendações** (`/recomendacoes`).
+   e a lembrança de que tudo está em **Recomendações**.
 
 ## Limites
 

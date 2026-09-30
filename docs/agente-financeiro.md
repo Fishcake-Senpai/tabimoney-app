@@ -1,24 +1,101 @@
 # Contrato com agentes de IA
 
-Este documento é para quem conecta um agente de IA (Claude Code, Codex, um script agendado) ao aplicativo.
-O agente lê dados e grava correções, análises e recomendações pela linha de comando `financas`
-(`financas.bat` na raiz, `.venv\Scripts\python.exe -m app.cli` ou `Tabimoney.exe cli`). Ele nunca edita o SQLite diretamente.
-Toda saída sai em JSON UTF-8, com valores em reais e percentuais e pesos como fração (`0.153` = 15,3%).
+Este documento é para quem conecta um agente de IA (Claude Desktop, Claude Code, Codex, Cursor, um script
+agendado) ao aplicativo. O agente lê dados e grava correções, análises e recomendações por uma de duas portas,
+que chamam as mesmas operações (`app/agente/operacoes.py`):
 
-Roteiros passo a passo (skills):
+- **Servidor MCP `tabimoney`** (recomendado): `Tabimoney.exe mcp`, `financas mcp` ou `python -m app.mcp_server`,
+  por stdio. Conecte em **Configurações › Conectar à IA**. Neste documento, cada comando tem uma ferramenta
+  equivalente (tabela abaixo); os parâmetros têm os mesmos nomes, sem os hifens.
+- **Linha de comando `financas`**: `financas.bat` na raiz, `.venv\Scripts\python.exe -m app.cli` ou
+  `Tabimoney.exe cli`.
 
-| Tarefa | Skill |
+O agente nunca edita o SQLite diretamente. Toda resposta sai em JSON UTF-8, com valores em reais e percentuais e
+pesos como fração (`0.153` = 15,3%).
+
+Roteiros passo a passo, em `app/agente/roteiros/` (no MCP: ferramenta `roteiro`, prompts e resources
+`tabimoney://roteiros/NOME`):
+
+| Tarefa | Roteiro |
 |---|---|
-| Visão geral e escolha do roteiro | `.claude/skills/financas/SKILL.md` |
-| Ciclo completo: atualizar dados, analisar, recomendar e resumir | `.claude/skills/financas-ciclo/SKILL.md` |
-| Revisar gastos e recategorizar | `.claude/skills/financas-gastos/SKILL.md` |
-| Orçamento: metas de gastos e recomendações de economia | `.claude/skills/financas-orcamento/SKILL.md` |
-| Metas de alocação e onde aportar | `.claude/skills/financas-metas/SKILL.md` |
-| Análise fundamentalista trimestral (ações, FIIs, renda fixa) | `.claude/skills/financas-analise-trimestral/SKILL.md` |
-| Recomendações trimestrais e carteiras-modelo | `.claude/skills/financas-recomendacoes/SKILL.md` |
+| Visão geral e escolha do roteiro | `visao-geral` |
+| Ciclo completo: atualizar dados, analisar, recomendar e resumir | `ciclo` |
+| Revisar gastos e recategorizar | `gastos` |
+| Orçamento: metas de gastos e recomendações de economia | `orcamento` |
+| Metas de alocação e onde aportar | `metas` |
+| Análise fundamentalista trimestral (ações, FIIs, renda fixa) | `analise-trimestral` |
+| Recomendações trimestrais e carteiras-modelo | `recomendacoes` |
 
-O modelo do relatório está em `docs/agentes/modelo-relatorio-trimestral.md`. Os exemplos de JSON válidos
-estão em `docs/agentes/exemplos/`.
+O modelo do relatório está em `docs/agentes/modelo-relatorio-trimestral.md` (resource
+`tabimoney://docs/modelo-relatorio-trimestral`). Os exemplos de JSON válidos estão em `docs/agentes/exemplos/`
+(resources `tabimoney://exemplos/analise-trimestral`, `recomendacoes` e `orcamento`).
+
+## Servidor MCP
+
+**Ferramentas.** O tipo vira anotação MCP: *leitura* (`readOnlyHint`, o agente pode liberar de vez), *escrita
+reversível*, **sensível** (`destructiveHint`; só com pedido explícito do usuário) e *longa*.
+
+| Ferramenta | Tipo | Comando da CLI |
+|---|---|---|
+| `status` | leitura | — |
+| `roteiro` | leitura | — |
+| `tarefa_status` | leitura | — |
+| `titulares` | leitura | `financas titulares` |
+| `carteira_contexto` | leitura | `financas carteira contexto` |
+| `carteira_posicoes` | leitura | `financas carteira posicoes` |
+| `fundamentos_contexto` | leitura | `financas fundamentos contexto TICKER` |
+| `fundamentos_atualizar` | longa (tarefa) | `financas fundamentos atualizar` |
+| `metas_mostrar` | leitura | `financas metas mostrar` |
+| `metas_definir` | **sensível** | `financas metas definir` |
+| `metas_regiao` | escrita reversível | `financas metas regiao TICKER REGIAO` |
+| `gastos_resumo` | leitura | `financas gastos resumo` |
+| `gastos_listar` | leitura | `financas gastos listar` |
+| `gastos_categorias` | leitura | `financas gastos categorias` |
+| `gastos_regras` | leitura | `financas gastos regras` |
+| `gastos_recategorizar` | escrita reversível | `financas gastos recategorizar` |
+| `gastos_criar_regra` | escrita reversível | `financas gastos regra` |
+| `gastos_remover_regra` | **sensível** | `financas gastos remover-regra ID` |
+| `gastos_criar_categoria` | escrita reversível | `financas gastos criar-categoria` |
+| `gastos_excluir_categoria` | **sensível** | `financas gastos excluir-categoria` |
+| `gastos_restaurar_categoria` | escrita reversível | `financas gastos restaurar-categoria` |
+| `orcamento_mostrar` | leitura | `financas orcamento mostrar` |
+| `orcamento_contexto` | leitura | `financas orcamento contexto` |
+| `orcamento_definir` | **sensível** | `financas orcamento definir` |
+| `orcamento_remover` | **sensível** | `financas orcamento remover` |
+| `orcamento_importar_recomendacoes` | escrita reversível | `financas orcamento importar-recomendacoes ARQUIVO` |
+| `analise_importar` | escrita reversível | `financas analise importar ARQUIVO` |
+| `analise_listar` | leitura | `financas analise listar` |
+| `analise_mostrar` | leitura | `financas analise mostrar ID` |
+| `recomendacoes_importar` | escrita reversível | `financas recomendacoes importar ARQUIVO` |
+| `recomendacoes_listar` | leitura | `financas recomendacoes listar` |
+| `recomendacoes_mostrar` | leitura | `financas recomendacoes mostrar` |
+| `alertas_listar` | leitura | `financas alertas listar` |
+| `alertas_resolver` | escrita reversível | `financas alertas resolver ID` |
+| `backup` | escrita reversível | `financas backup` |
+| `atualizar_dados` | longa (tarefa) | `financas atualizar` |
+
+**Diferenças em relação à CLI:**
+
+- **Titular:** o parâmetro `titular` (nome) no lugar de `--titular`, nas ferramentas de carteira, metas e gastos.
+- **Importações:** `analise_importar`, `recomendacoes_importar` e `orcamento_importar_recomendacoes` recebem o
+  JSON direto como argumento (`relatorios` ou `conjunto`), sem arquivo. O esquema documenta cada campo; as regras
+  e as mensagens de erro são as mesmas da CLI.
+- **Paginação:** `gastos_listar` devolve 50 lançamentos por padrão (máximo 200) e `proximo_deslocamento` quando há
+  mais; `campos` reduz cada lançamento aos campos pedidos (o `id` vem sempre). A CLI aceita `--deslocamento`.
+- **Tarefas longas:** `atualizar_dados` e `fundamentos_atualizar` esperam até ~25 s. Se não terminarem, devolvem
+  `tarefa_id`, `situacao: "rodando"` e `etapa`; acompanhe com `tarefa_status` até `concluida` (com `resultado`)
+  ou `falhou` (com `erro`). Chamar de novo enquanto roda devolve a mesma tarefa.
+- **Backup automático:** antes da primeira escrita de cada sessão, o servidor faz backup e devolve o caminho em
+  `backup_automatico`.
+- **Autor:** análises, regras, categorias, metas e recomendações gravadas pelo MCP levam como autor o nome do
+  cliente (`clientInfo.name`, ex.: `claude-code`), não `agente`.
+- **Erros:** voltam como erro da ferramenta, com a mesma mensagem da CLI (`{"erro": ...}` na CLI).
+- **Demonstração:** `Tabimoney.exe mcp --demo` (entrada `tabimoney-demo`) serve a base de demonstração;
+  `atualizar_dados` e `backup` são recusados.
+- **Saída:** JSON compacto, numa linha.
+
+**Prompts** (no Claude Code, `/mcp__tabimoney__NOME`): `ciclo`, `revisar_gastos`, `orcamento`, `onde_aportar`,
+`analise_trimestral` e `recomendacoes`, cada um com o roteiro e os parâmetros do pedido.
 
 ## 0. Titulares (gestão a dois)
 

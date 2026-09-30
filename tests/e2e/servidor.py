@@ -22,7 +22,10 @@ def isolar(pasta: Path) -> None:
     os.environ.update({
         "LOCALAPPDATA": str(pasta / "localappdata"), "XDG_DATA_HOME": str(pasta / "xdg"),
         "USERPROFILE": str(home), "HOME": str(home),
+        # configurações dos agentes de IA (Configurações › Conectar à IA): nunca as da máquina
+        "APPDATA": str(pasta / "appdata"), "XDG_CONFIG_HOME": str(pasta / "xdg-config"),
     })
+    os.environ.pop("CODEX_HOME", None)
     Path.home = classmethod(lambda cls: home)  # Mac guarda a base em ~/Library
 
     import httpx
@@ -32,6 +35,10 @@ def isolar(pasta: Path) -> None:
 
     cofre = CofreFalso()
     security._system_vault = lambda: cofre
+
+    from app.mcp_server import instalar
+
+    instalar._which = lambda _command: None  # nunca roda o `claude` nem o `codex` de verdade
 
     def sem_rede(*_args, **_kwargs):
         raise httpx.ConnectError("rede desligada nos testes de navegador")

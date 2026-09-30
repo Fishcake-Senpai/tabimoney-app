@@ -12,7 +12,6 @@ on:
       - "app/**"
       - "migrations/**"
       - "packaging/**"
-      - ".claude/skills/**"
       - "docs/agentes/**"
       - "docs/agente-financeiro.md"
       - "requirements*.txt"
@@ -113,6 +112,26 @@ jobs:
               time.sleep(0.5)
           assert not _port_open(), "o servidor não encerrou pelo token"
           print("servidor subiu, respondeu e encerrou pelo token")
+          EOF
+
+      - name: Teste rápido do servidor MCP (o agente de IA abre o executável por stdio)
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then BIN=dist/Tabimoney.exe; else BIN=dist/Tabimoney.app/Contents/MacOS/Tabimoney; fi
+          python - "$BIN" <<'EOF'
+          import asyncio, json, sys
+          from mcp import Client, StdioServerParameters
+
+          async def conversa():
+              params = StdioServerParameters(command=sys.argv[1], args=["mcp", "--demo"])
+              async with Client(params, mode="legacy", read_timeout_seconds=120) as c:
+                  status = json.loads((await c.call_tool("status", {})).content[0].text)
+                  assert status["demonstracao"] and len((await c.list_tools()).tools) >= 30
+                  assert "Ciclo completo" in (await c.call_tool("roteiro", {"nome": "ciclo"})).content[0].text
+                  assert (await c.read_resource("tabimoney://docs/contrato")).contents[0].text
+                  assert not (await c.call_tool("carteira_contexto", {})).is_error
+              print("servidor MCP respondeu por stdio: ferramentas, roteiro e contrato")
+
+          asyncio.run(conversa())
           EOF
 
       - name: Manual de conexões

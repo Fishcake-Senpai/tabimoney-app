@@ -40,8 +40,8 @@ Onde fica cada coisa:
 - **Dados:** `%LOCALAPPDATA%\FinancasPessoais`. Lá ficam o banco, os backups e os registros de erro em `logs\`.
   Nada vai para a nuvem.
 - **Senhas e chaves** (Pluggy, brapi): no Gerenciador de Credenciais do Windows.
-- **Pasta da IA:** `%USERPROFILE%\Tabimoney`, que o app recria a cada abertura. Veja
-  [Usar a IA com o executável](#usar-a-ia-com-o-executável).
+- **IA:** conecte o seu agente (Claude, Codex, Cursor…) em **Configurações › Conectar à IA**. Veja
+  [Usar a IA (servidor MCP)](#usar-a-ia-servidor-mcp).
 
 Se algo der errado:
 
@@ -66,9 +66,8 @@ Se algo der errado:
    de diálogo. Clicar de novo reinicia, e **Encerrar o Tabimoney** fica no menu lateral, como no Windows.
 
 No Mac, os dados ficam em `~/Library/Application Support/Tabimoney` e as chaves no **Porta-chaves (Keychain)**.
-Na primeira vez que salvar uma chave, o Mac pode pedir permissão: escolha **Sempre Permitir**. A pasta da IA é
-`~/Tabimoney`, com um `financas.sh` no lugar do `financas.bat`. A linha de comando é
-`/Applications/Tabimoney.app/Contents/MacOS/Tabimoney cli …`.
+Na primeira vez que salvar uma chave, o Mac pode pedir permissão: escolha **Sempre Permitir**. A linha de comando
+é `/Applications/Tabimoney.app/Contents/MacOS/Tabimoney cli …`, e o servidor MCP é o mesmo caminho com `mcp`.
 
 ### Com o código (para desenvolver)
 
@@ -115,38 +114,51 @@ Mac Intel do próprio GitHub.
   para os amigos.
 - **Para rodar à mão:** *Actions › Gerar executáveis › Run workflow*.
 
-O `packaging\tabimoney.spec` define o que vai dentro do exe: templates, arquivos estáticos, migrações, skills
+O `packaging\tabimoney.spec` define o que vai dentro do exe: templates, arquivos estáticos, migrações, roteiros
 e docs da IA. Arquivo novo que o app precise ler em tempo de execução tem que entrar na lista `datas` desse
-arquivo. O mesmo exe tem três modos:
+arquivo. O mesmo exe tem quatro modos:
 
 | Comando | O que faz |
 |---|---|
 | `Tabimoney.exe` | Abre o app (reinicia se já estiver aberto). |
 | `Tabimoney.exe cli gastos resumo` | Linha de comando, igual ao `financas.bat`. |
+| `Tabimoney.exe mcp [--demo]` | Servidor MCP (stdio), que o agente de IA abre sozinho. |
 | `Tabimoney.exe --primeiro-plano` | Servidor na janela atual, com log na tela. |
 
-### Usar a IA com o executável
+### Usar a IA (servidor MCP)
 
-Quem clona o repositório usa a IA pela pasta do projeto. Quem só tem o exe usa a **pasta da IA**. Toda vez que
-abre, o `Tabimoney.exe` grava em `%USERPROFILE%\Tabimoney`:
+O Tabimoney traz um servidor [MCP](https://modelcontextprotocol.io) dentro do próprio executável. Conectado a
+ele, o seu agente de IA ganha as ferramentas do Tabimoney em qualquer conversa e em qualquer pasta: lê gastos,
+carteira e metas e grava análises, recomendações e correções de categoria. Não há chat embutido nem chave de
+API: quem pensa é a IA que você já usa, e tudo roda nesta máquina.
 
-- `AGENTS.md` e `CLAUDE.md`: as instruções;
-- `.claude\skills\`: os roteiros;
-- `docs\`: o contrato e os exemplos;
-- `financas.bat`: chama `Tabimoney.exe cli` no lugar onde o exe está.
+Para conectar, abra **Configurações › Conectar à IA**:
 
-Como tudo sai de dentro do exe, as skills estão sempre na mesma versão do app: atualizar o exe atualiza as
-skills. Os arquivos dessa pasta são substituídos a cada abertura; a subpasta `trabalho\` é livre.
+- **Claude Desktop, Cursor, VS Code, Gemini CLI e Codex:** clique em **Conectar**. O app grava a entrada
+  `tabimoney` na configuração do agente, sem mexer no resto e guardando uma cópia do arquivo antes. Depois,
+  reinicie o agente.
+- **Claude Code:** **Conectar** roda `claude mcp add` por você; sem o comando `claude` no PATH, copie o comando
+  mostrado no ícone `</>` (conectar à mão).
+- **Deu errado, ou o seu agente não está na lista:** em **Configurar pela própria IA**, copie o texto e cole numa conversa. O
+  próprio agente faz a configuração.
 
-Para usar:
+Depois, peça, por exemplo: *"atualize minhas finanças"*, *"revise meus gastos do mês"* ou *"onde devo
+aportar?"*. No Claude Code, os roteiros também aparecem como comandos (`/mcp__tabimoney__ciclo`).
 
-1. Abra o Tabimoney uma vez, para a pasta ser criada.
-2. Abra o [Claude Code](https://claude.com/claude-code) (app de desktop ou terminal) na pasta
-   `%USERPROFILE%\Tabimoney`. Outros agentes que leem `AGENTS.md`, como o Codex, também servem.
-3. Peça, por exemplo: *"atualize minhas finanças"*, *"revise meus gastos do mês"* ou *"onde devo aportar?"*.
+A IA usa as mesmas proteções do app: nada é apagado, as correções podem ser desfeitas, o servidor faz backup
+antes da primeira mudança de cada conversa e grava o nome do agente como autor de cada análise ou regra. As
+ferramentas que mudam metas ou apagam regras pedem confirmação no agente.
 
-A IA lê e altera os dados só pelo `financas.bat`, com as mesmas proteções do app: correções reversíveis,
-backup antes de mudanças em massa e nada de editar o banco direto.
+**Demonstração:** a entrada `tabimoney-demo` (em **Conectar à IA › Demonstração**) liga a IA aos dados
+fictícios, para testar um pedido antes de usar com os seus.
+
+**Trocou o exe de pasta?** Ao abrir, o Tabimoney corrige sozinho o caminho nas configurações que ele gravou. No
+Claude Code, a tela avisa **Caminho antigo** e **Atualizar caminho** refaz a conexão.
+
+Chats no navegador (claude.ai, ChatGPT) não enxergam um servidor local; use o app de desktop ou o terminal.
+
+A antiga **pasta da IA** (`%USERPROFILE%\Tabimoney`) continua sendo criada nesta versão, para a transição, com
+um aviso para usar o MCP e os roteiros em `roteiros\`. Ela sai numa versão futura.
 
 O agendador diário de preços roda enquanto o aplicativo estiver aberto. Por padrão, ele tenta buscar os fechamentos depois de 19h30 (horário de Brasília). Também é possível atualizar manualmente no painel.
 
@@ -279,7 +291,11 @@ Em **Metas**, defina a reserva de emergência (R$), a divisão entre renda fixa 
 
 ## Agentes de IA
 
-A linha de comando `financas.bat` (saída em JSON) permite que você ou um agente (Claude Code, Codex) revise gastos, recategorize, consulte a carteira e grave análises trimestrais, métricas e avisos, que aparecem nas telas. Exemplos: `financas gastos resumo`, `financas gastos regra --contem "UBER" --categoria Transporte`, `financas fundamentos contexto EGIE3`, `financas analise importar relatorio.json`. O contrato está em `docs/agente-financeiro.md`, o modelo de relatório em `docs/agentes/`, e os roteiros passo a passo nas skills `.claude/skills/financas*` (gastos, metas, análise trimestral, recomendações), referenciados no `AGENTS.md` para outros agentes.
+O caminho recomendado é o servidor MCP ([Usar a IA](#usar-a-ia-servidor-mcp)): 36 ferramentas (leitura, escrita reversível e as sensíveis, que só rodam com pedido explícito), os roteiros passo a passo como prompts e pela ferramenta `roteiro`, e o contrato e os exemplos como resources. O código fica em `app/mcp_server/`; as operações, em `app/agente/operacoes.py`; os roteiros, em `app/agente/roteiros/`.
+
+A linha de comando `financas.bat` (saída em JSON) chama as mesmas operações, para você e para agentes sem MCP. Exemplos: `financas gastos resumo`, `financas gastos regra --contem "UBER" --categoria Transporte`, `financas fundamentos contexto EGIE3`, `financas analise importar relatorio.json`, `financas mcp instalar --cliente claude-desktop`. O contrato está em `docs/agente-financeiro.md` e o modelo de relatório em `docs/agentes/`.
+
+Rodando pelo código, **Configurações › Conectar à IA** aponta o agente para o Python do `.venv` (`python -m app.mcp_server`).
 
 ## Proventos e rendimento do CDI
 
@@ -308,9 +324,11 @@ Em **Importações**, baixe um backup SQLite ou restaure um anterior. Antes de s
 ## Estrutura do projeto
 
 - `app/`: interface local, importadores e adaptadores de provedores.
+- `app/agente/`: operações e roteiros dos agentes de IA; `app/mcp_server/`: o servidor MCP e a conexão com cada agente.
 - `migrations/`: esquema SQLite e views de conciliação/KPIs.
 - `docs/superpowers/specs/2026-09-22-financas-pessoais-local-design.md`: especificação aprovada.
 - `docs/superpowers/plans/2026-09-22-mvp-financas-locais.md`: plano de implementação.
+- `docs/superpowers/specs/mcp-tabimoney.md`: especificação do servidor MCP.
 
 ## Licença
 

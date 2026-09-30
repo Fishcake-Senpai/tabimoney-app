@@ -75,3 +75,19 @@ def test_encerrar_sem_launcher_nao_derruba_o_app(client):
 
 def test_encerramento_do_launcher_exige_token(client):
     assert client.post("/_sistema/encerrar", headers={"X-Tabimoney-Token": "errado"}).status_code == 403
+
+
+def test_cada_secao_das_configuracoes_salva_so_o_que_e_dela(client):
+    """A tela salva por seção (nome, token, cotações, aviso de versão); uma não pode desligar a outra."""
+    from app import db
+    from app.services import updates
+
+    token = csrf(client)
+    client.post("/configuracoes", data={"csrf_token": token, "daily_quotes": "on", "update_check": "on", "display_name": "Ana"})
+    client.post("/configuracoes", data={"csrf_token": token, "secao": "geral", "display_name": "Bia"})
+    client.post("/configuracoes", data={"csrf_token": token, "secao": "brapi", "brapi_token": "tok"})
+    assert db.get_setting("display_name") == "Bia"
+    assert db.get_setting("daily_quotes_enabled") == "1" and updates.summary()["enabled"]
+    client.post("/configuracoes", data={"csrf_token": token, "secao": "cotacoes"})  # interruptor desligado
+    assert db.get_setting("daily_quotes_enabled") == "0"
+    assert db.get_setting("display_name") == "Bia" and updates.summary()["enabled"]
