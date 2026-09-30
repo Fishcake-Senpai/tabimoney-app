@@ -77,9 +77,23 @@ def test_pasta_da_ia_no_windows(monkeypatch):
     pasta = agent_workspace.sync(Path("C:/Apps/Tabimoney.exe"))
     bat = (pasta / "financas.bat").read_text(encoding="utf-8")
     assert "Tabimoney.exe" in bat and " cli %*" in bat
-    assert ".\\financas.bat" in (pasta / "AGENTS.md").read_text(encoding="utf-8")
-    assert (pasta / ".claude" / "skills" / "financas" / "SKILL.md").is_file()
+    agents = (pasta / "AGENTS.md").read_text(encoding="utf-8")
+    assert "Conectar à IA" in agents and "{{TABELA}}" not in agents
+    assert "| `carteira_contexto` | `.\\financas.bat carteira contexto` |" in agents
+    assert (pasta / "roteiros" / "ciclo.md").is_file()
     assert (pasta / "docs" / "agente-financeiro.md").is_file()
+
+
+def test_pasta_da_ia_apaga_as_skills_antigas(monkeypatch):
+    """Transição para o MCP: as skills que a 0.12 gravou saem; o que o usuário pôs na pasta fica."""
+    _simular(monkeypatch, agent_workspace, "nt", "win32")
+    skills = agent_workspace.folder() / ".claude" / "skills"
+    (skills / "financas-ciclo").mkdir(parents=True)
+    (skills / "financas-ciclo" / "SKILL.md").write_text("antiga", encoding="utf-8")
+    (skills / "minha-skill").mkdir()
+    agent_workspace.sync(Path("C:/Apps/Tabimoney.exe"))
+    assert not (skills / "financas-ciclo").exists()
+    assert (skills / "minha-skill").is_dir()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="bit de execução só existe no Mac/Linux")

@@ -42,8 +42,11 @@ SEUS DADOS
 - Para apagar tudo: encerre o app e apague a pasta acima.
 
 IA (OPCIONAL)
-- O app cria a pasta ~/Tabimoney (na sua pasta pessoal) com as instrucoes para a IA.
-  Abra o Claude Code (ou outro agente) nessa pasta e peca, por exemplo:
+- Conecte o seu agente de IA (Claude Desktop, Claude Code, Codex, Cursor...) em
+  Configuracoes > Conectar a IA: clique em Conectar e reinicie o agente. Se nao
+  der certo, use "Configurar pela propria IA": copie o texto e cole numa conversa. A IA
+  faz a configuracao.
+- Depois, em qualquer conversa, peca por exemplo:
   "atualize minhas financas" ou "revise meus gastos do mes".
 
 PROBLEMAS

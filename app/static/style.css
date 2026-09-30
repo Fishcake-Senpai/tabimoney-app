@@ -296,6 +296,9 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .check input { accent-color: var(--accent); width: 16px; height: 16px; }
 .status-line { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); padding: 8px 0; border-bottom: 1px solid var(--border); }
 .status-line b { color: var(--text-2); font-weight: 550; }
+.copy-box { width: 100%; box-sizing: border-box; margin: 6px 0 8px; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface-3); color: var(--text-2); font-family: "Cascadia Code", Consolas, monospace; font-size: 12px;
+  line-height: 1.45; resize: vertical; white-space: pre; overflow-x: auto; }
 .toolbar { display: flex; gap: 8px; align-items: center; }
 .toolbar input { width: 240px; }
 .toolbar select { width: 170px; }
@@ -492,3 +495,94 @@ details.base-cats > summary { cursor: pointer; }
 .update-text small { color: var(--text-2); font-size: 12.5px; }
 .update-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 720px) { .update-banner { flex-wrap: wrap; } .update-actions { width: 100%; justify-content: flex-start; } }
+
+/* ---------------------------------------------------------------- Configurações
+   Padrão de app de configuração: seções à esquerda, uma por vez; linhas rótulo · valor · ação; edição em modal;
+   explicações só no "?" (popover). Sem JavaScript, todas as seções aparecem em sequência. */
+.settings { display: grid; grid-template-columns: 210px minmax(0, 760px); gap: 36px; align-items: start; }
+.set-nav { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 2px; }
+.set-nav a { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; color: var(--muted); font-size: 13.5px; font-weight: 500; }
+.set-nav a svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.7; flex: none; }
+.set-nav a:hover { background: var(--surface-2); color: var(--text); }
+.set-nav a[aria-current="page"] { background: var(--surface-2); color: var(--text); font-weight: 600; }
+.set-nav a[aria-current="page"] svg { stroke: var(--brand); }
+.set-nav .dot { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
+.set-nav .dot-warn { background: var(--warn); }
+.set-section + .set-section { margin-top: 44px; }
+.settings.js .set-section { margin-top: 0; }
+.set-head { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.set-head h2 { font-size: 18px; font-weight: 650; margin: 0; letter-spacing: -0.015em; }
+.set-lead { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+.set-group { margin-top: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; min-height: 64px; margin: 0; }
+.set-row + .set-row, .set-row + .set-add { border-top: 1px solid var(--border); }
+.set-label { min-width: 0; display: block; cursor: default; }
+label.set-label { cursor: pointer; }
+.set-label b { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 550; color: var(--text); }
+.set-label small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; overflow-wrap: anywhere; }
+.set-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.set-actions form { margin: 0; }
+.set-inline input { width: 190px; height: 32px; }
+.set-add { display: flex; width: 100%; align-items: center; gap: 8px; padding: 13px 18px; border: 0; background: transparent; color: var(--brand); font-weight: 550; font-size: 13px; cursor: pointer; text-align: left; }
+.set-add:hover { background: var(--surface-2); }
+.set-add svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+.icon-btn { width: 30px; height: 30px; border-radius: 8px; border: 0; background: transparent; color: var(--muted); display: inline-grid; place-items: center; cursor: pointer; flex: none; padding: 0; }
+.icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.icon-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ajuda sob demanda */
+.hint { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border-strong); background: transparent; color: var(--muted);
+  font-size: 11px; font-weight: 700; line-height: 1; cursor: pointer; display: inline-grid; place-items: center; padding: 0; flex: none; }
+.hint:hover, .hint:focus-visible { color: var(--text); border-color: var(--muted); outline: none; }
+.hint-pop { position: fixed; inset: auto; margin: 0; width: max-content; max-width: min(320px, calc(100vw - 24px)); padding: 12px 14px;
+  border-radius: 12px; border: 1px solid var(--border-strong); background: var(--surface-3); color: var(--text-2);
+  font-size: 13px; line-height: 1.5; box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45); }
+.hint-pop p { margin: 0 0 6px; }
+.hint-pop p:last-child, .hint-pop ol:last-child { margin-bottom: 0; }
+.hint-pop ol, .hint-pop ul { margin: 0; padding-left: 18px; }
+.hint-pop li + li { margin-top: 4px; }
+
+/* interruptor */
+input.switch { appearance: none; -webkit-appearance: none; width: 38px; height: 22px; border-radius: 99px; margin: 0; cursor: pointer; flex: none;
+  background: var(--surface-3); border: 1px solid var(--border-strong); position: relative; transition: background 0.15s, border-color 0.15s; }
+input.switch::before { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-2); transition: transform 0.15s, background 0.15s; }
+input.switch:checked { background: var(--brand); border-color: var(--brand); }
+input.switch:checked::before { transform: translateX(16px); background: #04140d; }
+input.switch:focus-visible { outline: 2px solid var(--brand-line); outline-offset: 2px; }
+
+/* modal */
+dialog.modal { border: 1px solid var(--border-strong); border-radius: 16px; background: var(--surface); color: var(--text); padding: 0;
+  width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 48px); box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55); }
+dialog.modal::backdrop { background: rgba(3, 6, 5, 0.66); }
+dialog.modal[open] { display: flex; flex-direction: column; }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 16px 0 20px; }
+.modal-head h3 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+.modal-body { padding: 14px 20px 20px; overflow: auto; }
+.modal-form { margin-top: 14px; }
+.modal-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 8px; }
+.modal-section { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 16px; }
+.modal-section h4 { margin: 0 0 8px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+.modal-danger { display: flex; justify-content: flex-start; }
+.modal-note { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.modal-note:last-child { margin: 14px 0 0; }
+.modal-gap { margin-top: 16px; }
+.kv { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); padding: 7px 0; border-bottom: 1px solid var(--border); }
+.kv b { color: var(--text-2); font-weight: 550; }
+.item-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+.item-row + .item-row { border-top: 1px solid var(--border); }
+.item-row .item-name { flex: 1; min-width: 0; font-size: 13px; }
+.item-row .item-name small { display: block; color: var(--muted); font-size: 11.5px; }
+.item-row select { width: auto; height: 32px; }
+
+@media (max-width: 860px) {
+  .settings { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .set-nav { position: static; flex-direction: row; overflow-x: auto; gap: 4px; margin: 0 -4px; padding: 0 4px 4px; scrollbar-width: none; }
+  .set-nav a { white-space: nowrap; padding: 7px 11px; }
+  .set-nav a svg { display: none; }
+  .set-row { flex-wrap: wrap; padding: 13px 14px; }
+  .set-actions { flex-wrap: wrap; }
+  .set-inline { width: 100%; }
+  .set-inline input { flex: 1; width: auto; }
+  .item-row { flex-wrap: wrap; }
+}

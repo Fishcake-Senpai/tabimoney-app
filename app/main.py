@@ -15,6 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import db, demo
+from app.mcp_server import instalar as mcp_instalar
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
 from app.services import analytics, budgets, fundamentals, household, pension, recommendations, spending, targets, updates
@@ -856,7 +857,79 @@ def settings_page(request: Request):
         daily_quotes_enabled=db.get_setting("daily_quotes_enabled", "1") == "1",
         display_name=db.get_setting("display_name"),
         update_info=updates.summary(),
+        ia=_ia_context(request),
     )
+
+
+def _ago(iso: str | None) -> str:
+    """'há 5 min', 'há 3 h', 'há 2 dias' para o último uso de cada agente."""
+    from datetime import datetime
+
+    if not iso:
+        return ""
+    try:
+        seconds = (datetime.now().astimezone() - datetime.fromisoformat(iso)).total_seconds()
+    except ValueError:
+        return ""
+    if seconds < 90:
+        return "agora há pouco"
+    if seconds < 3600:
+        return f"há {int(seconds // 60)} min"
+    if seconds < 86400:
+        return f"há {int(seconds // 3600)} h"
+    days = int(seconds // 86400)
+    return f"há {days} dia{'s' if days > 1 else ''}"
+
+
+def _ia_context(request: Request) -> dict:
+    """Aba Conectar à IA: situação de cada agente, como conectar à mão e o texto para colar na IA."""
+    clientes = mcp_instalar.situacao()
+    if _in_demo(request):
+        # na demo, a situação é inventada: nada das configurações do usuário aparece
+        from datetime import datetime, timedelta
+
+        agora = datetime.now().astimezone()
+        fake = {"claude-desktop": ("claude-ai", timedelta(days=2)), "claude-code": ("claude-code", timedelta(minutes=5))}
+        for c in clientes:
+            uso = fake.get(c["cliente"])
+            c.update(detectado=c["cliente"] != "outro" or None, conectado=bool(uso), em_dia=True if uso else None,
+                     demo_conectada=False, erro=None,
+                     ultimo_uso={"cliente": uso[0], "quando": (agora - uso[1]).isoformat(timespec="seconds"),
+                                 "versao_app": __version__, "executavel_existe": True} if uso else None)
+    for c in clientes:
+        c["ultimo_uso_texto"] = _ago((c.get("ultimo_uso") or {}).get("quando"))
+    return {"clientes": clientes, "configs": {c["cliente"]: mcp_instalar.configuracao(c["cliente"]) for c in clientes},
+            "texto": mcp_instalar.texto_para_ia(), "texto_demo": mcp_instalar.texto_para_ia(demo=True)}
+
+
+@app.post("/configuracoes/ia/conectar")
+def connect_ai(request: Request, csrf_token: str = Form(...), cliente: str = Form(...), demo_entry: str = Form("")):
+    _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "conectar a IA", "/configuracoes#ia"):
+        return blocked
+    try:
+        done = mcp_instalar.instalar(cliente, demo=demo_entry == "on")
+    except (ValueError, OSError) as exc:
+        _flash(request, "error", f"Não deu para conectar automaticamente: {exc} Use o texto para colar na IA, "
+                                 "logo abaixo: a própria IA faz a configuração.")
+        return _redirect(request, "/configuracoes#ia")
+    what = "a demonstração do Tabimoney" if demo_entry == "on" else "o Tabimoney"
+    _flash(request, "success", f"Pronto: {what} está conectado ao {done['nome']}. {done['depois']}")
+    return _redirect(request, "/configuracoes#ia")
+
+
+@app.post("/configuracoes/ia/desconectar")
+def disconnect_ai(request: Request, csrf_token: str = Form(...), cliente: str = Form(...), demo_entry: str = Form("")):
+    _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "desconectar a IA", "/configuracoes#ia"):
+        return blocked
+    try:
+        mcp_instalar.remover(cliente, demo=demo_entry == "on")
+    except (ValueError, OSError) as exc:
+        _flash(request, "error", f"Não deu para desconectar: {exc}")
+        return _redirect(request, "/configuracoes#ia")
+    _flash(request, "success", f"O Tabimoney foi desconectado do {mcp_instalar.CLIENTES[cliente]['nome']}.")
+    return _redirect(request, "/configuracoes#ia")
 
 
 @app.get("/importar", response_class=HTMLResponse)
@@ -892,10 +965,15 @@ def dismiss_update(request: Request, csrf_token: str = Form(...), version: str =
     return _redirect(request, _local_path(back, "/"))
 
 
+# Cada seção de Configurações salva só o que é dela (secao); sem secao, salva tudo, como o formulário antigo.
+SETTINGS_SECTIONS = {"geral": "geral", "brapi": "mercado", "cotacoes": "mercado", "atualizacoes": "atualizacoes"}
+
+
 @app.post("/configuracoes")
 def save_settings(
     request: Request,
     csrf_token: str = Form(...),
+    secao: str = Form(""),
     brapi_token: str = Form(""),
     daily_quotes: str = Form(""),
     update_check: str = Form(""),
@@ -903,6 +981,8 @@ def save_settings(
     remove_brapi: str = Form(""),
 ):
     _check_csrf(request, csrf_token)
+    every = secao not in SETTINGS_SECTIONS
+    back = "/configuracoes" + ("" if every else f"#{SETTINGS_SECTIONS[secao]}")
     try:
         if brapi_token.strip():
             save_secret("brapi_token", brapi_token.strip())
@@ -910,12 +990,15 @@ def save_settings(
             delete_secret("brapi_token")
     except Exception:
         _flash(request, "error", f"Não foi possível acessar o {vault_name()}. Revise as configurações e tente novamente.")
-        return _redirect(request, "/configuracoes")
-    db.set_setting("daily_quotes_enabled", "1" if daily_quotes == "on" else "0")
-    updates.set_enabled(update_check == "on")
-    db.set_setting("display_name", " ".join(display_name.split())[:40])
-    _flash(request, "success", f"Configurações salvas. Segredos ficam no {vault_name()}.")
-    return _redirect(request, "/configuracoes")
+        return _redirect(request, back)
+    if every or secao == "cotacoes":
+        db.set_setting("daily_quotes_enabled", "1" if daily_quotes == "on" else "0")
+    if every or secao == "atualizacoes":
+        updates.set_enabled(update_check == "on")
+    if every or secao == "geral":
+        db.set_setting("display_name", " ".join(display_name.split())[:40])
+    _flash(request, "success", "Configurações salvas." if every or secao != "brapi" else f"Token salvo no {vault_name()}.")
+    return _redirect(request, back)
 
 
 def _vault_error(request: Request) -> RedirectResponse:

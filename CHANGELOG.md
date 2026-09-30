@@ -11,6 +11,50 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Adicionado
+- Servidor MCP: conecte o seu agente de IA (Claude Desktop, Claude Code, Codex, Cursor, VS Code, Gemini CLI) ao
+  Tabimoney e use a IA em qualquer conversa e em qualquer pasta, sem terminal e sem chave de API. O agente lê
+  gastos, orçamento, carteira e metas e grava análises, recomendações e correções de categoria, com as mesmas
+  proteções do app. O servidor vem dentro do executável (`Tabimoney.exe mcp`).
+- **Configurações › Conectar à IA**: para cada agente, a situação (conectado, caminho antigo, último uso), o botão
+  **Conectar**, que grava a configuração do agente (com cópia do arquivo antes), e a conexão à mão (ícone `</>`),
+  com o comando ou o trecho da configuração. Se nada funcionar, **Configurar pela própria IA** traz um texto para
+  colar na conversa, e a própria IA configura a conexão.
+- Os roteiros (ciclo completo, gastos, orçamento, metas, análise trimestral e recomendações) chegam a qualquer
+  agente pelo servidor: como comandos (no Claude Code, `/mcp__tabimoney__ciclo`) e pela ferramenta `roteiro`.
+- Pela IA, o app faz backup sozinho antes da primeira mudança de cada conversa, e cada análise, regra ou
+  recomendação guarda o nome do agente que a gravou.
+- A entrada `tabimoney-demo` liga a IA à demonstração, para testar um pedido sem tocar nos seus dados.
+- Ao abrir, se o executável mudou de pasta, o app corrige o caminho nas conexões que ele mesmo gravou.
+- CLI: `financas mcp` (sobe o servidor), `financas mcp clientes`, `financas mcp config --cliente X` e
+  `financas mcp instalar --cliente X [--demo]`. `financas gastos listar --deslocamento N` para paginar, e a
+  resposta traz `proximo_deslocamento` quando há mais lançamentos.
+
+### Alterado
+- Configurações de cara nova, no padrão de app de configuração: as seções (Geral, Open Finance, Titulares,
+  Mercado, Conectar à IA e Atualizações) ficam num menu à esquerda e abrem uma de cada vez; cada ajuste é uma linha
+  com o valor e a ação; editar abre uma janela; e as explicações saíram da tela e ficaram no **?** ao lado de cada
+  título. Os interruptores (cotações diárias, aviso de versão nova) salvam na hora, sem botão.
+- A pasta da IA (`%USERPROFILE%\Tabimoney`, `~/Tabimoney` no Mac) entrou em transição para o MCP: o `AGENTS.md`
+  indica **Conectar à IA**, os roteiros ficam em `roteiros/` com uma tabela ferramenta → comando, e as skills
+  antigas (`.claude/skills/financas*`) são apagadas. O `financas.bat` da pasta continua funcionando.
+
+### Descontinuado
+- A pasta da IA sai numa versão futura; use o servidor MCP.
+
+### Removido
+- As skills `.claude/skills/financas*` do repositório. Os roteiros passaram para `app/agente/roteiros/`, a fonte
+  única que o servidor MCP e a pasta da IA usam.
+
+### Interno
+- As operações dos agentes saíram de `app/cli.py` para `app/agente/operacoes.py`; a CLI e o servidor MCP
+  (`app/mcp_server/`) chamam as mesmas funções. Dependência nova: `mcp` (SDK oficial, 2.x).
+- Testes do servidor: catálogo e anotações das ferramentas, mesma resposta da CLI, importação dos exemplos,
+  backup automático, autoria, tarefas longas, roteiros, prompts, resources, tamanho das respostas, nenhum segredo
+  nas respostas e o servidor por stdio num processo à parte. Testes da conexão com cada agente, da tela (também
+  no navegador) e de `financas mcp`. Nos testes, as configurações dos agentes ficam no home falso, e `claude` e
+  `codex` nunca rodam de verdade.
+
 ## [0.12.0] - 2026-09-29
 
 ### Adicionado

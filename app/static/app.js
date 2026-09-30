@@ -616,6 +616,86 @@
     });
   }
 
+  // ---------------------------------------------------------------- copiar (Configurações › Conectar à IA)
+  function copyButtons() {
+    document.querySelectorAll("button[data-copy]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const source = document.getElementById(btn.dataset.copy);
+        if (!source) return;
+        const text = source.value !== undefined ? source.value : source.textContent;
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (e) {
+          source.select();
+          document.execCommand("copy");
+        }
+        const label = btn.dataset.label || btn.textContent;
+        btn.dataset.label = label;
+        btn.textContent = "Copiado";
+        setTimeout(() => { btn.textContent = label; }, 1500);
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- Configurações: seções, modais, ajuda
+  function settingsSections() {
+    const root = document.querySelector("[data-settings]");
+    if (!root) return;
+    const sections = Array.from(root.querySelectorAll(".set-section"));
+    const links = Array.from(root.querySelectorAll(".set-nav a"));
+    const show = () => {
+      const wanted = decodeURIComponent(location.hash.slice(1));
+      const target = sections.find((s) => s.id === wanted) || sections[0];
+      sections.forEach((s) => { s.hidden = s !== target; });
+      links.forEach((a) => {
+        if (a.hash === "#" + target.id) a.setAttribute("aria-current", "page");
+        else a.removeAttribute("aria-current");
+      });
+    };
+    root.classList.add("js");
+    show();
+    window.addEventListener("hashchange", show);
+  }
+
+  function dialogs() {
+    document.addEventListener("click", (evt) => {
+      const opener = evt.target.closest("[data-dialog]");
+      if (opener) {
+        const dialog = document.getElementById(opener.dataset.dialog);
+        if (dialog && !dialog.open) dialog.showModal();
+        return;
+      }
+      const closer = evt.target.closest("[data-close]");
+      if (closer) { closer.closest("dialog").close(); return; }
+      // clique no fundo escuro fecha
+      if (evt.target.tagName === "DIALOG" && evt.target.classList.contains("modal")) evt.target.close();
+    });
+  }
+
+  // o popover nativo abre centralizado; aqui ele vai para perto do "?" que o abriu, sem sair da tela
+  function hints() {
+    document.querySelectorAll(".hint-pop[popover]").forEach((pop) => {
+      pop.addEventListener("toggle", (evt) => {
+        if (evt.newState !== "open") return;
+        const trigger = document.querySelector(`[popovertarget="${pop.id}"]`);
+        if (!trigger) return;
+        const r = trigger.getBoundingClientRect();
+        const w = pop.offsetWidth, h = pop.offsetHeight, gap = 8;
+        const left = Math.min(Math.max(12, r.left + r.width / 2 - w / 2), window.innerWidth - w - 12);
+        let top = r.bottom + gap;
+        if (top + h > window.innerHeight - 12) top = Math.max(12, r.top - h - gap);
+        pop.style.left = left + "px";
+        pop.style.top = top + "px";
+      });
+    });
+  }
+
+  function autosubmit() {
+    document.querySelectorAll("input[data-autosubmit]").forEach((input) => {
+      input.addEventListener("change", () => input.form.requestSubmit());
+    });
+  }
+
   function busyForms() {
     document.querySelectorAll("form[data-busy]").forEach((form) => {
       form.addEventListener("submit", () => {
@@ -658,6 +738,11 @@
     sortable();
     dropzone();
     busyForms();
+    copyButtons();
+    settingsSections();
+    dialogs();
+    hints();
+    autosubmit();
     document.querySelectorAll("[data-chart]").forEach((node) => {
       const fn = charts[node.dataset.chart];
       if (fn) fn(node);

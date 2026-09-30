@@ -2,147 +2,353 @@
 {% block title %}Configurações{% endblock %}
 {% block content %}
 {% set type_labels = {"BANK": "Conta", "CREDIT": "Cartão", "INVESTMENT": "Investimentos"} %}
-<div class="page-head">
-  <div><h1>Configurações</h1><div class="sub">Segredos ficam no {{ vault_name }}</div></div>
-</div>
-<section class="grid">
-  <article class="card span-6" id="open-finance">
-    <div class="card-head"><h2 class="card-title">Open Finance · Meu Pluggy</h2></div>
-    {% for c in connections %}
-    <form method="post" action="/configuracoes/pluggy" class="footnote">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="connection_id" value="{{ c.id }}">
-      <h3 class="card-title">{{ c.label }}</h3>
-      <div class="status-line"><span>Client ID</span><b>{{ c.id_status }}</b></div>
-      <div class="status-line"><span>Client Secret</span><b>{{ c.secret_status }}</b></div>
-      {% for i in c["items"] %}
-      <div class="status-line"><span>{{ i.institution or "Ainda não sincronizado" }} · item {{ i.item_id[:8] }}…</span><b>{{ i.member_name }}</b></div>
-      {% endfor %}
-      <div class="form-grid">
-        <label class="field">Nome da conexão<input name="label" value="{{ c.label }}" maxlength="40" autocomplete="off"></label>
-        <label class="field">Client ID<input name="client_id" autocomplete="off" placeholder="Em branco mantém o salvo"></label>
-        <label class="field">Client Secret<input name="client_secret" type="password" autocomplete="new-password" placeholder="Em branco mantém o salvo"></label>
-        <label class="field">Adicionar Item IDs<input name="item_ids" autocomplete="off" spellcheck="false" placeholder="ID do Nubank, ID do Itaú"></label>
-        {% if members|length > 1 %}
-        <label class="field">Titular dos Item IDs adicionados<select name="member_id">{% for m in members %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}</select></label>
-        {% endif %}
-        <label class="check"><input type="checkbox" name="remove_credentials"> Remover credenciais desta conexão</label>
-        <div><button class="btn btn-sm" type="submit">Salvar conexão</button></div>
-      </div>
-    </form>
-    {% if c["items"] %}
-    <details class="more footnote">
-      <summary>Titular e remoção de cada Item ID</summary>
-      {% for i in c["items"] %}
-      <form method="post" action="/configuracoes/pluggy/item" class="form-grid">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="hidden" name="item_id" value="{{ i.item_id }}">
-        <label class="field">{{ i.institution or "Item" }} · {{ i.item_id[:8] }}…<select name="member_id">{% for m in members %}<option value="{{ m.id }}"{% if m.id == i.member_id %} selected{% endif %}>{{ m.name }}</option>{% endfor %}</select></label>
-        <label class="check"><input type="checkbox" name="remove"> Parar de sincronizar este item</label>
-        <div><button class="btn btn-sm" type="submit">Salvar item</button></div>
-      </form>
-      {% endfor %}
-    </details>
-    {% endif %}
-    {% if c.id != 1 %}
-    <form method="post" action="/configuracoes/pluggy/excluir" class="footnote" data-confirm="Excluir a conexão {{ c.label }}? As contas e o histórico já importados continuam.">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="connection_id" value="{{ c.id }}">
-      <button class="btn btn-ghost btn-sm" type="submit">Excluir conexão</button>
-    </form>
-    {% endif %}
+{#- Ajuda sob demanda: um "?" que abre um popover ao lado (posicionado pelo app.js). -#}
+{% macro hint(id, label="Ajuda") -%}
+<button class="hint" type="button" popovertarget="hint-{{ id }}" aria-label="{{ label }}">?</button>
+<div class="hint-pop" popover id="hint-{{ id }}">{{ caller() }}</div>
+{%- endmacro %}
+{#- Edição em modal: o botão com data-dialog abre, data-close fecha. -#}
+{% macro modal(id, title) -%}
+<dialog class="modal" id="dlg-{{ id }}" aria-labelledby="dlg-{{ id }}-t">
+  <div class="modal-head">
+    <h3 id="dlg-{{ id }}-t">{{ title }}</h3>
+    <button class="icon-btn" type="button" data-close aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="modal-body">{{ caller() }}</div>
+</dialog>
+{%- endmacro %}
+{% set icons = {
+  "geral": '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+  "open-finance": '<path d="M3 10l9-6 9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>',
+  "titulares": '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .6 3.5 2.3 3.5 5.2"/>',
+  "mercado": '<path d="M3 17l5-5 4 4 8-8"/><path d="M15 8h5v5"/>',
+  "ia": '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+  "atualizacoes": '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/>',
+} %}
+{% set ia_conectados = ia.clientes|selectattr("conectado")|list %}
+
+<div class="page-head"><div><h1>Configurações</h1></div></div>
+
+<div class="settings" data-settings>
+  <nav class="set-nav" aria-label="Seções das configurações">
+    {% for id, label in [("geral", "Geral"), ("open-finance", "Open Finance"), ("titulares", "Titulares"), ("mercado", "Mercado"), ("ia", "Conectar à IA"), ("atualizacoes", "Atualizações")] %}
+    <a href="#{{ id }}"><svg viewBox="0 0 24 24" aria-hidden="true">{{ icons[id]|safe }}</svg>{{ label }}{% if id == "ia" and ia_conectados %}<span class="dot" title="Conectado"></span>{% elif id == "atualizacoes" and update_info.outdated %}<span class="dot dot-warn" title="Versão nova"></span>{% endif %}</a>
     {% endfor %}
-    <details class="more footnote">
-      <summary>Nova conexão (outro Client ID e Secret)</summary>
+  </nav>
+
+  <div class="set-main">
+    {# ---------------------------------------------------------------- Geral #}
+    <section class="set-section" id="geral" aria-labelledby="geral-t">
+      <div class="set-head"><h2 id="geral-t">Geral</h2></div>
+      <div class="set-group">
+        <form class="set-row" method="post" action="/configuracoes">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="secao" value="geral">
+          <label class="set-label" for="display_name"><b>Como te chamar</b><small>Na saudação da visão geral</small></label>
+          <div class="set-actions set-inline">
+            <input id="display_name" name="display_name" value="{{ display_name or '' }}" maxlength="40" autocomplete="off" placeholder="Seu nome">
+            <button class="btn btn-sm" type="submit">Salvar</button>
+          </div>
+        </form>
+        <div class="set-row">
+          <div class="set-label"><b>Senhas e chaves</b><small>{{ vault_name }}</small></div>
+          <div class="set-actions">
+            {% call hint("cofre", "Sobre o cofre de senhas") %}<p>Client Secret e token ficam no cofre do sistema, nunca no banco do app. Por isso não entram nos backups.</p>{% endcall %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {# ---------------------------------------------------------------- Open Finance #}
+    <section class="set-section" id="open-finance" aria-labelledby="of-t">
+      <div class="set-head">
+        <h2 id="of-t">Open Finance</h2>
+        {% call hint("pluggy", "Como conectar os bancos") %}
+        <p>Os bancos chegam pelo Meu Pluggy:</p>
+        <ol>
+          <li>Cada pessoa conecta os próprios bancos em <a class="link" href="https://meu.pluggy.ai" target="_blank" rel="noreferrer">meu.pluggy.ai</a>.</li>
+          <li>No <a class="link" href="https://dashboard.pluggy.ai" target="_blank" rel="noreferrer">Dashboard Pluggy</a>, copie Client ID, Secret e o Item ID de cada banco.</li>
+          <li>Cole aqui e escolha o titular de cada item.</li>
+        </ol>
+        {% endcall %}
+      </div>
+      <p class="set-lead">Conexões com o Meu Pluggy</p>
+      <div class="set-group">
+        {% for c in connections %}
+        {% set ok = c.id_status == "Configurada" and c.secret_status == "Configurada" %}
+        <div class="set-row">
+          <div class="set-label"><b>{{ c.label }}</b><small>{% for i in c["items"] %}{{ i.institution or "item " ~ i.item_id[:8] }}{% if members|length > 1 %} ({{ i.member_name }}){% endif %}{% if not loop.last %}, {% endif %}{% else %}Nenhum banco ainda{% endfor %}</small></div>
+          <div class="set-actions">
+            {% if ok %}<span class="badge badge-ok">Conectada</span>{% else %}<span class="badge badge-warn">Sem credenciais</span>{% endif %}
+            <button class="btn btn-sm" type="button" data-dialog="dlg-pluggy-{{ c.id }}" aria-label="Editar conexão {{ c.label }}">Editar</button>
+          </div>
+          {% call modal("pluggy-" ~ c.id, c.label) %}
+          <div class="kv"><span>Client ID</span><b>{{ c.id_status }}</b></div>
+          <div class="kv"><span>Client Secret</span><b>{{ c.secret_status }}</b></div>
+          <form method="post" action="/configuracoes/pluggy" class="form-grid modal-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="connection_id" value="{{ c.id }}">
+            <label class="field">Nome da conexão<input name="label" value="{{ c.label }}" maxlength="40" autocomplete="off"></label>
+            <label class="field">Client ID<input name="client_id" autocomplete="off" placeholder="Em branco mantém o salvo"></label>
+            <label class="field">Client Secret<input name="client_secret" type="password" autocomplete="new-password" placeholder="Em branco mantém o salvo"></label>
+            <label class="field">Adicionar Item IDs<input name="item_ids" autocomplete="off" spellcheck="false" placeholder="Separe por vírgula"></label>
+            {% if members|length > 1 %}
+            <label class="field">Titular dos Item IDs adicionados<select name="member_id">{% for m in members %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}</select></label>
+            {% endif %}
+            <label class="check"><input type="checkbox" name="remove_credentials"> Remover credenciais desta conexão</label>
+            <div class="modal-actions"><button class="btn btn-primary btn-sm" type="submit">Salvar conexão</button></div>
+          </form>
+          {% if c["items"] %}
+          <div class="modal-section">
+            <h4>Bancos</h4>
+            {% for i in c["items"] %}
+            <form method="post" action="/configuracoes/pluggy/item" class="item-row">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="item_id" value="{{ i.item_id }}">
+              <span class="item-name">{{ i.institution or "Item" }}<small>item {{ i.item_id[:8] }}…</small></span>
+              <select name="member_id" aria-label="Titular de {{ i.institution or i.item_id[:8] }}">{% for m in members %}<option value="{{ m.id }}"{% if m.id == i.member_id %} selected{% endif %}>{{ m.name }}</option>{% endfor %}</select>
+              <label class="check"><input type="checkbox" name="remove"> Parar</label>
+              <button class="btn btn-sm" type="submit">Salvar</button>
+            </form>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if c.id != 1 %}
+          <form method="post" action="/configuracoes/pluggy/excluir" class="modal-section modal-danger" data-confirm="Excluir a conexão {{ c.label }}? As contas e o histórico já importados continuam.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="connection_id" value="{{ c.id }}">
+            <button class="btn btn-danger btn-sm" type="submit">Excluir conexão</button>
+          </form>
+          {% endif %}
+          {% endcall %}
+        </div>
+        {% endfor %}
+        <button class="set-add" type="button" data-dialog="dlg-pluggy-nova"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nova conexão</button>
+      </div>
+      {% call modal("pluggy-nova", "Nova conexão") %}
       <form method="post" action="/configuracoes/pluggy" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label class="field">Nome da conexão<input name="label" maxlength="40" autocomplete="off" placeholder="Ex.: Pluggy da Ana"></label>
         <label class="field">Client ID<input name="client_id" autocomplete="off"></label>
         <label class="field">Client Secret<input name="client_secret" type="password" autocomplete="new-password"></label>
-        <label class="field">Item IDs<input name="item_ids" autocomplete="off" spellcheck="false"></label>
+        <label class="field">Item IDs<input name="item_ids" autocomplete="off" spellcheck="false" placeholder="Separe por vírgula"></label>
         <label class="field">Titular dos Item IDs<select name="member_id">{% for m in members %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}</select></label>
-        <div><button class="btn btn-sm" type="submit">Criar conexão</button></div>
+        <div class="modal-actions">
+          {% call hint("pluggy-nova", "Quando criar outra conexão") %}<p>Só quando outra pessoa tem o próprio app no Dashboard Pluggy. No mesmo app, basta adicionar os Item IDs dela na conexão que já existe.</p>{% endcall %}
+          <button class="btn btn-primary btn-sm" type="submit">Criar conexão</button>
+        </div>
       </form>
-      <p class="footnote">Só é preciso quando outra pessoa tem o próprio app no Dashboard Pluggy. Se o casal usa o mesmo app, basta adicionar os Item IDs dela na conexão acima e escolher o titular.</p>
-    </details>
-    {% if pluggy_accounts %}
-    <div class="list footnote">
-      {% for a in pluggy_accounts %}
-      <div class="list-row"><span>{{ a.account_name }}<small>{{ a.institution }} · {{ type_labels.get(a.account_type, a.account_type) }} · {{ a.member_name }} · item {{ a.external_key.split(":")[1][:8] }}…</small></span></div>
-      {% endfor %}
-    </div>
-    {% endif %}
-    <details class="more footnote">
-      <summary>Como obter</summary>
-      <ol class="steps footnote">
-        <li>Cada pessoa conecta os próprios bancos (Nubank, Itaú…) em <a href="https://meu.pluggy.ai" target="_blank" rel="noreferrer">meu.pluggy.ai</a>: o consentimento do Open Finance é dado pelo titular da conta.</li>
-        <li>No <a href="https://dashboard.pluggy.ai" target="_blank" rel="noreferrer">Dashboard Pluggy</a>, copie Client ID, Secret e o Item ID de cada conexão.</li>
-        <li>Cole os Item IDs e escolha o titular. A instituição de cada item é reconhecida pelas contas.</li>
-      </ol>
-    </details>
-  </article>
+      {% endcall %}
 
-  <article class="card span-6" id="titulares">
-    <div class="card-head"><h2 class="card-title">Titulares</h2></div>
-    <p class="footnote">Para a gestão a dois: cadastre quem mais tem contas conectadas. As contas de cada pessoa ficam separadas, o seletor no menu mostra a casa ou uma pessoa, e o Pix entre vocês não conta como gasto. O CPF é opcional: fica guardado só como código (não dá para ler de volta) e serve para reconhecer o Pix entre titulares.</p>
-    {% for m in members %}
-    <form method="post" action="/configuracoes/titulares/editar" class="form-grid footnote">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="member_id" value="{{ m.id }}">
-      <label class="field">{% if m.is_primary %}Você (titular principal){% else %}Titular{% endif %}<input name="name" value="{{ m.name }}" maxlength="30" autocomplete="off"></label>
-      <label class="field">CPF {% if m.has_document %}(cadastrado){% else %}(opcional){% endif %}<input name="cpf" inputmode="numeric" autocomplete="off" placeholder="{% if m.has_document %}Em branco mantém o salvo{% else %}000.000.000-00{% endif %}"></label>
-      {% if m.has_document %}<label class="check"><input type="checkbox" name="remove_document"> Apagar CPF</label>{% endif %}
-      <div class="status-line"><span>{{ m.accounts }} conta(s) · {{ m["items"] }} Item ID(s)</span><b><button class="btn btn-sm" type="submit">Salvar</button></b></div>
-    </form>
-    {% if not m.is_primary %}
-    <form method="post" action="/configuracoes/titulares/excluir" class="footnote" data-confirm="Excluir {{ m.name }}?">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="member_id" value="{{ m.id }}">
-      <button class="btn btn-ghost btn-sm" type="submit">Excluir {{ m.name }}</button>
-    </form>
-    {% endif %}
-    {% endfor %}
-    <form method="post" action="/configuracoes/titulares" class="form-grid footnote">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label class="field">Novo titular<input name="name" maxlength="30" autocomplete="off" placeholder="Ex.: Ana"></label>
-      <label class="field">CPF (opcional)<input name="cpf" inputmode="numeric" autocomplete="off"></label>
-      <div><button class="btn btn-sm" type="submit">Adicionar titular</button></div>
-    </form>
-    <p class="footnote">Arquivos importados (OFX, CSV, B3) entram como do titular principal.</p>
-  </article>
-</section>
+      {% if pluggy_accounts %}
+      <div class="set-group">
+        <div class="set-row">
+          <div class="set-label"><b>Contas sincronizadas</b><small>{{ pluggy_accounts|length }} conta(s)</small></div>
+          <div class="set-actions"><button class="btn btn-sm" type="button" data-dialog="dlg-contas">Ver</button></div>
+        </div>
+      </div>
+      {% call modal("contas", "Contas sincronizadas") %}
+      <div class="list">
+        {% for a in pluggy_accounts %}
+        <div class="list-row"><span>{{ a.account_name }}<small>{{ a.institution }} · {{ type_labels.get(a.account_type, a.account_type) }} · {{ a.member_name }}</small></span></div>
+        {% endfor %}
+      </div>
+      {% endcall %}
+      {% endif %}
+    </section>
 
-<form method="post" action="/configuracoes">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <section class="grid">
-    <article class="card span-6">
-      <div class="card-head"><h2 class="card-title">Você</h2></div>
-      <div class="form-grid footnote">
-        <label class="field">Como te chamar na saudação<input name="display_name" value="{{ display_name }}" maxlength="40" autocomplete="off" placeholder="Ex.: Tabim"></label>
+    {# ---------------------------------------------------------------- Titulares #}
+    <section class="set-section" id="titulares" aria-labelledby="tit-t">
+      <div class="set-head">
+        <h2 id="tit-t">Titulares</h2>
+        {% call hint("titulares", "Para que servem os titulares") %}
+        <p>Para a gestão a dois: as contas de cada pessoa ficam separadas, o menu mostra a casa ou uma pessoa, e o Pix entre vocês não conta como gasto.</p>
+        <p>O CPF é opcional e fica guardado só como código. Arquivos importados (OFX, CSV, B3) entram no titular principal.</p>
+        {% endcall %}
       </div>
-    </article>
-    <article class="card span-6">
-      <div class="card-head"><h2 class="card-title">Mercado · brapi e Banco Central</h2></div>
-      <div class="status-line"><span>Token brapi</span><b>{{ brapi_token_status }}</b></div>
-      <div class="form-grid footnote">
-        <label class="field">Token brapi<input name="brapi_token" type="password" autocomplete="new-password" placeholder="Opcional; em branco mantém o salvo"></label>
-        <label class="check"><input type="checkbox" name="remove_brapi"> Remover token brapi</label>
-        <label class="check"><input type="checkbox" name="daily_quotes" {% if daily_quotes_enabled %}checked{% endif %}> Atualizar cotações após 19h30 com o app aberto</label>
+      <p class="set-lead">Quem tem contas conectadas</p>
+      <div class="set-group">
+        {% for m in members %}
+        <div class="set-row">
+          <div class="set-label"><b>{{ m.name }}{% if m.is_primary %} <span class="badge badge-plain">Principal</span>{% endif %}</b><small>{{ m.accounts }} conta(s) · {{ m["items"] }} banco(s){% if m.has_document %} · CPF cadastrado{% endif %}</small></div>
+          <div class="set-actions"><button class="btn btn-sm" type="button" data-dialog="dlg-titular-{{ m.id }}" aria-label="Editar {{ m.name }}">Editar</button></div>
+          {% call modal("titular-" ~ m.id, m.name) %}
+          <form method="post" action="/configuracoes/titulares/editar" class="form-grid">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="member_id" value="{{ m.id }}">
+            <label class="field">Nome<input name="name" value="{{ m.name }}" maxlength="30" autocomplete="off"></label>
+            <label class="field">CPF {% if m.has_document %}(cadastrado){% else %}(opcional){% endif %}<input name="cpf" inputmode="numeric" autocomplete="off" placeholder="{% if m.has_document %}Em branco mantém o salvo{% else %}000.000.000-00{% endif %}"></label>
+            {% if m.has_document %}<label class="check"><input type="checkbox" name="remove_document"> Apagar CPF</label>{% endif %}
+            <div class="modal-actions"><button class="btn btn-primary btn-sm" type="submit">Salvar</button></div>
+          </form>
+          {% if not m.is_primary %}
+          <form method="post" action="/configuracoes/titulares/excluir" class="modal-section modal-danger" data-confirm="Excluir {{ m.name }}?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="member_id" value="{{ m.id }}">
+            <button class="btn btn-danger btn-sm" type="submit">Excluir {{ m.name }}</button>
+          </form>
+          {% endif %}
+          {% endcall %}
+        </div>
+        {% endfor %}
+        <button class="set-add" type="button" data-dialog="dlg-titular-novo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Novo titular</button>
       </div>
-      <p class="footnote">Cotações e Ibovespa via <a class="link" href="https://brapi.dev" target="_blank" rel="noreferrer">brapi</a>; CDI via API pública do Banco Central (sem chave). A primeira atualização busca 12 meses de histórico.</p>
-    </article>
-    <article class="card span-6" id="atualizacoes">
-      <div class="card-head"><h2 class="card-title">Atualizações</h2></div>
-      <div class="status-line"><span>Versão instalada</span><b>{{ update_info.current }}</b></div>
-      <div class="status-line"><span>Última publicada</span><b>{% if update_info.latest %}{% if update_info.url %}<a class="link" href="{{ update_info.url }}" target="_blank" rel="noreferrer">{{ update_info.latest }}</a>{% else %}{{ update_info.latest }}{% endif %}{% if update_info.outdated %} <span class="warn">· nova</span>{% endif %}{% else %}—{% endif %}</b></div>
-      <div class="status-line"><span>Última verificação</span><b>{{ update_info.checked_at|date_br if update_info.checked_at else "nunca" }}{% if update_info.error %} <span class="warn">· {{ update_info.error }}</span>{% endif %}</b></div>
-      <div class="form-grid footnote">
-        <label class="check"><input type="checkbox" name="update_check" {% if update_info.enabled %}checked{% endif %}> Avisar quando sair uma versão nova</label>
-        <div><button class="btn btn-sm" type="submit" formaction="/atualizacao/verificar">Verificar agora</button></div>
+      {% call modal("titular-novo", "Novo titular") %}
+      <form method="post" action="/configuracoes/titulares" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="field">Novo titular<input name="name" maxlength="30" autocomplete="off" placeholder="Ex.: Ana"></label>
+        <label class="field">CPF (opcional)<input name="cpf" inputmode="numeric" autocomplete="off"></label>
+        <div class="modal-actions"><button class="btn btn-primary btn-sm" type="submit">Adicionar titular</button></div>
+      </form>
+      {% endcall %}
+    </section>
+
+    {# ---------------------------------------------------------------- Mercado #}
+    <section class="set-section" id="mercado" aria-labelledby="mer-t">
+      <div class="set-head">
+        <h2 id="mer-t">Mercado</h2>
+        {% call hint("mercado", "De onde vêm os preços") %}<p>Cotações e Ibovespa vêm da <a class="link" href="https://brapi.dev" target="_blank" rel="noreferrer">brapi</a>; o CDI, da API pública do Banco Central (sem chave). A primeira atualização busca 12 meses de histórico.</p>{% endcall %}
       </div>
-      <p class="footnote">O app consulta os <a class="link" href="https://github.com/Fishcake-Senpai/tabimoney-app/releases" target="_blank" rel="noreferrer">Releases do GitHub</a> ao abrir e a cada 12 horas. Nenhum dado seu é enviado.</p>
-    </article>
-  </section>
-  <button class="btn btn-primary" type="submit">Salvar</button>
-</form>
+      <div class="set-group">
+        <div class="set-row">
+          <div class="set-label"><b>Token brapi</b><small>Opcional</small></div>
+          <div class="set-actions">
+            {% if brapi_token_status == "Configurada" %}<span class="badge badge-ok">Configurada</span>{% else %}<span class="badge badge-neutral">{{ brapi_token_status }}</span>{% endif %}
+            <button class="btn btn-sm" type="button" data-dialog="dlg-brapi">Alterar</button>
+          </div>
+        </div>
+        <form class="set-row" method="post" action="/configuracoes">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="secao" value="cotacoes">
+          <label class="set-label" for="daily_quotes"><b>Atualizar cotações todo dia</b><small>Depois das 19h30, com o app aberto</small></label>
+          <div class="set-actions">
+            <input class="switch" type="checkbox" id="daily_quotes" name="daily_quotes" data-autosubmit {% if daily_quotes_enabled %}checked{% endif %}>
+            <noscript><button class="btn btn-sm" type="submit">Salvar</button></noscript>
+          </div>
+        </form>
+      </div>
+      {% call modal("brapi", "Token brapi") %}
+      <form method="post" action="/configuracoes" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="secao" value="brapi">
+        <label class="field">Token<input name="brapi_token" type="password" autocomplete="new-password" placeholder="Em branco mantém o salvo"></label>
+        <label class="check"><input type="checkbox" name="remove_brapi"> Remover token</label>
+        <div class="modal-actions"><button class="btn btn-primary btn-sm" type="submit">Salvar</button></div>
+      </form>
+      {% endcall %}
+    </section>
+
+    {# ---------------------------------------------------------------- Conectar à IA #}
+    <section class="set-section" id="ia" aria-labelledby="ia-t">
+      <div class="set-head">
+        <h2 id="ia-t">Conectar à IA</h2>
+        {% call hint("ia", "Como funciona") %}
+        <p>O seu agente de IA passa a ler gastos, carteira e metas e a gravar análises e recomendações aqui, em qualquer conversa. Roda nesta máquina, sem chave de API.</p>
+        <p>Nada é apagado, e o app faz backup antes da primeira mudança. Peça, por exemplo: "atualize minhas finanças" ou "onde aporto R$ 3.000?".</p>
+        {% endcall %}
+      </div>
+      <p class="set-lead">Use o Tabimoney na sua IA</p>
+      <div class="set-group">
+        {% for c in ia.clientes if c.cliente != "outro" %}
+        {% set cfg = ia.configs[c.cliente] %}
+        <div class="set-row ia-cliente" data-cliente="{{ c.cliente }}">
+          <div class="set-label"><b>{{ c.nome }}</b><small>{% if c.erro %}Configuração com erro{% elif c.conectado and c.em_dia == false %}Aponta para um executável antigo{% elif c.conectado %}{% if c.ultimo_uso_texto %}Usou {{ c.ultimo_uso_texto }}{% else %}Ainda não usou{% endif %}{% elif c.detectado %}Não conectado{% else %}Não encontrado neste computador{% endif %}</small></div>
+          <div class="set-actions">
+            {% if c.erro %}<span class="badge badge-err">Erro</span>
+            {% elif c.conectado and c.em_dia == false %}<span class="badge badge-warn">Caminho antigo</span>
+            {% elif c.conectado %}<span class="badge badge-ok">Conectado</span>{% endif %}
+            {% if c.pode_instalar and (not c.conectado or c.em_dia == false) %}
+            <form method="post" action="/configuracoes/ia/conectar" data-busy="Conectando…">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="cliente" value="{{ c.cliente }}">
+              <button class="btn btn-sm{% if c.detectado %} btn-primary{% endif %}" type="submit">{% if c.conectado %}Atualizar caminho{% else %}Conectar{% endif %}</button>
+            </form>
+            {% endif %}
+            {% if c.conectado %}
+            <form method="post" action="/configuracoes/ia/desconectar" data-confirm="Desconectar o Tabimoney do {{ c.nome }}?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="cliente" value="{{ c.cliente }}">
+              <button class="btn btn-ghost btn-sm" type="submit">Desconectar</button>
+            </form>
+            {% endif %}
+            <button class="icon-btn" type="button" data-dialog="dlg-ia-{{ c.cliente }}" aria-label="Conectar à mão" title="Conectar à mão"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg></button>
+          </div>
+          {% call modal("ia-" ~ c.cliente, c.nome ~ " · conectar à mão") %}
+          {% if c.erro %}<p class="modal-note warn">{{ c.erro }}</p>{% endif %}
+          {% if cfg.link %}<p><a class="btn btn-primary btn-sm" href="{{ cfg.link }}">Abrir no {{ c.nome }}</a></p>{% endif %}
+          {% if cfg.comando %}
+          <label class="field">Comando no terminal
+            <textarea class="copy-box" id="ia-cmd-{{ c.cliente }}" rows="2" readonly spellcheck="false">{{ cfg.comando }}</textarea></label>
+          <button class="btn btn-sm" type="button" data-copy="ia-cmd-{{ c.cliente }}">Copiar comando</button>
+          {% endif %}
+          {% if cfg.trecho %}
+          <label class="field modal-gap">Em <code>{{ cfg.arquivo }}</code>
+            <textarea class="copy-box" id="ia-cfg-{{ c.cliente }}" rows="7" readonly spellcheck="false">{{ cfg.trecho }}</textarea></label>
+          <button class="btn btn-sm" type="button" data-copy="ia-cfg-{{ c.cliente }}">Copiar trecho</button>
+          {% endif %}
+          <p class="modal-note">{{ cfg.depois }}</p>
+          {% endcall %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="set-group">
+        <div class="set-row">
+          <div class="set-label"><b>Configurar pela própria IA</b><small>Para qualquer agente, ou se o botão falhar</small></div>
+          <div class="set-actions"><button class="btn btn-sm" type="button" data-dialog="dlg-ia-texto">Ver texto</button></div>
+        </div>
+        <div class="set-row">
+          <div class="set-label"><b>Demonstração</b><small>Dados fictícios, para testar pedidos</small></div>
+          <div class="set-actions"><button class="btn btn-sm" type="button" data-dialog="dlg-ia-demo">Configurar</button></div>
+        </div>
+      </div>
+      {% call modal("ia-texto", "Texto para colar na IA") %}
+      <p class="modal-note">Cole numa conversa com o agente (Claude Code, Codex…): ele mesmo faz a configuração.</p>
+      <textarea class="copy-box" id="ia-texto" rows="12" readonly spellcheck="false">{{ ia.texto }}</textarea>
+      <div class="modal-actions"><button class="btn btn-primary btn-sm" type="button" data-copy="ia-texto">Copiar texto</button></div>
+      {% endcall %}
+      {% call modal("ia-demo", "Demonstração para a IA") %}
+      <p class="modal-note">Uma segunda entrada, <code>tabimoney-demo</code>, com os dados fictícios de Lucas e Marina. Nunca se mistura com os seus.</p>
+      <form method="post" action="/configuracoes/ia/conectar" class="item-row">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="demo_entry" value="on">
+        <select name="cliente" aria-label="Agente">{% for c in ia.clientes if c.pode_instalar %}<option value="{{ c.cliente }}">{{ c.nome }}{% if c.demo_conectada %} (conectada){% endif %}</option>{% endfor %}</select>
+        <button class="btn btn-primary btn-sm" type="submit">Conectar a demonstração</button>
+      </form>
+      <details class="more modal-gap">
+        <summary>Texto para colar na IA</summary>
+        <textarea class="copy-box" id="ia-texto-demo" rows="6" readonly spellcheck="false">{{ ia.texto_demo }}</textarea>
+        <button class="btn btn-sm" type="button" data-copy="ia-texto-demo">Copiar texto</button>
+      </details>
+      {% endcall %}
+    </section>
+
+    {# ---------------------------------------------------------------- Atualizações #}
+    <section class="set-section" id="atualizacoes" aria-labelledby="atu-t">
+      <div class="set-head">
+        <h2 id="atu-t">Atualizações</h2>
+        {% call hint("atualizacoes", "Como o app procura versões") %}<p>O app consulta os <a class="link" href="https://github.com/Fishcake-Senpai/tabimoney-app/releases" target="_blank" rel="noreferrer">Releases do GitHub</a> ao abrir e a cada 12 horas. Nenhum dado seu é enviado.</p>{% endcall %}
+      </div>
+      <div class="set-group">
+        <form class="set-row" method="post" action="/atualizacao/verificar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="set-label"><b>Tabimoney {{ update_info.current }}{% if update_info.outdated %} <span class="badge badge-warn">{{ update_info.latest }} disponível</span>{% endif %}</b>
+            <small>{% if update_info.error %}{{ update_info.error }}{% elif update_info.checked_at %}Verificado em {{ update_info.checked_at|date_br }}{% else %}Ainda não verificado{% endif %}</small></div>
+          <div class="set-actions">
+            {% if update_info.outdated and update_info.url %}<a class="btn btn-primary btn-sm" href="{{ update_info.url }}" target="_blank" rel="noreferrer">Ver novidades</a>{% endif %}
+            <button class="btn btn-sm" type="submit">Verificar agora</button>
+          </div>
+        </form>
+        <form class="set-row" method="post" action="/configuracoes">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="secao" value="atualizacoes">
+          <label class="set-label" for="update_check"><b>Avisar quando sair versão nova</b></label>
+          <div class="set-actions">
+            <input class="switch" type="checkbox" id="update_check" name="update_check" data-autosubmit {% if update_info.enabled %}checked{% endif %}>
+            <noscript><button class="btn btn-sm" type="submit">Salvar</button></noscript>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
 {% endblock %}

@@ -4,6 +4,7 @@ No Mac, o executável fica em Tabimoney.app/Contents/MacOS/Tabimoney e aceita os
     Tabimoney.exe                 abre o app: encerra o que já estava aberto, sobe o servidor em segundo plano
                                   e abre o navegador. A janela mostra o progresso e fecha sozinha.
     Tabimoney.exe cli <comando>   a linha de comando (financas.bat), para você e para agentes de IA.
+    Tabimoney.exe mcp [--demo]    o servidor MCP (stdio) que o agente de IA abre; ver app/mcp_server.
     Tabimoney.exe --servidor      o servidor em si (o passo anterior chama este, sem janela).
     Tabimoney.exe --primeiro-plano servidor nesta janela, com o log na tela (para investigar problemas).
 
@@ -200,11 +201,14 @@ def open_app() -> None:
     if FROZEN:
         from app import agent_workspace
 
+        from app.mcp_server import instalar
+
         try:
-            folder = agent_workspace.sync(Path(sys.executable))
-            print(f"Pasta para a IA atualizada: {folder}")
+            agent_workspace.sync(Path(sys.executable))
         except OSError as exc:
-            print(f"Aviso: não foi possível atualizar a pasta para a IA ({exc}).")
+            print(f"Aviso: não foi possível atualizar a pasta da IA ({exc}).")
+        for fixed in instalar.reparar():  # o exe mudou de pasta: corrige o caminho nos agentes conectados
+            print(f"Conexão com a IA atualizada para este executável: {instalar.CLIENTES[fixed['cliente']]['nome']}")
     try:
         stop_previous()
         print("Iniciando…")
@@ -233,13 +237,32 @@ def open_app() -> None:
         time.sleep(4)
 
 
+def _stdio_do_cliente() -> None:
+    """O Tabimoney.app (sem janela) pode começar sem sys.stdin/sys.stdout mesmo quando o agente de IA passou
+    pipes: reabre pelos descritores 0 e 1, que são o canal do protocolo MCP."""
+    for fd, name, mode in ((0, "stdin", "r"), (1, "stdout", "w")):
+        if getattr(sys, name) is None:
+            try:
+                setattr(sys, name, os.fdopen(fd, mode, encoding="utf-8"))
+            except OSError:
+                pass
+
+
 def main(argv: list[str] | None = None) -> None:
+    args = list(sys.argv[1:] if argv is None else argv)
+    if args and args[0] == "mcp":
+        _stdio_do_cliente()
+        if sys.stderr is None:
+            sys.stderr = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+        from app.mcp_server import servidor
+
+        servidor.main(demo="--demo" in args[1:])
+        return
     # app sem terminal (Tabimoney.app aberto pelo Finder) pode vir sem stdout/stderr
     if sys.stdout is None:
         sys.stdout = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
     if sys.stderr is None:
         sys.stderr = sys.stdout
-    args = list(sys.argv[1:] if argv is None else argv)
     if args and args[0] == "cli":
         from app import cli
 

@@ -56,6 +56,9 @@ def dados_isolados(tmp_path, monkeypatch):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "localappdata"))  # Windows
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))           # Linux
     monkeypatch.setenv("USERPROFILE", str(home))                          # pasta da IA no Windows
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))              # Claude Desktop e VS Code no Windows
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))   # Claude Desktop e VS Code no Linux
+    monkeypatch.delenv("CODEX_HOME", raising=False)                       # Codex: ~/.codex, dentro do home falso
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setattr(Path, "home", lambda: home)                       # Mac (~/Library/…) e pasta da IA
     from app import db
@@ -69,6 +72,14 @@ def cofre(monkeypatch):
     falso = CofreFalso()
     monkeypatch.setattr(security, "_system_vault", lambda: falso)
     return falso
+
+
+@pytest.fixture(autouse=True)
+def sem_agentes_de_verdade(monkeypatch):
+    """Os testes nunca rodam o `claude` nem o `codex` instalados na máquina; quem precisar simula."""
+    from app.mcp_server import instalar
+
+    monkeypatch.setattr(instalar, "_which", lambda _command: None)
 
 
 @pytest.fixture(autouse=True)
@@ -94,6 +105,28 @@ def client(monkeypatch):
     monkeypatch.setattr(main.updates, "scheduler", lambda _stop: None)
     with TestClient(main.app, base_url=f"http://127.0.0.1:{main.PORT}", client=("127.0.0.1", 50000)) as c:
         yield c
+
+
+def rodar_async(fabrica):
+    """Roda `fabrica()` (uma corrotina) num loop novo, numa thread própria: os testes de navegador (Playwright)
+    deixam um loop ativo na thread principal, e o asyncio.run recusaria rodar ali."""
+    import asyncio
+    import threading
+
+    saida: dict = {}
+
+    def alvo():
+        try:
+            saida["valor"] = asyncio.run(fabrica())
+        except BaseException as exc:  # noqa: BLE001 - repassado ao teste
+            saida["erro"] = exc
+
+    thread = threading.Thread(target=alvo)
+    thread.start()
+    thread.join()
+    if "erro" in saida:
+        raise saida["erro"]
+    return saida["valor"]
 
 
 def csrf(client) -> str:

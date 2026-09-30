@@ -17,16 +17,21 @@ datas = [
     (str(ROOT / "app" / "templates"), "app/templates"),
     (str(ROOT / "app" / "static"), "app/static"),
     (str(ROOT / "migrations"), "migrations"),
-    # pasta da IA (ver app/agent_workspace.py)
-    (str(ROOT / ".claude" / "skills"), ".claude/skills"),
+    # roteiros dos agentes (servidor MCP e pasta da IA), contrato, modelo e exemplos
+    (str(ROOT / "app" / "agente" / "roteiros"), "app/agente/roteiros"),
     (str(ROOT / "docs" / "agente-financeiro.md"), "docs"),
     (str(ROOT / "docs" / "agentes"), "docs/agentes"),
 ]
 datas += collect_data_files("tzdata") + collect_data_files("certifi")
 # o keyring acha o cofre do sistema (Credential Manager, Porta-chaves) por entry points
 datas += copy_metadata("keyring")
+# servidor MCP (app/mcp_server): o SDK lê a própria versão, e o OpenTelemetry acha o contexto por entry points
+datas += copy_metadata("mcp") + copy_metadata("opentelemetry-api")
 
 hiddenimports = collect_submodules("uvicorn") + collect_submodules("keyring.backends") + collect_submodules("app")
+# mcp.cli precisa do typer (não usamos); mcp.server.fastmcp só existe para dar erro na 2.x
+hiddenimports += collect_submodules("mcp", filter=lambda name: not name.startswith(("mcp.cli", "mcp.server.fastmcp")))
+hiddenimports += collect_submodules("mcp_types") + collect_submodules("opentelemetry")
 hiddenimports += ["multipart"] + ([] if MAC else ["win32ctypes.core"])
 
 a = Analysis(

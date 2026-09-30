@@ -4,27 +4,33 @@ Aplicativo local de finanças pessoais (FastAPI + SQLite). Os dados são do usu�
 
 ## Ler e alterar dados do usuário
 
-Use sempre a linha de comando `financas.bat` (ou `.venv\Scripts\python.exe -m app.cli`). Ela responde em JSON e
-registra as correções de forma reversível. **Não edite o SQLite diretamente** e não apague lançamentos.
-Antes de mudanças em massa, rode `financas.bat backup`.
+O caminho principal é o **servidor MCP `tabimoney`** (`app/mcp_server`). Se você tem as ferramentas dele
+(`status`, `roteiro`, `carteira_contexto`…), use-as. Para conectar: **Configurações › Conectar à IA** no app, ou
+`financas.bat mcp instalar --cliente claude-code` (clientes: `financas.bat mcp clientes`).
 
-Comece por `financas.bat carteira contexto` em qualquer tarefa de investimentos. Ele traz metas, posições com
-fundamentos, as últimas análises, renda fixa e previdência num JSON só.
+Sem MCP, use a linha de comando `financas.bat` (ou `.venv\Scripts\python.exe -m app.cli`), que chama as mesmas
+operações (`app/agente/operacoes.py`). As duas respondem em JSON e registram as correções de forma reversível.
+**Não edite o SQLite diretamente** e não apague lançamentos. Antes de mudanças em massa, faça backup (o servidor
+MCP faz sozinho antes da primeira mudança da sessão; na CLI, `financas.bat backup`).
+
+Comece por `carteira_contexto` (ou `financas.bat carteira contexto`) em qualquer tarefa de investimentos. Ele traz
+metas, posições com fundamentos, as últimas análises, renda fixa e previdência num JSON só.
 
 ## Roteiros
 
-Cada tarefa tem um roteiro passo a passo. O Claude Code carrega os roteiros como skills; outros agentes devem
-ler o arquivo antes de começar:
+Cada tarefa tem um roteiro passo a passo em `app/agente/roteiros/` (a fonte única). O servidor MCP entrega os
+roteiros pela ferramenta `roteiro`, como prompts e como resources; sem MCP, leia o arquivo antes de começar. Eles
+citam as ferramentas do MCP; `EQUIVALENTE_CLI` em `app/mcp_server/ferramentas.py` diz o comando da CLI de cada uma.
 
 | Tarefa | Roteiro |
 |---|---|
-| Visão geral e qual roteiro usar | `.claude/skills/financas/SKILL.md` |
-| **Ciclo completo** ("atualize minhas finanças") | `.claude/skills/financas-ciclo/SKILL.md` |
-| Revisar gastos e recategorizar | `.claude/skills/financas-gastos/SKILL.md` |
-| Orçamento: metas de gastos e recomendações de economia | `.claude/skills/financas-orcamento/SKILL.md` |
-| Metas de alocação e onde aportar | `.claude/skills/financas-metas/SKILL.md` |
-| Análise fundamentalista trimestral | `.claude/skills/financas-analise-trimestral/SKILL.md` |
-| Recomendações trimestrais e carteiras-modelo | `.claude/skills/financas-recomendacoes/SKILL.md` |
+| Visão geral e qual roteiro usar | `app/agente/roteiros/visao-geral.md` |
+| **Ciclo completo** ("atualize minhas finanças") | `app/agente/roteiros/ciclo.md` |
+| Revisar gastos e recategorizar | `app/agente/roteiros/gastos.md` |
+| Orçamento: metas de gastos e recomendações de economia | `app/agente/roteiros/orcamento.md` |
+| Metas de alocação e onde aportar | `app/agente/roteiros/metas.md` |
+| Análise fundamentalista trimestral | `app/agente/roteiros/analise-trimestral.md` |
+| Recomendações trimestrais e carteiras-modelo | `app/agente/roteiros/recomendacoes.md` |
 
 O contrato (formatos de JSON e regras de cálculo) está em `docs/agente-financeiro.md`. O modelo do relatório
 está em `docs/agentes/modelo-relatorio-trimestral.md`, e os exemplos válidos em `docs/agentes/exemplos/`.
@@ -39,6 +45,10 @@ pública sobre empresas e títulos (CVM, relações com investidores, Tesouro, n
 - **Versão e changelog:** toda mudança entra em `[Não lançado]` no `CHANGELOG.md` no mesmo commit. A versão
   fica só em `app/__init__.py`. Numeração e lançamento: `docs/versionamento.md`.
 
+- **Agentes (MCP e CLI):** operação nova entra em `app/agente/operacoes.py` e ganha as duas portas: a ferramenta em
+  `app/mcp_server/ferramentas.py` (com tipo, descrição e `EQUIVALENTE_CLI`) e o comando em `app/cli.py`. Mudou o
+  que o agente deve fazer? Atualize o roteiro em `app/agente/roteiros/`. `tests/test_mcp.py` confere catálogo,
+  anotações, paridade com a CLI e se os roteiros só citam ferramentas que existem.
 - **Testes:** rode `pytest` (Windows: `.venv\Scripts\python.exe -m pytest`; Mac: `.venv/bin/python -m pytest`)
   antes de commitar. Tudo roda isolado: base temporária, cofre falso e sem rede (`tests/conftest.py`), então não
   mexe nos dados do usuário. Página nova já é coberta por `tests/test_paginas.py`. Mudou uma regra ou corrigiu um
