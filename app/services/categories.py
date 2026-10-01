@@ -11,6 +11,52 @@ INTERNAL_CATEGORIES = {"Investimentos", "Pagamento de fatura", OWN_TRANSFER, HOU
 # Entradas que contam como receita; qualquer outra entrada positiva é estorno e abate a despesa da categoria.
 INCOME_CATEGORIES = {"Salário", "Proventos", "Rendimentos", "Pix e transferências", "Outros"}
 
+# Ícone (Lucide, app/static/icons.svg) de cada categoria nas listas do app. Categoria criada pelo usuário usa o
+# ícone escolhido ao criar; sem escolha, o de uma palavra conhecida do nome (CATEGORY_ICON_HINTS) ou o genérico.
+CATEGORY_ICONS = {
+    "Casa": "house", "Mercado": "shopping-cart", "Alimentação": "utensils", "Transporte": "car", "Saúde": "heart-pulse",
+    "Compras": "shopping-bag", "Assinaturas": "repeat", "Lazer": "ticket", "Educação": "graduation-cap",
+    "Viagem": "plane", "Pets": "paw-print", "Impostos e taxas": "landmark", "Pix e transferências": "arrow-left-right",
+    "Salário": "briefcase", "Proventos": "coins", "Rendimentos": "piggy-bank", "Investimentos": "trending-up",
+    "Pagamento de fatura": "credit-card", OWN_TRANSFER: "repeat-2", HOUSEHOLD_TRANSFER: "users-round",
+    "Outros": "circle-dashed",
+}
+CATEGORY_ICON_HINTS = [
+    (("pet", "cachorro", "gato", "veterin"), "paw-print"), (("delivery", "ifood", "restaurante", "comida"), "utensils"),
+    (("academia", "esporte", "treino", "gym"), "dumbbell"), (("bebe", "filho", "crianca", "escola"), "baby"),
+    (("presente", "doacao"), "gift"), (("combustivel", "gasolina", "posto"), "fuel"), (("celular", "telefone"), "smartphone"),
+    (("cafe",), "coffee"), (("livro", "leitura"), "book-open"), (("roupa", "vestuario"), "shirt"),
+    (("jogo", "game"), "gamepad-2"), (("farmacia", "remedio"), "pill"), (("internet", "wifi"), "wifi"),
+    (("luz", "energia"), "zap"), (("agua",), "droplet"), (("streaming", "tv"), "tv"), (("carro", "uber", "taxi"), "car"),
+    (("onibus", "metro", "transporte"), "bus"), (("bike", "bicicleta"), "bike"), (("manutencao", "reforma", "conserto"), "wrench"),
+    (("musica", "show"), "music"), (("cinema", "filme"), "film"), (("beleza", "cabelo", "salao"), "scissors"),
+    (("viagem", "hotel", "passagem"), "plane"), (("jardim", "planta"), "sprout"), (("trabalho", "escritorio"), "laptop"),
+]
+# Opções do seletor de ícone ao criar uma categoria.
+CATEGORY_ICON_CHOICES = [
+    "circle-dashed", "house", "shopping-cart", "utensils", "coffee", "car", "fuel", "bus", "bike", "plane",
+    "heart-pulse", "pill", "dumbbell", "shopping-bag", "shirt", "gift", "repeat", "tv", "music", "film", "ticket",
+    "gamepad-2", "graduation-cap", "book-open", "baby", "paw-print", "smartphone", "wifi", "zap", "droplet",
+    "wrench", "scissors", "sprout", "laptop", "briefcase", "landmark", "piggy-bank", "hand-coins",
+]
+
+
+def category_icon(name: str | None, chosen: str | None = None) -> str:
+    """Nome do ícone de uma categoria: o escolhido, o padrão, o de uma palavra do nome ou o genérico."""
+    if chosen and chosen in CATEGORY_ICON_CHOICES:
+        return chosen
+    if not name:
+        return "circle-dashed"
+    if name in CATEGORY_ICONS:
+        return CATEGORY_ICONS[name]
+    key = _plain(name)
+    return next((icon for words, icon in CATEGORY_ICON_HINTS if any(w in key for w in words)), "circle-dashed")
+
+
+def _plain(text: str) -> str:
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().casefold()
+
+
 # Estas vêm antes da categoria da origem, que costuma errar nelas (a Pluggy chama compra de ações de "Shopping").
 # Por isso casam só no início de palavra: "lca" não pega "calçados".
 _STRONG_RULES: list[tuple[str, tuple[str, ...]]] = [

@@ -32,7 +32,7 @@ nem de terminal. Pode ser mandado por WhatsApp, e-mail ou pendrive.
 | Abrir | Dois cliques no `Tabimoney.exe` (ou no atalho). |
 | Reiniciar | Dois cliques de novo. O app aberto é encerrado com segurança e abre outra vez. |
 | Atualizar | O app avisa no topo quando sai versão nova, com o botão **Baixar**. Substitua o `Tabimoney.exe` pelo novo e abra. Os dados ficam; a base é atualizada sozinha. |
-| Encerrar | No app, menu lateral › **Encerrar o Tabimoney**. Fechar a aba do navegador não encerra. |
+| Encerrar | No app, rodapé do menu lateral › **Encerrar**. Fechar a aba do navegador não encerra. |
 | Apagar tudo | Encerre o app e apague a pasta `%LOCALAPPDATA%\FinancasPessoais`. |
 
 Onde fica cada coisa:
@@ -63,7 +63,7 @@ Se algo der errado:
    - No macOS 14 ou mais antigo: botão direito › **Abrir** › **Abrir**.
    - Se o Mac disser que o app "está danificado": `xattr -dr com.apple.quarantine /Applications/Tabimoney.app`.
 4. Dois cliques abrem o app no navegador. No Mac não aparece janela de progresso; se der erro, surge uma caixa
-   de diálogo. Clicar de novo reinicia, e **Encerrar o Tabimoney** fica no menu lateral, como no Windows.
+   de diálogo. Clicar de novo reinicia, e **Encerrar** fica no rodapé do menu lateral, como no Windows.
 
 No Mac, os dados ficam em `~/Library/Application Support/Tabimoney` e as chaves no **Porta-chaves (Keychain)**.
 Na primeira vez que salvar uma chave, o Mac pode pedir permissão: escolha **Sempre Permitir**. A linha de comando
@@ -165,9 +165,9 @@ O agendador diário de preços roda enquanto o aplicativo estiver aberto. Por pa
 ## Aviso de versão nova
 
 Ao abrir e a cada 12 horas, o app consulta o último [Release](https://github.com/Fishcake-Senpai/tabimoney-app/releases)
-publicado no GitHub. Se houver versão mais nova que a instalada, aparece uma faixa no topo de todas as páginas.
-A faixa tem **Baixar** (já com o zip do seu sistema: Windows, Mac Apple Silicon ou Mac Intel), **Ver novidades**
-e **Dispensar**, que esconde o aviso daquela versão; a próxima volta a avisar. Rodando pelo código, a faixa pede
+publicado no GitHub. Se houver versão mais nova que a instalada, o sino da barra do topo ganha um aviso, com
+**Baixar** (já com o zip do seu sistema: Windows, Mac Apple Silicon ou Mac Intel), **Novidades**
+e **Dispensar**, que esconde o aviso daquela versão; a próxima volta a avisar. Rodando pelo código, o aviso pede
 `git pull` em vez do download.
 
 A consulta é um pedido comum à API pública do GitHub e não envia nenhum dado seu. Sem internet, o aviso não
@@ -176,7 +176,7 @@ hora. O código fica em `app/services/updates.py`.
 
 ## Demonstração
 
-Para ver o app antes de conectar os bancos, clique em **Ver demonstração** na visão geral. Abre um casal fictício
+Para ver o app antes de conectar os bancos, clique em **Ver demonstração** nas boas-vindas do Início (base vazia) ou em **Configurações › Geral**. Abre um casal fictício
 (Lucas e Marina) com todas as telas preenchidas: contas, cartões, carteira, renda fixa, previdência, metas,
 análises e recomendações. A demo usa uma base separada (`demo.sqlite3`, na pasta de dados) e um cofre de senhas
 só dela, então seus dados não aparecem e nada do que você fizer na demo chega a eles. **Recomeçar** volta tudo ao
@@ -197,7 +197,7 @@ aparecer vazia na demo.
 Cada pessoa conecta os próprios bancos no Meu Pluggy, porque o consentimento do Open Finance é dado pelo titular da conta. Em **Configurações › Titulares**, cadastre a outra pessoa (o CPF é opcional). Depois, adicione os Item IDs dela escolhendo o titular. Se ela tem o próprio app no Dashboard Pluggy, crie uma **Nova conexão** com o Client ID e o Secret dela; se usa o mesmo app, basta colar os Item IDs na conexão Principal.
 
 - As contas de quem não é o titular principal ganham o sufixo " · Nome" (ex.: "Nubank Cartão · Ana"), então dois Nubank não se misturam.
-- O seletor **Casa / cada pessoa** no menu filtra todas as telas. Cada titular pode ter metas de alocação próprias; as metas de gastos são da casa.
+- O seletor **Casa / cada pessoa** na barra do topo filtra todas as telas. Cada titular pode ter metas de alocação próprias; as metas de gastos são da casa.
 - O Pix entre titulares vira *Transferência entre titulares*, que fica fora de receitas e despesas: pelo CPF dos dois lados ou, sem CPF, quando a saída de um e a entrada do outro têm o mesmo valor em até 1 dia.
 - Arquivos importados (OFX, CSV, B3) entram como do titular principal.
 
@@ -234,7 +234,7 @@ O Nubank não oferece um arquivo único com tudo. As Caixinhas/RDB não aparecem
 
 Regras de consolidação: por conta e ativo vale o snapshot de posição mais recente, somado às operações posteriores a ele. As operações vêm de uma única origem por prioridade: Negociação B3, depois Movimentação B3, depois Open Finance, depois CSV. Na renda fixa e nos saldos vale, por conta, a origem mais recente. Gastos com categoria *Investimentos*, *Pagamento de fatura*, *Transferência própria* ou *Transferência entre titulares* ficam fora de receitas e despesas.
 
-Conciliação entre contas: uma saída de conta casa 1 a 1 com uma entrada de mesmo valor em outra conta própria (até 3 dias, quando um dos lados é transferência própria — CPF igual de pagador e recebedor ou rótulo da origem) ou no cartão (até 5 dias, quando um dos lados é pagamento de fatura). Entre contas de titulares diferentes, o par vale quando um dos lados é transferência entre titulares (CPFs cadastrados) ou, sem CPF, quando os dois lados são *Pix e transferências* em até 1 dia. Os dois lados viram movimento interno; assim o salário que cai no Itaú conta como receita uma vez só, e a TED para o Nubank não vira despesa nem receita. A página **Conciliação** lista os pares e as transferências próprias sem o outro lado (conta não conectada).
+Conciliação entre contas: uma saída de conta casa 1 a 1 com uma entrada de mesmo valor em outra conta própria (até 3 dias, quando um dos lados é transferência própria — CPF igual de pagador e recebedor ou rótulo da origem) ou no cartão (até 5 dias, quando um dos lados é pagamento de fatura). Entre contas de titulares diferentes, o par vale quando um dos lados é transferência entre titulares (CPFs cadastrados) ou, sem CPF, quando os dois lados são *Pix e transferências* em até 1 dia. Os dois lados viram movimento interno; assim o salário que cai no Itaú conta como receita uma vez só, e a TED para o Nubank não vira despesa nem receita. A página **Pendências** (o sino da barra do topo) lista as divergências, as transferências próprias sem o outro lado (conta não conectada), os avisos dos ativos e, recolhidos, os pares conciliados.
 
 Receitas são entradas em conta com categoria Salário, Proventos, Pix e transferências ou Outros; qualquer outra entrada (ex.: estorno no cartão) abate a despesa da categoria. Compra e venda de ações, aplicações, resgates e previdência são *Investimentos* mesmo quando a origem as rotula como compra.
 
@@ -242,22 +242,23 @@ Histórico do patrimônio: antes do primeiro saldo conhecido, o saldo de cada co
 
 ## Indicadores
 
-- **Visão geral:** patrimônio e variação em 30 dias; evolução empilhada (renda variável, renda fixa, caixa); alocação; receitas e despesas; gastos por categoria; taxa de poupança; maiores variações do dia.
-- **Ações e FIIs:** valor de mercado e variação do dia; resultado não realizado (R$ e %); lucro realizado; proventos em 12 meses, dividend yield e yield on cost; rentabilidade pelo método de cotas (TWR, com proventos) em 1M/3M/6M/ano/12M/início contra CDI e Ibovespa; volatilidade anualizada; queda máxima; concentração nos 5 maiores; rentabilidade mês a mês; valor de mercado contra capital aplicado. Por ativo: preço médio, peso, retorno em 1, 3 e 12 meses, distância da máxima de 52 semanas, gráfico de preço com linha do preço médio e histórico de eventos.
+- **Início:** patrimônio e variação em 30 dias, com a evolução do total (ou por classe); gastos do mês contra o orçamento; investimentos; saldo em conta e fatura; últimos lançamentos; o que pede atenção.
+- **Investimentos › Resumo:** total investido, evolução, alocação por classe contra as metas, onde aportar e maiores variações do dia.
+- **Investimentos › Ações e FIIs:** valor de mercado e variação do dia; resultado não realizado (R$ e %); lucro realizado; proventos em 12 meses, dividend yield e yield on cost; rentabilidade pelo método de cotas (TWR, com proventos) em 1M/3M/6M/ano/12M/início contra CDI e Ibovespa; volatilidade anualizada; queda máxima; concentração nos 5 maiores; rentabilidade mês a mês; valor de mercado contra capital aplicado. Por ativo: preço médio, peso, retorno em 1, 3 e 12 meses, distância da máxima de 52 semanas, gráfico de preço com linha do preço médio e histórico de eventos.
 - **Renda fixa:** valor bruto e líquido de IR, rendimento sobre o aplicado, vencimentos e distribuição por tipo.
 
 O preço médio segue o padrão da Receita (vendas não alteram o preço médio). Quando a quantidade operada difere da custódia, o preço médio é marcado como estimado.
 
 ## Metas de gastos (orçamento do mês)
 
-No topo de **Conta e cartão**, o bloco *Orçamento do mês* compara o que você gastou com as metas de cada grupo de categorias. Ele mostra:
+Em **Gastos › Orçamento**, cada meta mostra em um card o que você gastou com as metas de cada grupo de categorias. Ele mostra:
 
 - quanto ainda cabe por dia;
 - a projeção do mês e a situação de cada meta (no ritmo, em risco, estourou);
 - o histórico dos últimos 6 meses por meta;
 - o que está sem meta.
 
-Sem metas ainda, o app sugere limites pela média dos seus últimos 3 meses e cria todas com um clique. O agente de IA analisa gastos e metas juntos e grava recomendações (ajustar, criar ou remover meta, ou onde economizar) que você aplica com um botão em **Recomendações** ou no próprio bloco.
+Sem metas ainda, o app sugere limites pela média dos seus últimos 3 meses e cria todas com um clique. O agente de IA analisa gastos e metas juntos e grava recomendações (ajustar, criar ou remover meta, ou onde economizar) que você aplica com um botão em **Sugestões** ou na própria aba.
 
 ## Versões
 
@@ -265,13 +266,13 @@ A versão aparece no rodapé do menu e em `financas --version`. O que mudou em c
 
 ## Gastos por categoria e correções
 
-Em **Conta e cartão**, a tabela *Gasto por categoria, mês a mês* mostra os últimos 6 meses fechados e o mês corrente, com a variação do último mês contra a média dos 3 anteriores e dos últimos 3 meses contra os 3 anteriores. O card *O que mudou* lista as categorias que variaram mais de 15% (e R$ 50) e os lançamentos que puxaram a mudança.
+Em **Gastos › Resumo** ficam o gasto do mês por categoria (com seletor de mês) e *O que mudou*; o botão **Mês a mês** abre a tabela que mostra os últimos 6 meses fechados e o mês corrente, com a variação do último mês contra a média dos 3 anteriores e dos últimos 3 meses contra os 3 anteriores. *O que mudou* lista as categorias que variaram mais de 15% (e R$ 50).
 
-A categoria de cada lançamento pode ser trocada na própria tabela de movimentações. Para erros que se repetem, crie uma regra (*descrição contém X → categoria*). Ordem de prioridade: escolha manual > regra > categoria automática. Nenhuma das correções se perde numa nova sincronização.
+Em **Gastos › Lançamentos**, clicar num lançamento abre um painel para trocar a categoria; marcar *Usar sempre* cria ali mesmo a regra (*descrição contém X → categoria*). As regras e as categorias próprias (com ícone) ficam em **Configurações › Regras** e **› Categorias**. Ordem de prioridade: escolha manual > regra > categoria automática. Nenhuma das correções se perde numa nova sincronização.
 
 ## Fundamentos das ações
 
-**Ações e FIIs › Atualizar fundamentos** baixa da CVM (dados abertos, sem chave) as demonstrações trimestrais (ITR) e anuais (DFP) das empresas da carteira dos últimos 3 anos. Os arquivos ficam em cache em `%LOCALAPPDATA%\FinancasPessoais\cvm` e são conferidos semanalmente (também de forma automática, com o app aberto). Da brapi gratuita vêm valor de mercado, setor e descrição; o plano pago da brapi não é necessário.
+**Investimentos › Ações e FIIs › Fundamentos › Atualizar fundamentos** baixa da CVM (dados abertos, sem chave) as demonstrações trimestrais (ITR) e anuais (DFP) das empresas da carteira dos últimos 3 anos. Os arquivos ficam em cache em `%LOCALAPPDATA%\FinancasPessoais\cvm` e são conferidos semanalmente (também de forma automática, com o app aberto). Da brapi gratuita vêm valor de mercado, setor e descrição; o plano pago da brapi não é necessário.
 
 Indicadores (12 meses, com o preço do dia): P/L, P/VP, EV/EBIT, EV/EBITDA, dividend yield e payout (dividendos/JCP efetivamente pagos), ROE, ROA, margens, dívida líquida/EBITDA e /PL, crescimento de receita e lucro e FCF yield. Bancos e seguradoras não têm os indicadores de dívida e EBITDA. Units (ex.: ALUP11) usam a composição informada à CVM para o valor de mercado. ETFs e FIIs ficam de fora.
 
@@ -279,7 +280,7 @@ Regras simples geram avisos: prejuízo, lucro ou receita caindo, ROE baixo ou ca
 
 ## Metas e balanceamento
 
-Em **Metas**, defina a reserva de emergência (R$), a divisão entre renda fixa e renda variável (% do que sobra além da reserva) e quanto da renda variável fica no exterior. A tela mostra onde você está contra cada meta, avisa desvios de 5 p.p. ou mais e calcula para onde vai o próximo aporte, sem vender nada: primeiro completa a reserva, depois reforça as classes abaixo da meta. O valor sugerido é a média de sobra dos últimos 3 meses.
+Em **Investimentos › Metas** (botão **Editar metas**), defina a reserva de emergência (R$), a divisão entre renda fixa e renda variável (% do que sobra além da reserva) e quanto da renda variável fica no exterior. A tela mostra onde você está contra cada meta, avisa desvios de 5 p.p. ou mais e calcula para onde vai o próximo aporte, sem vender nada: primeiro completa a reserva, depois reforça as classes abaixo da meta. O valor sugerido é a média de sobra dos últimos 3 meses.
 
 - **Reserva:** caixa em conta menos a fatura em aberto. O excedente conta como renda fixa, e a previdência também, se você marcar.
 - **Internacional:** BDRs e ETFs de índice externo (IVVB11, NASD11, QBTC11…) são internacionais por padrão; dá para corrigir ativo por ativo.
@@ -287,7 +288,7 @@ Em **Metas**, defina a reserva de emergência (R$), a divisão entre renda fixa 
 ## Análises e recomendações trimestrais
 
 - **Página de cada ativo:** mostra a análise mais recente do agente completa (Markdown com tabelas e checklist) e o histórico dos trimestres anteriores. **Análises** lista todos os relatórios, inclusive de renda fixa, previdência e da carteira.
-- **Recomendações:** traz, por trimestre, as mudanças sugeridas na carteira atual (ação, peso sugerido, convicção, preço justo, justificativa) e carteiras-modelo com o seu perfil, indicando quanto de cada uma você já tem. As versões anteriores ficam no histórico.
+- **Sugestões:** traz as recomendações do orçamento, prontas para aplicar, e, por trimestre, as mudanças sugeridas na carteira atual (ação, peso sugerido, convicção, preço justo, justificativa) e carteiras-modelo com o seu perfil, indicando quanto de cada uma você já tem. As versões anteriores ficam no histórico.
 
 ## Agentes de IA
 

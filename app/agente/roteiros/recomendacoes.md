@@ -1,6 +1,6 @@
 ---
 titulo: Recomendações trimestrais
-descricao: Monta as recomendações trimestrais da carteira de ações e FIIs (mudanças na carteira atual e carteiras-modelo com o perfil do usuário), respeitando as metas de alocação, e grava na área Recomendações do app.
+descricao: Monta as recomendações trimestrais da carteira de ações e FIIs (mudanças na carteira atual e carteiras-modelo com o perfil do usuário), respeitando as metas de alocação, e grava na área Sugestões do app.
 ---
 
 # Recomendações trimestrais
@@ -35,7 +35,7 @@ ou for de trimestre anterior para a maioria dos ativos, faça a análise primeir
 6. **Gravação:** chame `recomendacoes_importar` com o conjunto (exemplo em `tabimoney://exemplos/recomendacoes`),
    `period` no formato `3T26`. O mesmo período substitui a versão; os trimestres anteriores ficam no histórico.
 7. **Resposta ao usuário:** três a cinco bullets com as mudanças principais, a carteira-modelo mais próxima da dele
-   e a lembrança de que tudo está em **Recomendações**.
+   e a lembrança de que tudo está em **Sugestões**.
 
 ## Limites
 

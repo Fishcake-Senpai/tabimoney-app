@@ -1,38 +1,20 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, hint, modal, cat_icon, badge %}
 {% block title %}Configurações{% endblock %}
 {% block content %}
 {% set type_labels = {"BANK": "Conta", "CREDIT": "Cartão", "INVESTMENT": "Investimentos"} %}
-{#- Ajuda sob demanda: um "?" que abre um popover ao lado (posicionado pelo app.js). -#}
-{% macro hint(id, label="Ajuda") -%}
-<button class="hint" type="button" popovertarget="hint-{{ id }}" aria-label="{{ label }}">?</button>
-<div class="hint-pop" popover id="hint-{{ id }}">{{ caller() }}</div>
-{%- endmacro %}
-{#- Edição em modal: o botão com data-dialog abre, data-close fecha. -#}
-{% macro modal(id, title) -%}
-<dialog class="modal" id="dlg-{{ id }}" aria-labelledby="dlg-{{ id }}-t">
-  <div class="modal-head">
-    <h3 id="dlg-{{ id }}-t">{{ title }}</h3>
-    <button class="icon-btn" type="button" data-close aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-  </div>
-  <div class="modal-body">{{ caller() }}</div>
-</dialog>
-{%- endmacro %}
-{% set icons = {
-  "geral": '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
-  "open-finance": '<path d="M3 10l9-6 9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>',
-  "titulares": '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .6 3.5 2.3 3.5 5.2"/>',
-  "mercado": '<path d="M3 17l5-5 4 4 8-8"/><path d="M15 8h5v5"/>',
-  "ia": '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
-  "atualizacoes": '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/>',
-} %}
+{% set sections = [("geral", "Geral", "user-round"), ("aparencia", "Aparência", "palette"), ("open-finance", "Open Finance", "landmark"),
+                   ("titulares", "Titulares", "users-round"), ("categorias", "Categorias", "tag"), ("regras", "Regras", "list-filter"),
+                   ("mercado", "Mercado", "chart-line"), ("ia", "Conectar à IA", "sparkles"), ("dados", "Dados e backup", "database"),
+                   ("atualizacoes", "Atualizações", "refresh-cw")] %}
 {% set ia_conectados = ia.clientes|selectattr("conectado")|list %}
 
 <div class="page-head"><div><h1>Configurações</h1></div></div>
 
 <div class="settings" data-settings>
   <nav class="set-nav" aria-label="Seções das configurações">
-    {% for id, label in [("geral", "Geral"), ("open-finance", "Open Finance"), ("titulares", "Titulares"), ("mercado", "Mercado"), ("ia", "Conectar à IA"), ("atualizacoes", "Atualizações")] %}
-    <a href="#{{ id }}"><svg viewBox="0 0 24 24" aria-hidden="true">{{ icons[id]|safe }}</svg>{{ label }}{% if id == "ia" and ia_conectados %}<span class="dot" title="Conectado"></span>{% elif id == "atualizacoes" and update_info.outdated %}<span class="dot dot-warn" title="Versão nova"></span>{% endif %}</a>
+    {% for id, label, ico in sections %}
+    <a href="#{{ id }}">{{ icon(ico) }}{{ label }}{% if id == "ia" and ia_conectados %}<span class="dot" title="Conectado"></span>{% elif id == "atualizacoes" and update_info.outdated %}<span class="dot dot-warn" title="Versão nova"></span>{% endif %}</a>
     {% endfor %}
   </nav>
 
@@ -44,17 +26,57 @@
         <form class="set-row" method="post" action="/configuracoes">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="secao" value="geral">
-          <label class="set-label" for="display_name"><b>Como te chamar</b><small>Na saudação da visão geral</small></label>
+          <label class="set-label" for="display_name"><b>Como te chamar</b><small>Na saudação do Início</small></label>
           <div class="set-actions set-inline">
             <input id="display_name" name="display_name" value="{{ display_name or '' }}" maxlength="40" autocomplete="off" placeholder="Seu nome">
             <button class="btn btn-sm" type="submit">Salvar</button>
           </div>
         </form>
+        {% if not demo_mode %}
+        <form class="set-row" method="post" action="/demo/entrar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="set-label"><b>Demonstração</b><small>Abre o app com um casal fictício, sem mexer nos seus dados</small></div>
+          <div class="set-actions"><button class="btn btn-sm" type="submit">Ver demonstração</button></div>
+        </form>
+        {% endif %}
         <div class="set-row">
           <div class="set-label"><b>Senhas e chaves</b><small>{{ vault_name }}</small></div>
           <div class="set-actions">
             {% call hint("cofre", "Sobre o cofre de senhas") %}<p>Client Secret e token ficam no cofre do sistema, nunca no banco do app. Por isso não entram nos backups.</p>{% endcall %}
           </div>
+        </div>
+      </div>
+    </section>
+
+    {# ---------------------------------------------------------------- Aparência #}
+    <section class="set-section" id="aparencia" aria-labelledby="apa-t">
+      <div class="set-head"><h2 id="apa-t">Aparência</h2></div>
+      <div class="set-group">
+        <form class="set-row" method="post" action="/configuracoes">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="secao" value="tema">
+          <div class="set-label"><b>Tema</b><small>Sistema segue o claro ou escuro do computador</small></div>
+          <div class="set-actions">
+            <div class="seg seg-radio" role="radiogroup" aria-label="Tema">
+              {% for value, label in [("escuro", "Escuro"), ("claro", "Claro"), ("sistema", "Sistema")] %}
+              <label><input type="radio" name="ui_theme" value="{{ value }}" data-autosubmit {% if ui.theme == value %}checked{% endif %}><span>{{ label }}</span></label>
+              {% endfor %}
+            </div>
+            <noscript><button class="btn btn-sm" type="submit">Salvar</button></noscript>
+          </div>
+        </form>
+        <form class="set-row" method="post" action="/configuracoes">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="secao" value="discreto">
+          <label class="set-label" for="ui_discreet"><b>Abrir com os valores escondidos</b><small>O olho na barra do topo mostra e esconde os valores a qualquer momento</small></label>
+          <div class="set-actions">
+            <input class="switch" type="checkbox" id="ui_discreet" name="ui_discreet" data-autosubmit {% if ui.discreet %}checked{% endif %}>
+            <noscript><button class="btn btn-sm" type="submit">Salvar</button></noscript>
+          </div>
+        </form>
+        <div class="set-row">
+          <div class="set-label"><b>Menu lateral</b><small>Recolhido, mostra só os ícones. Vale para este navegador.</small></div>
+          <div class="set-actions"><button class="btn btn-sm" type="button" data-nav-toggle>Recolher ou abrir</button></div>
         </div>
       </div>
     </section>
@@ -123,7 +145,7 @@
           {% endcall %}
         </div>
         {% endfor %}
-        <button class="set-add" type="button" data-dialog="dlg-pluggy-nova"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nova conexão</button>
+        <button class="set-add" type="button" data-dialog="dlg-pluggy-nova">{{ icon("plus", "i-sm") }}Nova conexão</button>
       </div>
       {% call modal("pluggy-nova", "Nova conexão") %}
       <form method="post" action="/configuracoes/pluggy" class="form-grid">
@@ -143,7 +165,7 @@
       {% if pluggy_accounts %}
       <div class="set-group">
         <div class="set-row">
-          <div class="set-label"><b>Contas sincronizadas</b><small>{{ pluggy_accounts|length }} conta(s)</small></div>
+          <div class="set-label"><b>Contas sincronizadas</b><small>{{ pluggy_accounts|length|plural("conta", "contas") }}</small></div>
           <div class="set-actions"><button class="btn btn-sm" type="button" data-dialog="dlg-contas">Ver</button></div>
         </div>
       </div>
@@ -170,7 +192,7 @@
       <div class="set-group">
         {% for m in members %}
         <div class="set-row">
-          <div class="set-label"><b>{{ m.name }}{% if m.is_primary %} <span class="badge badge-plain">Principal</span>{% endif %}</b><small>{{ m.accounts }} conta(s) · {{ m["items"] }} banco(s){% if m.has_document %} · CPF cadastrado{% endif %}</small></div>
+          <div class="set-label"><b>{{ m.name }}{% if m.is_primary %} <span class="badge badge-plain">Principal</span>{% endif %}</b><small>{{ m.accounts|plural("conta", "contas") }} · {{ m["items"]|plural("banco", "bancos") }}{% if m.has_document %} · CPF cadastrado{% endif %}</small></div>
           <div class="set-actions"><button class="btn btn-sm" type="button" data-dialog="dlg-titular-{{ m.id }}" aria-label="Editar {{ m.name }}">Editar</button></div>
           {% call modal("titular-" ~ m.id, m.name) %}
           <form method="post" action="/configuracoes/titulares/editar" class="form-grid">
@@ -191,7 +213,7 @@
           {% endcall %}
         </div>
         {% endfor %}
-        <button class="set-add" type="button" data-dialog="dlg-titular-novo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Novo titular</button>
+        <button class="set-add" type="button" data-dialog="dlg-titular-novo">{{ icon("plus", "i-sm") }}Novo titular</button>
       </div>
       {% call modal("titular-novo", "Novo titular") %}
       <form method="post" action="/configuracoes/titulares" class="form-grid">
@@ -200,6 +222,119 @@
         <label class="field">CPF (opcional)<input name="cpf" inputmode="numeric" autocomplete="off"></label>
         <div class="modal-actions"><button class="btn btn-primary btn-sm" type="submit">Adicionar titular</button></div>
       </form>
+      {% endcall %}
+    </section>
+
+    {# ---------------------------------------------------------------- Categorias #}
+    <section class="set-section" id="categorias" aria-labelledby="cat-t">
+      <div class="set-head">
+        <h2 id="cat-t">Categorias</h2>
+        {% call hint("categorias", "Categorias próprias") %}<p>Crie categorias suas e escolha nos lançamentos ou numa regra. As padrão não podem ser excluídas. Excluir uma sua move os lançamentos, regras e metas dela para outra, e dá para restaurar.</p>{% endcall %}
+      </div>
+      {% set custom = category_overview|rejectattr("base")|list %}
+      <p class="set-lead">Suas categorias</p>
+      <div class="set-group">
+        {% for c in custom %}
+        <div class="set-row">
+          <div class="set-row-main">{{ cat_icon(c.name, c.icon) }}<div class="set-label"><b>{{ c.name }}</b><small>{{ c.transactions|plural("lançamento", "lançamentos") }}{% if c.rules %} · {{ c.rules|plural("regra", "regras") }}{% endif %}{% if c.budgets %} · meta {{ c.budgets|join(", ") }}{% endif %}</small></div></div>
+          <div class="set-actions"><button class="btn btn-sm" type="button" data-dialog="dlg-cat-{{ loop.index }}" aria-label="Editar a categoria {{ c.name }}">Editar</button></div>
+          {% call modal("cat-" ~ loop.index, c.name) %}
+          <form method="post" action="/contas/categorias/icone" class="form-grid">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="name" value="{{ c.name }}">
+            <fieldset class="checks-box"><legend>Ícone</legend>
+              <div class="icon-pick">{% for ico in icon_choices %}<label title="{{ ico }}"><input type="radio" name="icon" value="{{ ico }}" {% if (c.icon or category_icon(c.name)) == ico %}checked{% endif %}>{{ icon(ico) }}</label>{% endfor %}</div>
+            </fieldset>
+            <div class="modal-actions"><button class="btn btn-primary btn-sm" type="submit">Salvar ícone</button></div>
+          </form>
+          <form method="post" action="/contas/categorias/excluir" class="modal-section form-grid"
+                data-confirm="Excluir a categoria {{ c.name }}?{% if c.in_use %} Os lançamentos, regras e metas dela vão para o destino escolhido.{% endif %}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="name" value="{{ c.name }}">
+            {% if c.in_use %}
+            <label class="field">Mover o que está nela para
+              <select name="destination">
+                <option value="Outros" selected>Outros</option>
+                <option value="automatica">Categoria automática de cada lançamento</option>
+                {% for o in category_options if o != c.name and o != "Outros" %}<option>{{ o }}</option>{% endfor %}
+              </select>
+            </label>
+            {% endif %}
+            <div><button class="btn btn-danger btn-sm" type="submit">Excluir categoria</button></div>
+          </form>
+          {% endcall %}
+        </div>
+        {% else %}
+        <div class="set-row"><div class="set-label"><b>Nenhuma ainda</b><small>Exemplos: Delivery, Academia, Filhos</small></div></div>
+        {% endfor %}
+        <button class="set-add" type="button" data-dialog="dlg-cat-nova">{{ icon("plus", "i-sm") }}Nova categoria</button>
+      </div>
+      {% call modal("cat-nova", "Nova categoria") %}
+      <form method="post" action="/contas/categorias" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="field">Nome<input name="name" minlength="2" maxlength="40" required autocomplete="off" placeholder="Ex.: Delivery, Academia"></label>
+        <fieldset class="checks-box"><legend>Ícone</legend>
+          <div class="icon-pick">{% for ico in icon_choices %}<label title="{{ ico }}"><input type="radio" name="icon" value="{{ ico }}" {% if loop.first %}checked{% endif %}>{{ icon(ico) }}</label>{% endfor %}</div>
+        </fieldset>
+        <p class="modal-note">Criar uma que já existe, com outra grafia, não duplica.</p>
+        <div class="modal-actions"><button class="btn btn-primary btn-sm" type="submit">Criar categoria</button></div>
+      </form>
+      {% endcall %}
+
+      {% if deleted_categories %}
+      <p class="set-lead set-lead-gap">Excluídas</p>
+      <div class="set-group">
+        {% for d in deleted_categories[:6] %}
+        <form class="set-row" method="post" action="/contas/categorias/restaurar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="name" value="{{ d.name }}">
+          <div class="set-label"><b>{{ d.name }}</b><small>Excluída em {{ d.deleted_at|date_br }}{% if d.moved %} · {{ d.moved|plural("item foi", "itens foram") }} para {{ "a automática" if d.moved_to == "automatica" else d.moved_to }}{% endif %}</small></div>
+          <div class="set-actions"><button class="btn btn-ghost btn-sm" type="submit">Restaurar</button></div>
+        </form>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <details class="more set-lead-gap">
+        <summary>Categorias padrão ({{ category_overview|selectattr("base")|list|length }})</summary>
+        <div class="set-group">
+          {% for c in category_overview if c.base %}
+          <div class="set-row">
+            <div class="set-row-main">{{ cat_icon(c.name) }}<div class="set-label"><b>{% if c.transactions %}<a class="cat-link" href="/contas/gastos/{{ c.name|urlencode }}">{{ c.name }}</a>{% else %}{{ c.name }}{% endif %}</b><small>{{ c.transactions|plural("lançamento", "lançamentos") }}{% if c.manual %} · {{ c.manual|plural("corrigido", "corrigidos") }} à mão{% endif %}{% if c.rules %} · {{ c.rules|plural("regra", "regras") }}{% endif %}</small></div></div>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+    </section>
+
+    {# ---------------------------------------------------------------- Regras #}
+    <section class="set-section" id="regras" aria-labelledby="reg-t">
+      <div class="set-head">
+        <h2 id="reg-t">Regras</h2>
+        {% call hint("regras", "Como as regras funcionam") %}<p>Uma regra põe na categoria todo lançamento cuja descrição contém um texto, nos antigos e nos novos. O jeito mais rápido de criar é pelo lançamento: marque "Usar sempre" ao trocar a categoria.</p><p>A categoria escolhida no lançamento vence a regra (a de texto mais longo), que vence a automática. Sincronizar de novo não desfaz nenhuma das duas.</p>{% endcall %}
+      </div>
+      <div class="set-group">
+        {% for r in rules %}
+        <form class="set-row" method="post" action="/contas/regras/excluir" data-confirm="Excluir a regra “{{ r.pattern }}”?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="rule_id" value="{{ r.id }}">
+          <div class="set-row-main">{{ cat_icon(r.category) }}<div class="set-label"><b>“{{ r.pattern }}” → {{ r.category }}</b><small>{{ r.account_name or "Todas as contas" }} · {{ "IA" if r.author == "agente" else r.author }}{% if r.note %} · {{ r.note }}{% endif %}</small></div></div>
+          <div class="set-actions"><button class="icon-btn icon-btn-sm" type="submit" aria-label="Excluir a regra {{ r.pattern }}" title="Excluir">{{ icon("trash-2", "i-sm") }}</button></div>
+        </form>
+        {% else %}
+        <div class="set-row"><div class="set-label"><b>Nenhuma regra</b><small>Crie aqui, pelo lançamento ou peça à IA</small></div></div>
+        {% endfor %}
+        <button class="set-add" type="button" data-dialog="dlg-regra-nova">{{ icon("plus", "i-sm") }}Nova regra</button>
+      </div>
+      {% call modal("regra-nova", "Nova regra") %}
+      <form method="post" action="/contas/regras" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="field">Descrição contém<input name="pattern" minlength="3" maxlength="80" required autocomplete="off" placeholder="Ex.: UBER, IFOOD, NETFLIX"></label>
+        <label class="field">Categoria<input name="category" list="category-list" maxlength="40" required autocomplete="off" placeholder="Existente ou nova"></label>
+        <label class="field">Só na conta (opcional)<select name="account_name"><option value="">Todas</option>{% for a in accounts %}<option>{{ a.name }}</option>{% endfor %}</select></label>
+        <div class="modal-actions"><button class="btn btn-primary btn-sm" type="submit">Criar regra</button></div>
+      </form>
+      <datalist id="category-list">{% for c in category_options %}<option value="{{ c }}">{% endfor %}</datalist>
       {% endcall %}
     </section>
 
@@ -271,7 +406,7 @@
               <button class="btn btn-ghost btn-sm" type="submit">Desconectar</button>
             </form>
             {% endif %}
-            <button class="icon-btn" type="button" data-dialog="dlg-ia-{{ c.cliente }}" aria-label="Conectar à mão" title="Conectar à mão"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg></button>
+            <button class="icon-btn" type="button" data-dialog="dlg-ia-{{ c.cliente }}" aria-label="Conectar à mão" title="Conectar à mão">{{ icon("key-round", "i-sm") }}</button>
           </div>
           {% call modal("ia-" ~ c.cliente, c.nome ~ " · conectar à mão") %}
           {% if c.erro %}<p class="modal-note warn">{{ c.erro }}</p>{% endif %}
@@ -319,6 +454,36 @@
         <textarea class="copy-box" id="ia-texto-demo" rows="6" readonly spellcheck="false">{{ ia.texto_demo }}</textarea>
         <button class="btn btn-sm" type="button" data-copy="ia-texto-demo">Copiar texto</button>
       </details>
+      {% endcall %}
+    </section>
+
+    {# ---------------------------------------------------------------- Dados e backup #}
+    <section class="set-section" id="dados" aria-labelledby="dad-t">
+      <div class="set-head">
+        <h2 id="dad-t">Dados e backup</h2>
+        {% call hint("dados", "Onde ficam os dados") %}<p>Tudo fica neste computador, num arquivo SQLite. Senhas e tokens ficam no cofre do sistema e não entram no backup.</p>{% endcall %}
+      </div>
+      <div class="set-group">
+        <form class="set-row" method="post" action="/backup">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="set-row-main"><span class="row-icon">{{ icon("download") }}</span><div class="set-label"><b>Baixar backup</b><small>Uma cópia do banco de dados (.sqlite3)</small></div></div>
+          <div class="set-actions"><button class="btn btn-sm" type="submit">Baixar</button></div>
+        </form>
+        <div class="set-row">
+          <div class="set-row-main"><span class="row-icon">{{ icon("upload") }}</span><div class="set-label"><b>Restaurar um backup</b><small>Substitui os dados atuais; uma cópia preventiva é salva antes</small></div></div>
+          <div class="set-actions"><button class="btn btn-sm" type="button" data-dialog="dlg-restaurar">Restaurar</button></div>
+        </div>
+        <div class="set-row">
+          <div class="set-row-main"><span class="row-icon">{{ icon("folder-open") }}</span><div class="set-label"><b>Banco de dados</b><small><code>{{ database_path }}</code></small></div></div>
+        </div>
+      </div>
+      {% call modal("restaurar", "Restaurar um backup") %}
+      <form method="post" action="/restaurar" enctype="multipart/form-data" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="file" name="file" accept=".sqlite3,.sqlite,.db" required aria-label="Arquivo de backup">
+        <label class="check"><input type="checkbox" name="confirmed" required> Substituir os dados atuais</label>
+        <div class="modal-actions"><button class="btn btn-danger btn-sm" type="submit">Validar e restaurar</button></div>
+      </form>
       {% endcall %}
     </section>
 

@@ -2,7 +2,7 @@
 
 Uma meta agrupa uma ou mais categorias de gasto com um limite mensal. Cada categoria pertence a no máximo
 uma meta, para o total não contar o mesmo gasto duas vezes; `["*"]` é a meta de gasto total do mês.
-O gasto segue a mesma regra de Conta e cartão: saídas menos estornos, sem movimentos internos.
+O gasto segue a mesma regra da tela Gastos: saídas menos estornos, sem movimentos internos.
 
 No mês corrente, a projeção é o ritmo até hoje levado ao mês inteiro. Isso avisa cedo quando uma meta
 vai estourar, antes de estourar de fato.

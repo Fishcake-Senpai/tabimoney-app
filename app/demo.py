@@ -1,6 +1,6 @@
 """Demonstração: o app com dados fictícios, numa base separada que nunca se mistura com a do usuário.
 
-Quem entra na demonstração (botão na visão geral, ou `financas --demo ...` na CLI) passa a ler e gravar em
+Quem entra na demonstração (botão nas boas-vindas do Início ou em Configurações › Geral, ou `financas --demo ...` na CLI) passa a ler e gravar em
 `demo.sqlite3`, na mesma pasta de dados, e a usar um cofre de senhas em memória. A base real nem é aberta.
 A troca vale por requisição (db.using_database e security.using_vault), então outra aba fora da demo continua
 vendo os dados de verdade.

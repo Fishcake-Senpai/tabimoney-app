@@ -11,17 +11,24 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-MENU = [
-    ("Visão geral", "/"), ("Ações e FIIs", "/carteira"), ("Recomendações", "/recomendacoes"),
-    ("Renda fixa", "/renda-fixa"), ("Proventos e CDI", "/rendimentos"), ("Previdência", "/previdencia"),
-    ("Metas", "/metas"), ("Conta e cartão", "/contas"), ("Importar", "/importar"), ("Conciliação", "/conciliacao"),
-    ("Configurações", "/configuracoes"),
-]
+MENU = [("Início", "/"), ("Gastos", "/contas"), ("Investimentos", "/investimentos"), ("Sugestões", "/recomendacoes"),
+        ("Configurações", "/configuracoes")]
+ABAS_INVESTIMENTOS = [("Ações e FIIs", "/carteira"), ("Renda fixa", "/renda-fixa"), ("Previdência", "/previdencia"),
+                      ("Proventos", "/rendimentos"), ("Metas", "/metas"), ("Resumo", "/investimentos")]
+ABAS_GASTOS = [("Lançamentos", "/contas/lancamentos"), ("Orçamento", "/contas/orcamento"), ("Resumo", "/contas")]
+PAGINAS = [c for _, c in MENU] + [c for _, c in ABAS_INVESTIMENTOS + ABAS_GASTOS if c not in {"/investimentos", "/contas"}] + [
+    "/conciliacao", "/importar", "/analises", "/ativo/EGIE3", "/contas/gastos/Mercado"]
 
 
 def _aviso(page: Page):
-    """O aviso do que acabou de ser feito. Fica na primeira pilha; algumas páginas têm outra, de alertas."""
+    """O aviso do que acabou de ser feito (o toast no canto)."""
     return page.locator(".flash-stack").first
+
+
+def _titular(page: Page, nome: str):
+    """Troca a visão pelo menu de titular da barra do topo."""
+    page.locator(".member-btn").click()
+    page.locator(".member-switch").get_by_role("button", name=nome).click()
 
 
 # ---------------------------------------------------------------- navegação
@@ -29,13 +36,39 @@ def _aviso(page: Page):
 def test_menu_abre_todas_as_paginas_sem_erro_de_javascript(page: Page, base_url):
     page.goto("/")
     for rotulo, caminho in MENU:
-        page.locator("nav.nav a", has_text=rotulo).click()
+        page.locator(".sidebar nav.nav a", has_text=rotulo).click()
         expect(page).to_have_url(base_url + caminho)
-        expect(page.locator("nav.nav a[aria-current=page]")).to_have_text(re.compile(rotulo))
+        expect(page.locator(".sidebar a[aria-current=page]")).to_have_text(re.compile(rotulo))
         expect(page.locator("h1")).to_be_visible()
 
 
-@pytest.mark.parametrize("caminho", ["/", "/contas", "/carteira", "/rendimentos"])
+def test_abas_de_investimentos_e_de_gastos(page: Page, base_url):
+    page.goto("/investimentos")
+    for rotulo, caminho in ABAS_INVESTIMENTOS:
+        page.locator("nav.tabs a", has_text=rotulo).click()
+        expect(page).to_have_url(base_url + caminho)
+        expect(page.locator("nav.tabs a[aria-current=page]")).to_have_text(rotulo)
+        expect(page.locator(".sidebar a[aria-current=page]")).to_have_text(re.compile("Investimentos"))
+    page.goto("/contas")
+    for rotulo, caminho in ABAS_GASTOS:
+        page.locator("nav.tabs a", has_text=rotulo).click()
+        expect(page).to_have_url(base_url + caminho)
+        expect(page.locator(".sidebar a[aria-current=page]")).to_have_text(re.compile("Gastos"))
+
+
+@pytest.mark.parametrize("caminho", ["/", "/investimentos", "/carteira"])
+def test_cards_clicaveis_levam_a_pagina_certa(page: Page, base_url, caminho):
+    page.goto(caminho)
+    destinos = page.locator("a.stat").evaluate_all("els => els.map(e => e.getAttribute('href'))")
+    assert destinos and all(d.startswith("/") and '"' not in d for d in destinos), destinos
+    for i, destino in enumerate(destinos):
+        page.goto(caminho)
+        page.locator("a.stat").nth(i).click()
+        expect(page).to_have_url(base_url + destino)
+        expect(page.locator("h1")).to_be_visible()
+
+
+@pytest.mark.parametrize("caminho", ["/", "/contas", "/investimentos", "/carteira", "/rendimentos"])
 def test_graficos_desenham(page: Page, caminho):
     page.goto(caminho)
     graficos = page.locator("[data-chart]")
@@ -46,41 +79,62 @@ def test_graficos_desenham(page: Page, caminho):
             expect(grafico.locator("svg, .chart-empty").first).to_be_attached()
 
 
+def test_legenda_liga_e_desliga_a_serie(page: Page):
+    page.goto("/carteira")
+    card = page.locator(".card", has=page.locator("[data-chart=returns]"))
+    cdi = card.locator(".legend button", has_text="CDI")
+    expect(cdi).to_have_attribute("aria-pressed", "true")
+    cdi.click()
+    expect(card.locator(".legend button", has_text="CDI")).to_have_attribute("aria-pressed", "false")
+
+
 def test_ativo_abre_pelo_link_da_carteira(page: Page, base_url):
     page.goto("/carteira")
     page.get_by_role("link", name="ITSA4").first.click()
     expect(page).to_have_url(re.compile(re.escape(base_url + "/ativo/ITSA4") + r"(#.*)?$"))
     expect(page.locator("h1")).to_contain_text("ITSA4")
+    page.locator("nav.tabs a", has_text="Eventos").click()
+    expect(page.locator("main")).to_contain_text("Compra")
+
+
+def test_mais_colunas_na_carteira(page: Page):
+    page.goto("/carteira")
+    coluna = page.locator("#positions th", has_text="Preço médio")
+    expect(coluna).to_be_hidden()
+    page.get_by_role("button", name="Mais colunas").click()
+    expect(coluna).to_be_visible()
+    page.reload()
+    expect(page.locator("#positions th", has_text="Preço médio")).to_be_visible()  # a escolha fica guardada
+    page.get_by_role("button", name="Mais colunas").click()
 
 
 # ---------------------------------------------------------------- titulares
 
 def test_seletor_de_titular_filtra_e_volta_para_a_casa(page: Page):
-    page.goto("/contas")
-    seletor = page.locator(".member-switch")
-    expect(seletor.get_by_role("button", name="Casa")).to_have_attribute("aria-pressed", "true")
-    tabela = page.locator("#tx")
-    expect(tabela).to_contain_text("Carrefour Hiper")
-    expect(tabela).to_contain_text("Supermercado Pão de Açúcar")
+    page.goto("/contas/lancamentos")
+    lista = page.locator("#tx")
+    expect(lista).to_contain_text("Carrefour Hiper")
+    expect(lista).to_contain_text("Supermercado Pão de Açúcar")
 
-    seletor.get_by_role("button", name="Marina").click()
-    expect(page).to_have_url(re.compile(r"/contas$"))
+    _titular(page, "Marina")
+    expect(page).to_have_url(re.compile(r"/contas/lancamentos$"))
+    expect(page.locator(".member-btn")).to_contain_text("Marina")
     expect(page.locator(".member-note")).to_contain_text("Marina")
-    expect(seletor.get_by_role("button", name="Marina")).to_have_attribute("aria-pressed", "true")
-    expect(tabela).to_contain_text("Carrefour Hiper")
-    expect(tabela).not_to_contain_text("Supermercado Pão de Açúcar")
+    expect(lista).to_contain_text("Carrefour Hiper")
+    expect(lista).not_to_contain_text("Supermercado Pão de Açúcar")
 
-    seletor.get_by_role("button", name="Casa").click()
+    _titular(page, "Casa")
     expect(page.locator(".member-note")).to_have_count(0)
-    expect(tabela).to_contain_text("Supermercado Pão de Açúcar")
+    expect(lista).to_contain_text("Supermercado Pão de Açúcar")
 
 
 def test_carteira_do_titular_so_mostra_a_quantidade_dele(page: Page):
     page.goto("/ativo/ITSA4")
     expect(page.locator("main")).to_contain_text("1100")  # 800 do Lucas + 300 da Marina
-    page.locator(".member-switch").get_by_role("button", name="Marina").click()
+    _titular(page, "Marina")
     expect(page.locator("main")).to_contain_text("300")
     expect(page.locator("main")).not_to_contain_text("1100")
+    _titular(page, "Casa")
 
 
 def test_cadastrar_e_excluir_titular(aceitar_confirmacoes: Page):
@@ -91,12 +145,12 @@ def test_cadastrar_e_excluir_titular(aceitar_confirmacoes: Page):
     novo.get_by_label("Novo titular").fill("Bia")
     novo.get_by_role("button", name="Adicionar titular").click()
     expect(_aviso(page)).to_contain_text("Bia cadastrado(a) como titular.")
-    expect(page.locator(".member-switch").get_by_role("button", name="Bia")).to_be_visible()
+    expect(page.locator(".member-switch button", has_text="Bia")).to_have_count(1)  # dentro do menu fechado
 
     page.get_by_role("button", name="Editar Bia").click()
     page.get_by_role("button", name="Excluir Bia").click()
     expect(_aviso(page)).to_contain_text("Titular excluído.")
-    expect(page.locator(".member-switch").get_by_role("button", name="Bia")).to_have_count(0)
+    expect(page.locator(".member-switch button", has_text="Bia")).to_have_count(0)
 
 
 def test_cpf_invalido_mostra_erro(page: Page):
@@ -138,51 +192,137 @@ def test_criar_e_excluir_conexao_pluggy(aceitar_confirmacoes: Page):
 
 
 def test_sincronizar_sem_internet_avisa_sem_quebrar(page: Page):
-    page.goto("/")
-    botao = page.get_by_role("button", name=re.compile("Open Finance"))
-    if botao.count() == 0:
-        pytest.skip("botão de sincronização não está na visão geral")
-    botao.first.click()
+    page.goto("/contas")
+    page.get_by_role("button", name="Sincronizar").click()
+    expect(page).to_have_url(re.compile(r"/contas$"))
     expect(page.locator(".flash-stack .flash").first).to_be_visible()
     expect(page.locator("h1")).to_be_visible()
 
 
 # ---------------------------------------------------------------- gastos e metas
 
-def test_recategorizar_pela_tabela(page: Page):
-    page.goto("/contas#movimentacoes")
-    linha = page.locator("#tx tbody tr", has_text="Uber").first
-    linha.locator("select[name=category]").select_option("Lazer")
+def test_recategorizar_pelo_painel_do_lancamento(page: Page):
+    page.goto("/contas/lancamentos")
+    page.locator("button[data-tx]", has_text="Uber").first.click()
+    painel = page.locator("#dlg-tx")
+    expect(painel).to_be_visible()
+    expect(painel).to_contain_text("Uber")
+    painel.get_by_label("Trocar a categoria").select_option("Lazer")
+    painel.get_by_role("button", name="Salvar").click()
     expect(_aviso(page)).to_contain_text("Categoria alterada para Lazer.")
-    expect(page.locator("#tx tbody tr", has_text="Uber").first.locator("select[name=category]")).to_have_value("Lazer")
+    expect(page.locator("button[data-tx]", has_text="Uber").first).to_contain_text("Lazer")
 
 
-def test_busca_da_tabela_filtra_sem_recarregar(page: Page):
-    page.goto("/contas#movimentacoes")
-    page.get_by_label("Buscar movimentações").fill("anthropic")
-    visiveis = page.locator("#tx tbody tr:visible")
+def test_ultimo_lancamento_do_inicio_abre_o_painel(page: Page):
+    page.goto("/")
+    page.locator("a.row[href*='/contas/lancamentos#tx-']").first.click()
+    expect(page).to_have_url(re.compile(r"/contas/lancamentos#tx-\d+$"))
+    expect(page.locator("#dlg-tx")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("#dlg-tx")).to_be_hidden()
+
+
+def test_busca_da_lista_filtra_sem_recarregar(page: Page):
+    page.goto("/contas/lancamentos")
+    page.get_by_label("Buscar lançamentos").fill("anthropic")
+    visiveis = page.locator("#tx [data-row]:visible")
     expect(visiveis.first).to_contain_text("Anthropic")
     assert all("Anthropic" in t for t in visiveis.all_inner_texts())
+    expect(page.locator("[data-count-for=tx]")).not_to_contain_text("150")
+
+
+def test_nova_meta_de_gasto_pelo_dialogo(aceitar_confirmacoes: Page):
+    page = aceitar_confirmacoes
+    page.goto("/contas/orcamento")
+    page.get_by_role("button", name="Nova meta").click()
+    dialogo = page.locator("#dlg-nova-meta")
+    dialogo.get_by_label("Nome").fill("Meta E2E")
+    dialogo.get_by_label("Limite por mês (R$)").fill("321")
+    dialogo.get_by_label("Educação").check()
+    dialogo.get_by_role("button", name="Criar meta").click()
+    expect(_aviso(page)).to_contain_text('Meta "Meta E2E" salva')
+    page.locator("details.fold summary", has_text="Todas as metas").click()
+    page.locator("button.row", has_text="Meta E2E").click()
+    page.locator("dialog[open]").get_by_role("button", name="Excluir meta").click()
+    expect(_aviso(page)).to_contain_text("Meta de gasto excluída.")
 
 
 def test_metas_do_titular_e_da_casa(page: Page):
     page.goto("/metas")
+    page.get_by_role("button", name="Editar metas").click()
     expect(page.get_by_label("Renda fixa (%)")).to_have_value("40")
-    page.locator(".member-switch").get_by_role("button", name="Marina").click()
-    expect(page.get_by_role("heading", name="Definir metas de Marina")).to_be_visible()
+    page.keyboard.press("Escape")
+    _titular(page, "Marina")
     expect(page.locator("main")).to_contain_text("Marina tem metas próprias")
+    page.get_by_role("button", name="Editar metas").click()
+    expect(page.get_by_role("heading", name="Definir metas de Marina")).to_be_visible()
     page.get_by_label("Renda fixa (%)").fill("70")
     page.get_by_label("Renda variável (%)").fill("30")
     page.get_by_role("button", name="Salvar metas").click()
     expect(_aviso(page)).to_contain_text("Metas de Marina salvas.")
+    page.get_by_role("button", name="Editar metas").click()
     expect(page.get_by_label("Renda fixa (%)")).to_have_value("70")
 
     page.get_by_role("button", name="Usar as metas da casa").click()
     expect(_aviso(page)).to_contain_text("voltou a usar as metas da casa")
     expect(page.locator("main")).to_contain_text("Marina ainda usa as metas da casa")
+    page.get_by_role("button", name="Editar metas").click()
     expect(page.get_by_label("Renda fixa (%)")).to_have_value("40")
-    page.locator(".member-switch").get_by_role("button", name="Casa").click()
+    page.keyboard.press("Escape")
+    _titular(page, "Casa")
+    page.get_by_role("button", name="Editar metas").click()
     expect(page.get_by_role("heading", name="Definir metas da casa")).to_be_visible()
+
+
+def test_categoria_nova_com_icone(aceitar_confirmacoes: Page):
+    page = aceitar_confirmacoes
+    page.goto("/configuracoes#categorias")
+    page.get_by_role("button", name="Nova categoria").click()
+    dialogo = page.locator("#dlg-cat-nova")
+    dialogo.get_by_label("Nome").fill("Café E2E")
+    dialogo.locator("label[title=coffee]").click()
+    dialogo.get_by_role("button", name="Criar categoria").click()
+    expect(_aviso(page)).to_contain_text("Categoria Café E2E criada.")
+    icone = page.locator("#categorias .set-row-main", has_text="Café E2E").locator("use")
+    expect(icone).to_have_attribute("href", "/static/icons.svg#i-coffee")
+    page.get_by_role("button", name="Editar a categoria Café E2E").click()
+    page.locator("dialog[open]").get_by_role("button", name="Excluir categoria").click()
+    expect(_aviso(page)).to_contain_text("Categoria Café E2E excluída.")
+
+
+# ---------------------------------------------------------------- preferências de interface
+
+def test_modo_discreto_esconde_os_valores_e_fica_guardado(page: Page):
+    page.goto("/")
+    html = page.locator("html")
+    olho = page.get_by_role("button", name="Esconder valores")
+    olho.click()
+    expect(html).to_have_attribute("data-discreto", "")
+    expect(page.locator(".hero-value.money")).to_have_css("filter", re.compile("blur"))
+    page.goto("/contas")
+    expect(html).to_have_attribute("data-discreto", "")
+    page.get_by_role("button", name="Mostrar valores").click()
+    expect(html).not_to_have_attribute("data-discreto", "")
+
+
+def test_menu_recolhido_fica_guardado(page: Page):
+    page.goto("/")
+    page.get_by_role("button", name="Recolher o menu").click()
+    expect(page.locator("html")).to_have_attribute("data-nav", "mini")
+    expect(page.locator(".sidebar .nav-text").first).to_be_hidden()
+    page.reload()
+    expect(page.locator("html")).to_have_attribute("data-nav", "mini")
+    page.get_by_role("button", name="Abrir o menu").click()
+    expect(page.locator(".sidebar .nav-text").first).to_be_visible()
+
+
+def test_tema_claro_pelas_configuracoes(page: Page):
+    page.goto("/configuracoes#aparencia")
+    page.locator("#aparencia label", has_text="Claro").click()
+    expect(_aviso(page)).to_contain_text("Configurações salvas.")
+    expect(page.locator("html")).to_have_attribute("data-theme", "light")
+    page.locator("#aparencia label", has_text="Escuro").click()
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
 
 
 # ---------------------------------------------------------------- conectar à IA
@@ -245,23 +385,34 @@ def test_interruptor_salva_sozinho(page: Page):
     expect(page.locator("#update_check")).to_be_checked(checked=antes)
 
 
+def test_sino_lista_as_pendencias(page: Page, base_url):
+    page.goto("/")
+    page.get_by_role("button", name=re.compile("^Pendências")).click()
+    menu = page.locator("#pop-inbox")
+    expect(menu).to_be_visible()
+    expect(menu).to_contain_text("na conciliação")
+    menu.get_by_role("link", name="Ver todas as pendências").click()
+    expect(page).to_have_url(base_url + "/conciliacao")
+    expect(page.locator("h1")).to_have_text("Pendências")
+
+
 # ---------------------------------------------------------------- dados em todas as telas
 
-@pytest.mark.parametrize("caminho", [c for _, c in MENU])
+@pytest.mark.parametrize("caminho", PAGINAS)
 def test_nenhum_grafico_vazio(page: Page, caminho):
     """O servidor de teste usa os dados da demonstração: todo gráfico tem o que desenhar."""
     page.goto(caminho)
     expect(page.locator(".chart-empty")).to_have_count(0)
 
 
-def test_ver_demonstracao_pela_visao_geral(aceitar_confirmacoes: Page, base_url):
+def test_ver_demonstracao_pelas_configuracoes(aceitar_confirmacoes: Page, base_url):
     page = aceitar_confirmacoes
-    page.goto("/")
+    page.goto("/configuracoes")
     page.get_by_role("button", name="Ver demonstração").click()
     faixa = page.locator(".demo-banner")
     expect(faixa).to_contain_text("Demonstração · dados fictícios")
     expect(page.locator("h1")).to_have_text("Olá, Lucas!")
-    for _, caminho in MENU:
+    for caminho in PAGINAS:
         page.goto(caminho)
         expect(faixa).to_be_visible()
         expect(page.locator(".chart-empty")).to_have_count(0)
@@ -275,19 +426,33 @@ def test_ver_demonstracao_pela_visao_geral(aceitar_confirmacoes: Page, base_url)
     expect(_aviso(page)).to_contain_text("Demonstração recomeçada")
     expect(page.locator(".member-switch")).not_to_contain_text("Visitante")
 
-    page.get_by_role("button", name="Open Finance").click()
-    expect(_aviso(page)).to_contain_text("Na demonstração, sincronizar o Open Finance fica desligado")
+    page.get_by_role("button", name="Sincronizar").click()
+    expect(_aviso(page)).to_contain_text("Na demonstração, sincronizar fica desligado")
 
     faixa.get_by_role("button", name="Sair da demo").click()
     expect(page.locator(".demo-banner")).to_have_count(0)
+    page.goto("/configuracoes")
     expect(page.get_by_role("button", name="Ver demonstração")).to_be_visible()
 
 
 # ---------------------------------------------------------------- celular
 
-@pytest.mark.parametrize("caminho", [c for _, c in MENU])
+@pytest.mark.parametrize("caminho", PAGINAS)
 def test_celular_sem_rolagem_horizontal(page: Page, caminho):
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(caminho)
     largura = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
     assert largura <= 1, f"{caminho} passa {largura}px da largura do celular"
+
+
+def test_celular_tem_a_barra_de_abas(page: Page, base_url):
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto("/")
+    expect(page.locator(".sidebar")).to_be_hidden()
+    barra = page.locator("nav.tabbar")
+    expect(barra).to_be_visible()
+    barra.get_by_role("link", name="Gastos").click()
+    expect(page).to_have_url(base_url + "/contas")
+    barra.get_by_role("button", name="Mais opções").click()
+    page.locator("#pop-more").get_by_role("link", name=re.compile("Configurações")).click()
+    expect(page).to_have_url(base_url + "/configuracoes")

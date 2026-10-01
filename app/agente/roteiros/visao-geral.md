@@ -52,12 +52,12 @@ relatório está em `tabimoney://docs/modelo-relatorio-trimestral`, e os exemplo
 
 ## Onde o usuário vê o resultado
 
-- **Ações e FIIs**: fundamentos e avisos.
+- **Investimentos › Ações e FIIs**: fundamentos e avisos (os avisos também no sino, em Pendências).
 - **Página de cada ativo**: a análise mais recente completa e o histórico.
-- **Recomendações**: mudanças sugeridas e carteiras-modelo.
+- **Sugestões**: recomendações do orçamento, mudanças sugeridas na carteira e carteiras-modelo.
 - **Análises**: todos os relatórios.
-- **Metas**: balanço e plano de aporte.
-- **Conta e cartão**: orçamento do mês, gastos e regras.
+- **Investimentos › Metas**: balanço e plano de aporte.
+- **Gastos**: resumo do mês, lançamentos e orçamento. Regras e categorias ficam em **Configurações**.
 
 Ao terminar, diga ao usuário onde olhar.
 

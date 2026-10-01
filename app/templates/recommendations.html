@@ -1,152 +1,125 @@
 {% extends "base.html" %}
-{% from "_ui.html" import badge %}
-{% block title %}Recomendações{% endblock %}
+{% from "_ui.html" import icon, chip, badge, drawer, empty %}
+{% block title %}Sugestões{% endblock %}
 {% macro weight(v) %}{{ v|pct(1, False) if v is not none else "—" }}{% endmacro %}
+{% set action_label = {"criar": "Criar meta", "ajustar": "Ajustar meta", "manter": "Manter", "remover": "Remover meta", "economizar": "Economizar"} %}
+{% set action_icon = {"criar": "plus", "ajustar": "sliders-horizontal", "manter": "check", "remover": "trash-2", "economizar": "piggy-bank"} %}
+{% set trade_icon = {"comprar": "plus", "aumentar": "arrow-up-right", "incluir": "plus", "manter": "check", "reduzir": "arrow-down-right", "vender": "arrow-down-right"} %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Recomendações</h1><div class="sub">Orçamento do mês e carteira do trimestre, pelo agente de IA, a partir do que você já tem e das suas metas</div></div>
-  <div class="actions"><a class="btn" href="/analises">Todas as análises</a><a class="btn" href="/metas">Metas</a></div>
+  <div><h1>Sugestões</h1><div class="sub">O que a IA recomenda a partir dos seus dados e das suas metas. Sugestões, não ordens.</div></div>
+  <div class="actions"><a class="btn btn-ghost" href="/analises">{{ icon("file-text") }}Todas as análises</a></div>
 </div>
 
-{% set action_label = {"criar": "Criar meta", "ajustar": "Ajustar meta", "manter": "Manter", "remover": "Remover meta", "economizar": "Economizar"} %}
-<section class="card card-flush budget-card" id="orcamento">
-  <div class="card-head">
-    <h2 class="card-title">Orçamento e gastos{% if advice %} <span class="card-note">{{ advice.period|month_label }} · {{ advice.author }}{% if advice.model %} ({{ advice.model }}){% endif %} · {{ advice.created_at|date_br }}</span>{% endif %}</h2>
-    <a class="link" href="/contas#orcamento">Ver orçamento do mês</a>
-  </div>
+{# ---------------------------------------------------------------- orçamento #}
+<section id="orcamento">
+  <h2 class="section-title first"><span class="title-with-icon"><span class="row-icon tone-up">{{ icon("wallet") }}</span><span>Orçamento{% if advice %} <span class="card-note">{{ advice.period|month_label }} · {{ advice.author }}{% if advice.model %} ({{ advice.model }}){% endif %}</span>{% endif %}</span></span>
+    <a class="link" href="/contas/orcamento">Ver orçamento {{ icon("arrow-right") }}</a></h2>
   {% if advice %}
-  <div class="card-body-pad">
-    <p><b>{{ advice.title }}</b>{% if advice.expected_monthly_savings_cents %} · <span class="up">economia estimada de {{ advice.expected_monthly_savings_cents|brl_whole }} por mês</span>{% endif %}</p>
+  <div class="insight-lead">
+    <p class="strong">{{ advice.title }}{% if advice.expected_monthly_savings_cents %} {{ chip("economia de " ~ advice.expected_monthly_savings_cents|brl_whole ~ "/mês", "up") }}{% endif %}</p>
     {% if advice.summary %}<p class="text-2">{{ advice.summary }}</p>{% endif %}
-    {% if advice.body_md %}<details class="more"><summary>Diagnóstico completo</summary>{{ advice.body_md|md }}</details>{% endif %}
+    {% if advice.body_md %}<button class="btn btn-ghost btn-sm" type="button" data-dialog="dlg-diagnostico">{{ icon("file-text") }}Diagnóstico completo</button>{% endif %}
   </div>
-  {% if advice["items"] %}
-  <div class="table-wrap">
-    <table class="data">
-      <thead><tr><th>Prioridade</th><th>Sugestão</th><th class="num">Hoje</th><th class="num">Sugerido</th><th class="num">Economia/mês</th><th>Por quê</th><th></th></tr></thead>
-      <tbody>
-      {% for i in advice["items"] %}
-        <tr>
-          <td>{{ badge({1: 'err', 2: 'warn', 3: 'neutral'}.get(i.priority, 'neutral'), {1: 'Alta', 2: 'Média', 3: 'Baixa'}.get(i.priority, '—')) }}</td>
-          <td><b>{{ action_label[i.action] }}</b>{% if i.budget_name %}<small class="muted cell-sub">{{ i.budget_name }}{% if i.show_categories %} · {{ i.categories|join(", ") }}{% endif %}</small>{% endif %}</td>
-          <td class="num">{{ i.before|brl_whole if i.before else "—" }}</td>
-          <td class="num">{{ i.suggested_limit_cents|brl_whole if i.suggested_limit_cents else "—" }}</td>
-          <td class="num up">{{ i.expected_monthly_savings_cents|brl_whole if i.expected_monthly_savings_cents else "—" }}</td>
-          <td class="footnote">{{ i.rationale or "" }}</td>
-          <td>{% if i.applicable %}
-            <form method="post" action="/orcamento/aplicar">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <input type="hidden" name="item_id" value="{{ i.id }}">
-              <input type="hidden" name="back" value="/recomendacoes#orcamento">
-              <button class="btn btn-sm" type="submit">Aplicar</button>
-            </form>{% elif i.applied_at %}<small class="muted">aplicada</small>{% endif %}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-  {% if advice_history|length > 1 %}
-  <p class="footnote">Meses anteriores: {% for h in advice_history[1:6] %}{{ h.period|month_label }} ({{ h["items"] }} sugestões){{ ", " if not loop.last }}{% endfor %}.</p>
-  {% endif %}
-  {% else %}
-  <div class="card-body-pad">
-    <p class="muted">O agente ainda não analisou seu orçamento. Peça ao Claude "analise meus gastos e metas de gastos" (skill <code>financas-orcamento</code>).
-      Ele cruza seus gastos com as metas e sugere cortes, ajustes e metas novas, que você aplica com um clique.
-      {% if budget["items"] %}Hoje: {{ budget.total_spent|brl_whole }} de {{ budget.total_limit|brl_whole }} no mês{% if budget.at_risk %}, {{ budget.at_risk }} meta(s) em risco{% endif %}.{% endif %}</p>
-  </div>
-  {% endif %}
-</section>
-
-{% if not current %}
-<div class="card empty">
-  <h2>Nenhuma recomendação ainda</h2>
-  <p>O agente de IA grava aqui depois da análise trimestral, com <code>financas recomendacoes importar arquivo.json</code>.
-     Peça ao Claude: "faça as recomendações trimestrais da minha carteira" (skill <code>financas-recomendacoes</code>).</p>
-</div>
-{% else %}
-<section class="card">
-  <div class="card-head">
-    <h2 class="card-title">{{ current.title }} <span class="card-note">{{ current.period }} · {{ current.author }}{% if current.model %} ({{ current.model }}){% endif %} · {{ current.created_at|date_br }}</span></h2>
-  </div>
-  {% if current.summary %}<p><b>{{ current.summary }}</b></p>{% endif %}
-  {% if current.body_md %}
-  <details class="more" {% if not current.changes and not current.portfolios %}open{% endif %}>
-    <summary>Tese completa</summary>
-    {{ current.body_md|md }}
-  </details>
-  {% endif %}
-  {% if snap.alerts %}<p class="footnote">Metas agora: {% for a in snap.alerts %}{{ a.message }}{{ " · " if not loop.last }}{% endfor %}</p>{% endif %}
-</section>
-
-{% if current.changes %}
-<section class="card card-flush">
-  <div class="card-head"><h2 class="card-title">Mudanças sugeridas na sua carteira</h2></div>
-  <div class="table-wrap">
-    <table class="data">
-      <thead><tr><th>Ação</th><th>Ativo</th><th class="num">Peso hoje</th><th class="num">Peso sugerido</th><th class="num">Convicção</th><th class="num">Preço justo</th><th>Por quê</th></tr></thead>
-      <tbody>
-      {% for i in current.changes %}
-        <tr>
-          <td class="action-{{ i.action }}"><b>{{ labels[i.action] }}</b></td>
-          <td>{% if i.ticker in held %}<a class="link" href="/ativo/{{ i.ticker }}"><b>{{ i.ticker }}</b></a>{% else %}<b>{{ i.ticker or "" }}</b>{% endif %}
-            <small class="muted">{{ i.name or "" }}{% if i.asset_class %} · {{ i.asset_class }}{% endif %}{% if i.region %} · {{ i.region }}{% endif %}</small></td>
-          <td class="num">{{ weight(weights.get(i.ticker)) if i.ticker in weights else "—" }}</td>
-          <td class="num">{{ weight(i.target_weight) }}</td>
-          <td class="num">{{ ("●" * i.conviction) if i.conviction else "—" }}</td>
-          <td class="num">{{ i.fair_price_cents|brl if i.fair_price_cents else "—" }}</td>
-          <td class="footnote">{{ i.rationale or "" }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <p class="footnote">Pesos de ações e FIIs sobre a renda variável. Sugestões, não ordens: confira com as suas metas antes de operar.</p>
-</section>
-{% endif %}
-
-{% if current.portfolios %}
-<section class="grid">
-  {% for p in current.portfolios %}
-  <article class="card span-6 portfolio-card">
-    <div class="card-head">
-      <h2 class="card-title">{{ p.name }}{% if p.risk_profile %} <span class="card-note">{{ p.risk_profile }}</span>{% endif %}</h2>
-      <span class="card-note">você já tem {{ p.compare.overlap|pct(0, False) }}</span>
-    </div>
-    {% if p.description %}<p>{{ p.description }}</p>{% endif %}
-    <div class="table-wrap">
-      <table class="data">
-        <thead><tr><th>Ativo</th><th class="num">Peso</th><th class="num">Seu peso</th><th>Por quê</th></tr></thead>
-        <tbody>
-        {% for i in p["items"] %}
-          <tr>
-            <td>{% if i.ticker in held %}<a class="link" href="/ativo/{{ i.ticker }}"><b>{{ i.ticker }}</b></a>{% else %}<b>{{ i.ticker or i.name }}</b>{% endif %}<small class="muted">{% if i.ticker and i.name %} {{ i.name }}{% endif %}{% if i.asset_class %} · {{ i.asset_class }}{% endif %}</small></td>
-            <td class="num">{{ weight(i.target_weight) }}</td>
-            <td class="num text-2">{{ weight(weights.get(i.ticker)) if i.ticker in weights else "—" }}</td>
-            <td class="footnote">{{ i.rationale or "" }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% if p.compare.missing %}<p class="footnote">Fora da sua carteira: {{ p.compare.missing|join(", ") }}.</p>{% endif %}
-    {% if p.rationale_md %}<details class="more"><summary>Racional</summary>{{ p.rationale_md|md }}</details>{% endif %}
-  </article>
-  {% endfor %}
-</section>
-{% endif %}
-{% endif %}
-
-{% if history|length > 1 or (history and not current) %}
-<section class="card card-flush">
-  <div class="card-head"><h2 class="card-title">Histórico de recomendações</h2></div>
-  <div class="list">
-    {% for h in history %}
-    <a class="list-row{% if current and h.id == current.id %} is-current{% endif %}" href="/recomendacoes?id={{ h.id }}">
-      <span>{{ h.period }} · {{ h.title }}<small>{{ h.author }} · {{ h.created_at|date_br }} · {{ h.changes }} mudança(s), {{ h.portfolios }} carteira(s)</small></span>
-    </a>
+  <div class="suggestions">
+    {% for i in advice["items"] %}
+    <article class="suggestion">
+      <div class="suggestion-head">
+        <span class="row-icon tone-up">{{ icon(action_icon.get(i.action, "sparkles")) }}</span>
+        <div><b>{{ action_label[i.action] }}{% if i.budget_name %} · {{ i.budget_name }}{% endif %}</b>
+          <small>{% if i.suggested_limit_cents %}{{ i.before|brl_whole if i.before else "nova" }} → {{ i.suggested_limit_cents|brl_whole }}/mês{% elif i.show_categories %}{{ i.categories|join(", ") }}{% else %}{{ {1: "Prioridade alta", 2: "Prioridade média", 3: "Prioridade baixa"}.get(i.priority, "") }}{% endif %}</small></div>
+      </div>
+      {% if i.rationale %}<p>{{ i.rationale }}</p>{% endif %}
+      <div class="suggestion-foot">
+        {% if i.expected_monthly_savings_cents %}{{ chip("−" ~ i.expected_monthly_savings_cents|brl_whole ~ "/mês", "up") }}{% elif i.priority == 1 %}{{ chip("Prioridade alta", "warn") }}{% else %}<span></span>{% endif %}
+        {% if i.applicable %}
+        <form method="post" action="/orcamento/aplicar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="item_id" value="{{ i.id }}">
+          <input type="hidden" name="back" value="/recomendacoes#orcamento">
+          <button class="btn btn-sm" type="submit">Aplicar</button>
+        </form>
+        {% elif i.applied_at %}{{ chip("Aplicada", "", "check") }}{% endif %}
+      </div>
+    </article>
     {% endfor %}
   </div>
+  {% if advice_history|length > 1 %}<p class="footnote">Meses anteriores: {% for h in advice_history[1:6] %}{{ h.period|month_label }} ({{ h["items"]|plural("sugestão", "sugestões") }}){{ ", " if not loop.last }}{% endfor %}.</p>{% endif %}
+  {% call drawer("diagnostico", "Diagnóstico do orçamento") %}<div class="md">{{ advice.body_md|md }}</div>{% endcall %}
+  {% else %}
+  <div class="card">{{ empty("sparkles", "A IA ainda não analisou seu orçamento. Peça ao agente: \"analise meus gastos e metas de gastos\". As sugestões aparecem aqui, prontas para aplicar.") }}</div>
+  {% endif %}
 </section>
-{% endif %}
+
+{# ---------------------------------------------------------------- carteira #}
+<section id="carteira">
+  <h2 class="section-title"><span class="title-with-icon"><span class="row-icon tone-up">{{ icon("trending-up") }}</span><span>Carteira{% if current %} <span class="card-note">{{ current.period }} · {{ current.author }}{% if current.model %} ({{ current.model }}){% endif %}</span>{% endif %}</span></span>
+    <a class="link" href="/metas">Ver metas {{ icon("arrow-right") }}</a></h2>
+  {% if not current %}
+  <div class="card">{{ empty("sparkles", "Nenhuma recomendação da carteira ainda. Peça ao agente: \"faça as recomendações trimestrais da minha carteira\".") }}</div>
+  {% else %}
+  <div class="insight-lead">
+    <p class="strong">{{ current.title }}</p>
+    {% if current.summary %}<p class="text-2">{{ current.summary }}</p>{% endif %}
+    <div class="actions">
+      {% if current.body_md %}<button class="btn btn-ghost btn-sm" type="button" data-dialog="dlg-tese">{{ icon("file-text") }}Tese completa</button>{% endif %}
+      {% for a in snap.alerts[:2] %}{{ chip(a.message, "warn") }}{% endfor %}
+    </div>
+  </div>
+  {% if current.changes %}
+  <div class="suggestions">
+    {% for i in current.changes %}
+    <article class="suggestion">
+      <div class="suggestion-head">
+        <span class="row-icon {{ 'tone-up' if i.action in ('comprar', 'aumentar', 'incluir') else 'tone-down' if i.action in ('reduzir', 'vender') else '' }}">{{ icon(trade_icon.get(i.action, "sparkles")) }}</span>
+        <div><b class="action-{{ i.action }}">{{ labels[i.action] }}</b> <b>{% if i.ticker in held %}<a href="/ativo/{{ i.ticker }}">{{ i.ticker }}</a>{% else %}{{ i.ticker or i.name }}{% endif %}</b>
+          <small>{{ i.name or "" }}{% if i.asset_class %} · {{ i.asset_class }}{% endif %}{% if i.region %} · {{ i.region }}{% endif %}</small></div>
+      </div>
+      {% if i.rationale %}<p>{{ i.rationale }}</p>{% endif %}
+      <div class="suggestion-foot">
+        {{ chip((weight(weights.get(i.ticker)) if i.ticker in weights else "0%") ~ " → " ~ weight(i.target_weight), "") }}
+        {% if i.fair_price_cents %}<span class="muted">preço justo {{ i.fair_price_cents|brl }}</span>{% endif %}
+        {% if i.conviction %}<span class="conviction" title="Convicção {{ i.conviction }} de 5">{{ "●" * i.conviction }}{{ "○" * (5 - i.conviction) if i.conviction < 5 else "" }}</span>{% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  <p class="footnote">Pesos de ações e FIIs sobre a renda variável. Confira com as suas metas antes de operar.</p>
+  {% endif %}
+  {% call drawer("tese", current.title) %}<div class="md">{{ current.body_md|md }}</div>{% endcall %}
+
+  {% for p in current.portfolios %}
+  <details class="fold">
+    <summary>Carteira-modelo: {{ p.name }} <small>{% if p.risk_profile %}{{ p.risk_profile }} · {% endif %}você já tem {{ p.compare.overlap|pct(0, False) }}</small></summary>
+    <div class="fold-body">
+      {% if p.description %}<p class="text-2">{{ p.description }}</p>{% endif %}
+      <div class="rows">
+        {% for i in p["items"] %}
+        <div class="row">
+          <span class="row-icon">{{ (i.ticker or i.name)[:4] }}</span>
+          <span class="row-main"><span class="row-title">{% if i.ticker in held %}<a href="/ativo/{{ i.ticker }}">{{ i.ticker }}</a>{% else %}{{ i.ticker or i.name }}{% endif %}{% if i.ticker and i.name %} <span class="muted">{{ i.name }}</span>{% endif %}</span><span class="row-sub">{{ i.rationale or i.asset_class or "" }}</span></span>
+          <span class="row-end"><b>{{ weight(i.target_weight) }}</b><small>você: {{ weight(weights.get(i.ticker)) if i.ticker in weights else "—" }}</small></span>
+        </div>
+        {% endfor %}
+      </div>
+      {% if p.compare.missing %}<p class="footnote">Fora da sua carteira: {{ p.compare.missing|join(", ") }}.</p>{% endif %}
+      {% if p.rationale_md %}<details class="more"><summary>Racional</summary><div class="md">{{ p.rationale_md|md }}</div></details>{% endif %}
+    </div>
+  </details>
+  {% endfor %}
+  {% endif %}
+
+  {% if history|length > 1 or (history and not current) %}
+  <details class="fold">
+    <summary>Histórico de recomendações <small>{{ history|length|plural("trimestre", "trimestres") }}</small></summary>
+    <div class="fold-body rows">
+      {% for h in history %}
+      <a class="row" href="/recomendacoes?id={{ h.id }}#carteira">
+        <span class="row-main"><span class="row-title">{{ h.period }} · {{ h.title }}{% if current and h.id == current.id %} {{ chip("aberta") }}{% endif %}</span><span class="row-sub">{{ h.author }} · {{ h.created_at|date_br }} · {{ h.changes|plural("mudança", "mudanças") }}, {{ h.portfolios|plural("carteira", "carteiras") }}</span></span>
+      </a>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+</section>
 {% endblock %}

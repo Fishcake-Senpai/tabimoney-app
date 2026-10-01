@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, gastos_tabs %}
+{% from "_transactions.html" import tx_rows, tx_drawer with context %}
+{% block title %}Lançamentos{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Gastos</h1></div></div>
+{{ gastos_tabs("lancamentos") }}
+
+{% if not transactions %}
+<div class="card empty">
+  <h2>Nenhum lançamento</h2>
+  <p>Importe o extrato da conta e a fatura do cartão, ou conecte o Open Finance.</p>
+  <div class="actions"><a class="btn btn-primary" href="/importar">Importar</a></div>
+</div>
+{% else %}
+<div class="toolbar list-toolbar">
+  <label class="search">{{ icon("search") }}<input type="search" placeholder="Buscar" data-filter="tx" aria-label="Buscar lançamentos"></label>
+  <select class="pill" data-filter-for="tx" aria-label="Categoria">
+    <option value="">Todas as categorias</option>
+    {% for c in transactions|map(attribute="category")|reject("none")|unique|sort %}<option>{{ c }}</option>{% endfor %}
+  </select>
+  <span class="card-note" data-count-for="tx">{{ transactions|length|plural("lançamento", "lançamentos") }}</span>
+</div>
+
+<section class="card card-flush">
+  <div class="rows" id="tx" data-rows>
+    {{ tx_rows(transactions) }}
+  </div>
+  {% if total > transactions|length %}<div class="card-foot"><a class="link" href="/contas/lancamentos?todos=1">Ver os mais antigos ({{ total - transactions|length }}) {{ icon("chevron-down") }}</a></div>{% endif %}
+</section>
+
+{{ tx_drawer(category_options, '/contas/lancamentos') }}
+{% endif %}
+{% endblock %}

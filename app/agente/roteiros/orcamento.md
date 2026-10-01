@@ -6,7 +6,7 @@ descricao: Analisa os gastos junto com as metas de gastos (orçamento mensal por
 # Análise orçamentária
 
 O resultado é um conjunto de recomendações do mês, gravado com `orcamento_importar_recomendacoes`. Ele aparece em
-**Recomendações** e no bloco **Orçamento do mês** de Conta e cartão, com botão "Aplicar" para criar, ajustar ou
+**Sugestões** e na aba **Gastos › Orçamento**, com botão "Aplicar" para criar, ajustar ou
 remover metas. **Não mude metas diretamente:** quem decide é o usuário, pelo botão.
 
 ## Passos
@@ -36,7 +36,7 @@ remover metas. **Não mude metas diretamente:** quem decide é o usuário, pelo 
 7. **Responda ao usuário** com:
    - como está o mês (gasto × orçamento, quanto cabe por dia);
    - as 3 sugestões principais, com a economia estimada;
-   - onde aplicar: **Conta e cartão → Orçamento do mês** ou **Recomendações**.
+   - onde aplicar: **Gastos › Orçamento** ou **Sugestões**.
 
 ## Formato dos itens
 

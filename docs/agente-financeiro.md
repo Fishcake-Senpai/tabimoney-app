@@ -257,7 +257,7 @@ Um conjunto por trimestre (exemplo em `docs/agentes/exemplos/recomendacoes.json`
 
 As regras de cálculo:
 
-- **Gasto:** o mesmo de Conta e cartão (saídas menos estornos, sem movimentos internos).
+- **Gasto:** o mesmo da tela Gastos (saídas menos estornos, sem movimentos internos).
 - **Categorias:** cada uma pertence a no máximo uma meta. A meta com `"*"` (`--total`) acompanha todos os gastos do mês.
 - **Situação da meta:**
   - `estourou`: o gasto passou do limite;

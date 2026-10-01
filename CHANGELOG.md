@@ -11,6 +11,43 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Alterado
+- Interface nova, com cara de aplicativo: um número grande por tela (o patrimônio, o gasto do mês, o total
+  investido), três números de apoio e o detalhe a um clique. Cards sem borda, ícones em toda parte, o verde só para
+  o que subiu e para a ação principal, e as explicações longas no **?** ao lado de cada título. Guia de design em
+  `docs/superpowers/specs/2026-09-30-revamp-ui.md`.
+- Menu com quatro destinos: **Início**, **Gastos**, **Investimentos** e **Sugestões**, mais Configurações no
+  rodapé. O menu recolhe para só ícones e lembra a escolha.
+- Barra do topo em todas as telas: seletor de titular (Casa ou uma pessoa), o olho que esconde os valores, um botão
+  **Sincronizar** só (Open Finance e mercado, com o tempo desde a última vez), o sino com o que pede atenção e
+  **Importar**. O aviso de versão nova foi para o sino.
+- **Início**: patrimônio com a evolução do total (ou por classe), gastos do mês contra o orçamento, investimentos,
+  saldo em conta, os últimos lançamentos e o que pede atenção. Na base vazia, boas-vindas com os primeiros passos.
+- **Gastos** (antes Conta e cartão) em três abas: **Resumo** (gasto do mês com seletor de mês, por categoria, o que
+  mudou, contas e cartões; a tabela mês a mês abre num botão), **Lançamentos** (lista por dia; clicar abre um painel
+  para trocar a categoria e, marcando *Usar sempre*, criar a regra ali mesmo) e **Orçamento** (metas em cards,
+  criação e edição em janela, sugestões da IA prontas para aplicar).
+- **Investimentos** reúne Ações e FIIs, Renda fixa, Previdência, Proventos (antes Proventos e CDI) e Metas em abas,
+  com um **Resumo** novo: total investido, evolução, alocação contra as metas, onde aportar e as maiores variações.
+- Ações e FIIs mostra 6 colunas nas posições (**Mais colunas** traz o resto e lembra a escolha) e alterna entre
+  Posições e Fundamentos. A página de cada ativo ganhou abas (Visão geral, Fundamentos, Resultados, Análises e
+  Eventos). Risco, capital aplicado e rentabilidade mês a mês ficam em **Mais números**.
+- **Sugestões** (antes Recomendações) virou um feed de cards: as do orçamento com **Aplicar**, as da carteira com o
+  peso de hoje e o sugerido; a tese completa abre num painel e as carteiras-modelo ficam recolhidas.
+- **Pendências** (antes Conciliação, pelo sino) junta divergências, transferências sem par e os avisos dos ativos.
+- Categorias e regras saíram de Gastos para **Configurações › Categorias** e **› Regras**; backup e restauração, de
+  Importar para **Configurações › Dados e backup**. **Ver demonstração** fica em Configurações › Geral e nas
+  boas-vindas.
+- Avisos depois de salvar viram toasts no canto, que somem sozinhos (os de erro ficam até o clique).
+- No celular, barra de abas embaixo, com **Mais** para Importar, Pendências e Configurações.
+- Manual de conexões atualizado para a barra do topo e as Configurações novas.
+
+### Adicionado
+- **Configurações › Aparência**: tema escuro (padrão), claro ou o do sistema, e abrir com os valores escondidos.
+- Modo discreto: o olho da barra do topo borra todo valor em reais, até nos gráficos.
+- Ícone por categoria nas listas; categoria criada por você ganha um ícone escolhido numa grade.
+- Ícones Lucide embutidos (`app/static/icons.svg`, gerado por `packaging/icones.py`), sem depender de internet.
+
 ## [0.13.0] - 2026-09-30
 
 ### Corrigido

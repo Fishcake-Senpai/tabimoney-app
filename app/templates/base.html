@@ -1,116 +1,168 @@
 <!doctype html>
-<html lang="pt-BR">
+{% from "_ui.html" import icon %}
+<html lang="pt-BR" data-tema-padrao="{{ ui.theme }}" data-discreto-padrao="{{ '1' if ui.discreet else '0' }}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#0b0f0e">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="{{ 'light dark' if ui.theme != 'escuro' else 'dark' }}">
+  <meta name="theme-color" content="{{ '#f6f8f7' if ui.theme == 'claro' else '#0b0f0e' }}">
   <meta name="application-name" content="Tabimoney">
   <meta name="description" content="Tabimoney — finanças sérias (mais ou menos).">
-  <title>{% block title %}Visão geral{% endblock %} · Tabimoney</title>
+  <title>{% block title %}Início{% endblock %} · Tabimoney</title>
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/brand/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/brand/favicon-16.png">
   <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
   <link rel="manifest" href="/static/brand/site.webmanifest">
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <script src="/static/boot.js"></script>
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/app.js" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
 {% set path = request.url.path %}
-{% macro navlink(href, label, icon, active) -%}
-  <a href="{{ href }}"{% if active %} aria-current="page"{% endif %}>
-    <svg viewBox="0 0 24 24" aria-hidden="true">{{ icon|safe }}</svg>{{ label }}{{ caller() if caller }}
-  </a>
-{%- endmacro %}
+{% set section = "inicio" if path == "/"
+   else "gastos" if path.startswith("/contas")
+   else "investimentos" if path.startswith(("/investimentos", "/carteira", "/ativo", "/renda-fixa", "/previdencia", "/rendimentos", "/metas"))
+   else "sugestoes" if path.startswith(("/recomendacoes", "/analises"))
+   else "configuracoes" if path.startswith("/configuracoes")
+   else "" %}
+{% set menu = [("inicio", "/", "Início", "house"), ("gastos", "/contas", "Gastos", "wallet"),
+               ("investimentos", "/investimentos", "Investimentos", "trending-up"), ("sugestoes", "/recomendacoes", "Sugestões", "sparkles")] %}
 <div class="shell">
   <aside class="sidebar">
     <a class="brand" href="/" aria-label="Tabimoney — início">
-      <img class="brand-mascot" src="/static/brand/mascote-128.png" alt="" width="40" height="40">
-      <span class="brand-text"><span class="wordmark">Tabi<em>money</em></span><span class="tagline">Finanças sérias (mais ou menos)</span></span>
+      <img class="brand-mascot" src="/static/brand/mascote-128.png" alt="" width="34" height="34">
+      <span class="wordmark">Tabi<em>money</em></span>
     </a>
-    {% if view %}
-    <form method="post" action="/titular" class="member-switch" aria-label="De quem são os números">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="back" value="{{ request.url.path }}">
-      <button type="submit" name="member" value="casa"{% if view.current is none %} aria-pressed="true"{% endif %}>Casa</button>
-      {% for m in view.members %}<button type="submit" name="member" value="{{ m.id }}"{% if view.current == m.id %} aria-pressed="true"{% endif %}>{{ m.name }}</button>{% endfor %}
-    </form>
-    {% endif %}
     <nav class="nav" aria-label="Principal">
-      <div class="nav-label">Análise</div>
-      {{ navlink("/", "Visão geral", '<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>', path == "/") }}
-      {{ navlink("/carteira", "Ações e FIIs", '<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>', path.startswith("/carteira") or path.startswith("/ativo")) }}
-      {{ navlink("/recomendacoes", "Recomendações", '<path d="M12 2l3 6.5 7 .9-5 4.8 1.3 7L12 17.8 5.7 21.2 7 14.2 2 9.4l7-.9z"/>', path.startswith("/recomendacoes") or path.startswith("/analises")) }}
-      {{ navlink("/renda-fixa", "Renda fixa", '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>', path.startswith("/renda-fixa")) }}
-      {{ navlink("/rendimentos", "Proventos e CDI", '<path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>', path.startswith("/rendimentos")) }}
-      {{ navlink("/previdencia", "Previdência", '<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/>', path.startswith("/previdencia")) }}
-      {{ navlink("/metas", "Metas", '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>', path.startswith("/metas")) }}
-      {{ navlink("/contas", "Conta e cartão", '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>', path.startswith("/contas")) }}
-      <div class="nav-label">Dados</div>
-      {{ navlink("/importar", "Importar", '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/>', path.startswith("/importar")) }}
-      {% call navlink("/conciliacao", "Conciliação", '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>', path.startswith("/conciliacao")) %}{% if nav and nav.pending %}<span class="count">{{ nav.pending }}</span>{% endif %}{% endcall %}
-      {{ navlink("/configuracoes", "Configurações", '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>', path.startswith("/configuracoes")) }}
+      {% for key, href, label, ico in menu %}
+      <a href="{{ href }}"{% if section == key %} aria-current="page"{% endif %} title="{{ label }}">{{ icon(ico) }}<span class="nav-text">{{ label }}</span></a>
+      {% endfor %}
     </nav>
-    <div class="sidebar-foot"><span class="dot-live"></span> Local · 127.0.0.1 <span class="version" title="Versão do Tabimoney">v{{ app_version }}</span></div>
-    {% if request.app.state.server is defined %}
-    <form method="post" action="/sistema/encerrar" class="sidebar-quit" data-confirm="Encerrar o Tabimoney? Para abrir de novo, clique no Tabimoney.">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="btn btn-ghost btn-sm">Encerrar o Tabimoney</button>
-    </form>
-    {% endif %}
+    <div class="nav-foot">
+      <nav class="nav" aria-label="Sistema">
+        <a href="/configuracoes"{% if section == "configuracoes" %} aria-current="page"{% endif %} title="Configurações">{{ icon("settings") }}<span class="nav-text">Configurações</span></a>
+      </nav>
+      <button class="collapse-btn" type="button" data-nav-toggle title="Recolher ou abrir o menu">
+        <span class="when-open">{{ icon("panel-left-close") }}</span><span class="when-collapsed">{{ icon("panel-left-open") }}</span><span class="nav-text">Recolher menu</span>
+      </button>
+      {% if request.app.state.server is defined %}
+      <form method="post" action="/sistema/encerrar" class="sidebar-quit" data-confirm="Encerrar o Tabimoney? Para abrir de novo, clique no Tabimoney.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" title="Encerrar o Tabimoney">{{ icon("power") }}<span class="nav-text">Encerrar</span></button>
+      </form>
+      {% endif %}
+      <div class="sidebar-foot"><span class="tagline">Finanças sérias (mais ou menos)</span><span class="version" title="Versão do Tabimoney">v{{ app_version }}</span></div>
+    </div>
   </aside>
-  <main class="main" id="conteudo">
-    {% if demo_mode %}
-    <div class="demo-banner" role="status">
-      <div class="update-text">
-        <b>Demonstração · dados fictícios</b>
-        <small>Um casal inventado para mostrar o app. Seus dados não aparecem aqui e nada do que você fizer na demo chega a eles.</small>
-      </div>
-      <div class="update-actions">
-        <form method="post" action="/demo/recomecar" data-confirm="Recomeçar a demonstração? O que você mudou nela volta ao original.">
+
+  <div class="main-col">
+    <header class="topbar">
+      <a class="topbar-brand" href="/" aria-label="Tabimoney — início"><img src="/static/brand/mascote-128.png" alt="" width="30" height="30"></a>
+      <div class="topbar-spacer"></div>
+      {% if view %}
+      <button class="member-btn{% if view.current is not none %} is-member{% endif %}" type="button" popovertarget="pop-member" title="De quem são os números">
+        <span class="avatar">{{ view.label[:2]|upper if view.current is not none else icon("users-round", "i-sm") }}</span><span class="member-name">{{ view.label }}</span>{{ icon("chevron-down", "i-sm") }}
+      </button>
+      <div class="pop" popover id="pop-member" data-align="end">
+        <div class="pop-title">De quem são os números</div>
+        <form method="post" action="/titular" class="member-switch" aria-label="De quem são os números">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button class="btn btn-ghost btn-sm" type="submit">Recomeçar</button>
-        </form>
-        <form method="post" action="/demo/sair">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button class="btn btn-primary btn-sm" type="submit">Sair da demo</button>
-        </form>
-      </div>
-    </div>
-    {% endif %}
-    {% if update %}
-    <div class="update-banner" role="status">
-      <img src="/static/brand/mascote-128.png" alt="" width="36" height="36">
-      <div class="update-text">
-        <b>Tabimoney {{ update.version }} disponível</b>
-        <small>Você está na {{ update.current }}.
-          {% if update.frozen %}Baixe, substitua o app antigo pelo novo e abra de novo: seus dados ficam.{% else %}Atualize o código com <code>git pull</code> e abra de novo.{% endif %}</small>
-      </div>
-      <div class="update-actions">
-        {% if update.frozen and update.download_url %}<a class="btn btn-primary btn-sm" href="{{ update.download_url }}" target="_blank" rel="noreferrer">Baixar</a>{% endif %}
-        <a class="btn btn-sm" href="{{ update.url }}" target="_blank" rel="noreferrer">Ver novidades</a>
-        <form method="post" action="/atualizacao/dispensar">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="version" value="{{ update.version }}">
           <input type="hidden" name="back" value="{{ request.url.path }}">
-          <button class="btn btn-ghost btn-sm" type="submit" title="Não avisar mais sobre esta versão">Dispensar</button>
+          <button type="submit" name="member" value="casa"{% if view.current is none %} aria-pressed="true"{% endif %}><span class="avatar">{{ icon("users-round", "i-sm") }}</span>Casa</button>
+          {% for m in view.members %}<button type="submit" name="member" value="{{ m.id }}"{% if view.current == m.id %} aria-pressed="true"{% endif %}><span class="avatar">{{ m.name[:2]|upper }}</span>{{ m.name }}</button>{% endfor %}
         </form>
+        {% if view.current is not none %}<p class="member-note">Mostrando só as contas de <b>{{ view.label }}</b>. Metas de gastos continuam sendo da casa.</p>{% endif %}
       </div>
+      {% endif %}
+      <button class="icon-btn discreet-btn" type="button" data-discreet-toggle aria-label="Esconder valores" title="Esconder valores">
+        <span class="when-off">{{ icon("eye") }}</span><span class="when-on">{{ icon("eye-off") }}</span>
+      </button>
+      <form method="post" action="/sincronizar" data-busy="Sincronizando…">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="back" value="{{ request.url.path }}">
+        <button class="sync-btn" type="submit" title="Sincronizar Open Finance e mercado{% if last_sync %} · última vez {{ last_sync }}{% endif %}" aria-label="Sincronizar">
+          {{ icon("refresh-cw") }}<span class="sync-label" data-busy-label>{{ last_sync or "Sincronizar" }}</span>
+        </button>
+      </form>
+      {% set inbox_count = inbox.count + (1 if update else 0) %}
+      <button class="icon-btn" type="button" popovertarget="pop-inbox" aria-label="Pendências{% if inbox_count %}: {{ inbox_count }}{% endif %}" title="Pendências">
+        {{ icon("bell") }}{% if inbox_count %}<span class="dot-badge">{{ inbox_count if inbox_count < 10 else "9+" }}</span>{% endif %}
+      </button>
+      <div class="pop pop-wide" popover id="pop-inbox" data-align="end">
+        <div class="pop-title">Pede sua atenção</div>
+        {% if update %}
+        <div class="update-banner" role="status">
+          <img src="/static/brand/mascote-128.png" alt="" width="32" height="32">
+          <div class="update-text">
+            <b>Tabimoney {{ update.version }} disponível</b>
+            <small>Você está na {{ update.current }}.
+              {% if update.frozen %}Baixe, substitua o app antigo pelo novo e abra de novo: seus dados ficam.{% else %}Atualize o código com <code>git pull</code> e abra de novo.{% endif %}</small>
+            <div class="update-actions">
+              {% if update.frozen and update.download_url %}<a class="btn btn-primary btn-sm" href="{{ update.download_url }}" target="_blank" rel="noreferrer">Baixar</a>{% endif %}
+              <a class="btn btn-sm" href="{{ update.url }}" target="_blank" rel="noreferrer">Novidades</a>
+              <form method="post" action="/atualizacao/dispensar">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="version" value="{{ update.version }}">
+                <input type="hidden" name="back" value="{{ request.url.path }}">
+                <button class="btn btn-ghost btn-sm" type="submit" title="Não avisar mais sobre esta versão">Dispensar</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+        <div class="inbox">
+          {% for item in inbox["items"] %}
+          <a class="inbox-item tone-{{ item.tone }}" href="{{ item.href }}"><span class="avatar">{{ icon(item.icon, "i-sm") }}</span><span><b>{{ item.title }}</b>{% if item.sub %}<small>{{ item.sub }}</small>{% endif %}</span></a>
+          {% else %}
+          {% if not update %}<div class="inbox-empty">Nada pendente. Tudo em dia.</div>{% endif %}
+          {% endfor %}
+        </div>
+        <a class="inbox-foot" href="/conciliacao">Ver todas as pendências</a>
+      </div>
+      <a class="btn btn-primary import-btn" href="/importar">{{ icon("upload") }}Importar</a>
+    </header>
+
+    <main class="main" id="conteudo">
+      {% if demo_mode %}
+      <div class="demo-banner" role="status">
+        <span class="demo-text"><b>Demonstração · dados fictícios</b><small>Um casal inventado. Seus dados não aparecem aqui e nada chega a eles.</small></span>
+        <span class="demo-actions">
+          <form method="post" action="/demo/recomecar" data-confirm="Recomeçar a demonstração? O que você mudou nela volta ao original.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-ghost btn-sm" type="submit">Recomeçar</button>
+          </form>
+          <form method="post" action="/demo/sair">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-primary btn-sm" type="submit">Sair da demo</button>
+          </form>
+        </span>
+      </div>
+      {% endif %}
+      {% if flash_messages %}
+      <div class="flash-stack" aria-live="polite">
+        {% for flash in flash_messages %}<div class="flash flash-{{ flash.kind }}" role="status">{{ flash.text }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <nav class="tabbar" aria-label="Principal no celular">
+    {% for key, href, label, ico in menu %}
+    <a href="{{ href }}"{% if section == key %} aria-current="page"{% endif %}>{{ icon(ico) }}{{ label }}</a>
+    {% endfor %}
+    <button type="button" popovertarget="pop-more" aria-label="Mais opções">{{ icon("more-horizontal") }}Mais{% if inbox_count %}<span class="dot-badge"></span>{% endif %}</button>
+  </nav>
+  <div class="pop" popover id="pop-more" data-align="end">
+    <div class="inbox">
+      <a class="inbox-item" href="/importar"><span class="avatar">{{ icon("upload", "i-sm") }}</span><span><b>Importar</b><small>Extratos, faturas e planilhas da B3</small></span></a>
+      <a class="inbox-item" href="/conciliacao"><span class="avatar">{{ icon("inbox", "i-sm") }}</span><span><b>Pendências{% if inbox_count %} · {{ inbox_count }}{% endif %}</b><small>Conciliação, avisos e sugestões</small></span></a>
+      <a class="inbox-item" href="/configuracoes"><span class="avatar">{{ icon("settings", "i-sm") }}</span><span><b>Configurações</b><small>Open Finance, titulares, IA, aparência</small></span></a>
     </div>
-    {% endif %}
-    {% if flash_messages %}
-    <div class="flash-stack">
-      {% for flash in flash_messages %}<div class="flash flash-{{ flash.kind }}" role="status">{{ flash.text }}</div>{% endfor %}
-    </div>
-    {% endif %}
-    {% if view and view.current is not none %}
-    <div class="flash member-note"><span>Mostrando só as contas de <b>{{ view.label }}</b>. Metas de gastos continuam sendo da casa.</span></div>
-    {% endif %}
-    {% block content %}{% endblock %}
-  </main>
+  </div>
 </div>
 </body>
 </html>

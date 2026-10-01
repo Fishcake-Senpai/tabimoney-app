@@ -100,7 +100,7 @@ jobs:
           "$BIN" --servidor &
           for i in $(seq 1 90); do curl -sf -o /dev/null http://127.0.0.1:8765/ && break; sleep 1; done
           curl -sf -o /dev/null http://127.0.0.1:8765/
-          curl -sf http://127.0.0.1:8765/contas | grep -q "Conta e cartão"
+          curl -sf http://127.0.0.1:8765/contas | grep -q "<h1>Gastos</h1>"
           python - <<'EOF'
           import json, time
           import httpx

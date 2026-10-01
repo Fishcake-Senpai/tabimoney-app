@@ -430,19 +430,19 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; padding: 32
         <div>
           <h3>Cole as chaves em Configurações</h3>
           <ol>
-            <li>No menu lateral, clique em <b>Configurações</b>.</li>
-            <li>No quadro <b>Open Finance · Meu Pluggy</b>, cole:
+            <li>No rodapé do menu lateral, clique em <b>Configurações</b> e abra a seção <b>Open Finance</b>.</li>
+            <li>Na conexão, clique em <b>Editar</b> e cole:
               <ul>
                 <li><b>Client ID</b> e <b>Client Secret</b>, do passo 4;</li>
-                <li><b>Item IDs</b>, do passo 6. Se tiver mais de um, separe com vírgula: <code>id-do-nubank, id-do-itau</code>.</li>
+                <li>em <b>Adicionar Item IDs</b>, os Item IDs do passo 6. Se tiver mais de um, separe com vírgula: <code>id-do-nubank, id-do-itau</code>.</li>
               </ul>
+              Depois, <b>Salvar conexão</b>.
             </li>
-            <li>No quadro <b>Mercado · brapi e Banco Central</b>, cole o <b>Token brapi</b>. Deixe marcado <i>Atualizar cotações após 19h30</i> se quiser a atualização automática.</li>
-            <li>Clique em <b>Salvar</b>, no fim da página.</li>
+            <li>Na seção <b>Mercado</b>, clique em <b>Alterar</b> no <b>Token brapi</b>, cole o token e salve. Deixe ligado <i>Atualizar cotações todo dia</i> se quiser a atualização automática.</li>
           </ol>
           <figure>
             <div class="shot"><div class="bar"><i></i><i></i><i></i><span>127.0.0.1:8765 › Configurações</span></div><img src="img:09-tabimoney-configuracoes.png" alt="Configurações do Tabimoney com Client ID, Client Secret e Item IDs"></div>
-            <figcaption>Depois de salvar, os campos de segredo ficam vazios (“Em branco mantém o salvo”) e o topo mostra <b>Configurada</b>. Com eles em branco, o que já foi salvo continua valendo. Os Item IDs e as contas do autor estão cobertos na captura.</figcaption>
+            <figcaption>Depois de salvar, a conexão aparece como <b>Conectada</b> e os campos de segredo ficam vazios (“Em branco mantém o salvo”): o que já foi salvo continua valendo. A captura é da demonstração, com dados fictícios.</figcaption>
           </figure>
         </div>
       </div>
@@ -452,14 +452,12 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; padding: 32
         <div>
           <h3>Sincronize pela primeira vez</h3>
           <ol>
-            <li>Vá para a <b>Visão geral</b>.</li>
-            <li>Clique em <b>Open Finance</b> para puxar contas, cartão e investimentos. A primeira vez leva de alguns segundos a um minuto.</li>
-            <li>Clique em <b>Atualizar mercado</b> para buscar as cotações e o CDI.</li>
-            <li>Em <b>Configurações</b>, abaixo dos Item IDs, aparecem as contas encontradas. Confira se estão todos os bancos.</li>
+            <li>Na barra do topo, clique em <b>Sincronizar</b> (o ícone de setas). Ele puxa contas, cartão e investimentos do Open Finance e depois as cotações e o CDI. A primeira vez leva de alguns segundos a um minuto.</li>
+            <li>Em <b>Configurações › Open Finance › Contas sincronizadas</b>, clique em <b>Ver</b>: aparecem as contas encontradas. Confira se estão todos os bancos.</li>
           </ol>
           <div class="note tip">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z"/></svg>
-            <p>O Meu Pluggy atualiza os bancos <b>uma vez por dia</b>. Clicar em <b>Open Finance</b> várias vezes no mesmo dia não traz lançamentos novos antes disso.</p>
+            <p>O Meu Pluggy atualiza os bancos <b>uma vez por dia</b>. Clicar em <b>Sincronizar</b> várias vezes no mesmo dia não traz lançamentos novos antes disso.</p>
           </div>
         </div>
       </div>
@@ -501,7 +499,7 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; padding: 32
       </details>
       <details class="faq">
         <summary>Quero tirar as chaves do computador</summary>
-        <div><p>Em Configurações, marque <b>Remover credenciais Pluggy</b> e/ou <b>Remover token brapi</b> e salve. Para apagar também a conexão, remova os itens no Dashboard Pluggy e as conexões no Meu Pluggy.</p></div>
+        <div><p>Em Configurações, abra <b>Editar</b> na conexão e marque <b>Remover credenciais desta conexão</b>; no <b>Token brapi</b>, <b>Alterar</b> › <b>Remover token</b>. Salve. Para apagar também a conexão, remova os itens no Dashboard Pluggy e as conexões no Meu Pluggy.</p></div>
       </details>
 
       <div class="done">
