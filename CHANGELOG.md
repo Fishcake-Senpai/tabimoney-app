@@ -11,6 +11,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.15.0] - 2026-10-01
+
 ### Alterado
 - Interface nova, com cara de aplicativo: um número grande por tela (o patrimônio, o gasto do mês, o total
   investido), três números de apoio e o detalhe a um clique. Cards sem borda, ícones em toda parte, o verde só para
@@ -334,7 +336,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.13.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.13.0...v0.15.0
 [0.13.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.10.0...v0.11.0
