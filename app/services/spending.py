@@ -15,7 +15,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from app.db import rows, transaction
-from app.services.categories import INCOME_CATEGORIES, INTERNAL_CATEGORIES
+from app.services.categories import CATEGORY_ICON_CHOICES, INCOME_CATEGORIES, INTERNAL_CATEGORIES
 from app.services.formatting import brl_compact, month_label
 
 BASE_CATEGORIES = [
@@ -92,8 +92,9 @@ def _register(connection, name: str, author: str) -> bool:
     return False
 
 
-def create_category(name: str, author: str = "usuario") -> dict[str, Any]:
-    """Idempotente: criar uma que já existe (em qualquer grafia) devolve a existente com criada=False."""
+def create_category(name: str, author: str = "usuario", icon: str | None = None) -> dict[str, Any]:
+    """Idempotente: criar uma que já existe (em qualquer grafia) devolve a existente com criada=False.
+    icon: nome de um ícone de CATEGORY_ICON_CHOICES (opcional; sem ele o app escolhe pelo nome)."""
     text = " ".join((name or "").split())
     if len(text) < 2 or len(text) > 40:
         raise ValueError("O nome da categoria precisa ter de 2 a 40 caracteres.")
@@ -106,7 +107,24 @@ def create_category(name: str, author: str = "usuario") -> dict[str, Any]:
     value = text[:1].upper() + text[1:]
     with transaction() as connection:
         _register(connection, value, author)
+        if icon in CATEGORY_ICON_CHOICES:
+            connection.execute("UPDATE category SET icon = ? WHERE name_key = ?", (icon, normalize(value)))
     return {"categoria": value, "criada": True, "padrao": False}
+
+
+def set_category_icon(name: str, icon: str | None) -> None:
+    """Troca o ícone de uma categoria criada pelo usuário (as padrão têm ícone fixo)."""
+    if icon and icon not in CATEGORY_ICON_CHOICES:
+        raise ValueError("Ícone desconhecido.")
+    if is_base(name):
+        raise ValueError("As categorias padrão têm ícone fixo.")
+    with transaction() as connection:
+        connection.execute("UPDATE category SET icon = ? WHERE name_key = ? AND deleted_at IS NULL", (icon or None, normalize(name)))
+
+
+def custom_icons() -> dict[str, str]:
+    """Ícone escolhido de cada categoria do usuário, pelo nome."""
+    return {r["name"]: r["icon"] for r in rows("SELECT name, icon FROM category WHERE icon IS NOT NULL AND deleted_at IS NULL")}
 
 
 def _budget_rows(connection=None) -> list[dict[str, Any]]:
@@ -141,6 +159,7 @@ def categories_overview(transactions: list[dict[str, Any]]) -> list[dict[str, An
         row = custom.get(normalize(name))
         output.append({
             "name": name, "base": is_base(name), "author": row["author"] if row else None,
+            "icon": row["icon"] if row else None,
             "transactions": effective.get(name, 0), "manual": usage["manual"],
             "rules": len(usage["rules"]), "budgets": [b["name"] for b in usage["budgets"]], "in_use": usage["in_use"],
         })

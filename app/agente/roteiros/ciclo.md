@@ -54,4 +54,4 @@ Uma mensagem curta, nesta ordem:
 4. **Recomendações do trimestre:** 3 a 5 bullets.
 5. **Próximo aporte:** para onde vai, segundo as metas.
 6. **Orçamento:** gasto × metas no mês, as 3 principais sugestões e a economia estimada.
-7. **Onde ver:** Recomendações, página de cada ativo, Metas e Conta e cartão → Orçamento do mês.
+7. **Onde ver:** Sugestões, página de cada ativo, Investimentos › Metas e Gastos › Orçamento.

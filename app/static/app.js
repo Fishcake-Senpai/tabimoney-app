@@ -68,6 +68,8 @@
     }
     return tip;
   }
+  const discreet = () => document.documentElement.hasAttribute("data-discreto");
+  const mask = (text) => (discreet() && /R\$/.test(text) ? text.replace(/R\$\s?[−-]?[\d.,]+(\s?(mil|mi|bi))?/g, "R$ •••") : text);
   function showTip(evt, title, rows) {
     const t = tooltip();
     t.replaceChildren();
@@ -86,7 +88,7 @@
       }
       key.appendChild(document.createTextNode(r.label));
       const val = document.createElement("b");
-      val.textContent = r.value;
+      val.textContent = mask(r.value);
       line.append(key, val);
       t.appendChild(line);
     });
@@ -101,6 +103,7 @@
   const hideTip = () => tip && tip.classList.remove("on");
 
   // ---------------------------------------------------------------- legenda
+  /* Legenda: com mais de uma série, cada item é um botão que liga/desliga a série (fica guardado no container). */
   function legend(container, items) {
     let box = container.parentElement.querySelector(".legend");
     if (!box) {
@@ -110,14 +113,36 @@
     }
     box.replaceChildren();
     if (items.length < 2) return;
+    const hidden = container._hidden || (container._hidden = new Set());
     items.forEach((it) => {
-      const item = document.createElement("span");
+      const item = document.createElement(container._redraw ? "button" : "span");
       const sw = document.createElement("i");
       sw.style.background = it.color;
       if (it.line) sw.className = "line";
       item.append(sw, document.createTextNode(it.label));
+      if (container._redraw) {
+        item.type = "button";
+        item.setAttribute("aria-pressed", hidden.has(it.label) ? "false" : "true");
+        item.addEventListener("click", () => {
+          if (hidden.has(it.label)) hidden.delete(it.label);
+          else if (items.length - hidden.size > 1) hidden.add(it.label);
+          container._redraw();
+        });
+      }
       box.appendChild(item);
     });
+  }
+  const visible = (container, series) => series.filter((s) => !(container._hidden && container._hidden.has(s.label)));
+
+  // gradiente vertical da cor da série para transparente (área do gráfico herói)
+  let gradientSeq = 0;
+  function gradient(svg, color) {
+    const id = "g" + ++gradientSeq;
+    const defs = svg.querySelector("defs") || el("defs", {}, svg);
+    const g = el("linearGradient", { id, x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+    el("stop", { offset: "0%", "stop-color": color, "stop-opacity": 0.28 }, g);
+    el("stop", { offset: "100%", "stop-color": color, "stop-opacity": 0 }, g);
+    return `url(#${id})`;
   }
 
   function emptyState(container, text) {
@@ -131,8 +156,9 @@
   // ---------------------------------------------------------------- linha / área
   /* series: [{label, color, values:[number|null], area?, stack?}], dates: [iso] */
   function lineChart(container, cfg) {
-    const { dates, series, yFormat, tipFormat, refLine } = cfg;
-    legend(container, series.map((s) => ({ label: s.label, color: s.color, line: !s.area })));
+    const { dates, yFormat, tipFormat, refLine } = cfg;
+    legend(container, cfg.series.map((s) => ({ label: s.label, color: s.color, line: !s.area })));
+    const series = visible(container, cfg.series);
     if (!dates.length) return emptyState(container, cfg.empty || "Sem dados no período.");
     const W = container.clientWidth || 600, H = cfg.height || 260;
     const m = { t: 12, r: 16, b: 26, l: 64 };
@@ -194,7 +220,8 @@
       if (s.area && firstI >= 0) {
         area = d;
         for (let i = lastI; i >= firstI; i--) area += "L" + x(i).toFixed(1) + "," + y(stacked ? bases[k][i] : Math.max(y0, 0)).toFixed(1);
-        el("path", { d: area + "Z", fill: s.color, "fill-opacity": stacked ? 0.22 : 0.1, stroke: "none" }, draw);
+        const fill = stacked ? { fill: s.color, "fill-opacity": 0.2 } : { fill: gradient(svg, s.color) };
+        el("path", { d: area + "Z", ...fill, stroke: "none" }, draw);
       }
       el("path", { d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, draw);
       if (lastI >= 0 && dates.length > 1) {
@@ -235,8 +262,9 @@
 
   // ---------------------------------------------------------------- colunas agrupadas (aceita negativos)
   function columnChart(container, cfg) {
-    const { labels, series, yFormat } = cfg;
-    legend(container, series);
+    const { labels, yFormat } = cfg;
+    legend(container, cfg.series);
+    const series = visible(container, cfg.series);
     if (!labels.length) return emptyState(container, cfg.empty || "Sem dados no período.");
     const W = container.clientWidth || 600, H = cfg.height || 240;
     const m = { t: 12, r: 12, b: 26, l: 64 };
@@ -307,17 +335,31 @@
     return d.toISOString().slice(0, 10);
   }
 
+  /* Período (.seg com data-range) e visão (.seg[data-view], ex.: Total / Por classe) do card do gráfico. */
   function withRange(chartEl, render) {
-    const card = chartEl.closest(".card");
-    const control = card && card.querySelector(".seg");
+    const card = chartEl.closest(".card, .chart-block") || chartEl.parentElement;
+    const control = card && card.querySelector(".seg:not([data-view])");
+    const viewControl = card && card.querySelector(".seg[data-view]");
     let current = control ? (control.querySelector("[aria-pressed=true]") || {}).dataset?.range || "12M" : "ALL";
-    const redraw = () => render(current);
+    let view = viewControl ? (viewControl.querySelector("[aria-pressed=true]") || {}).dataset?.value : null;
+    const redraw = () => { render(current, view); markMoney(chartEl); };
+    chartEl._redraw = redraw;
     if (control) {
       control.addEventListener("click", (evt) => {
         const btn = evt.target.closest("button[data-range]");
         if (!btn) return;
         current = btn.dataset.range;
         control.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+        redraw();
+      });
+    }
+    if (viewControl) {
+      viewControl.addEventListener("click", (evt) => {
+        const btn = evt.target.closest("button[data-value]");
+        if (!btn) return;
+        view = btn.dataset.value;
+        viewControl.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+        chartEl._hidden = new Set();
         redraw();
       });
     }
@@ -331,32 +373,38 @@
     "net-worth"(node) {
       const data = readData("data-net-worth") || [];
       const [c1, c2, c3] = COLORS();
-      withRange(node, (range) => {
+      withRange(node, (range, view) => {
         const first = data.length ? data[0].d : "";
         const start = data.length ? rangeStart(data[data.length - 1].d, range, first) : "";
         const rows = data.filter((p) => p.d >= start);
+        const byClass = view === "classes" || node.dataset.view === "classes";
         lineChart(node, {
-          dates: rows.map((p) => p.d), yFormat: moneyShort, tipFormat: money, aria: "Evolução do patrimônio", zeroBased: true,
-          empty: "Importe extratos ou posições para ver a evolução.",
-          series: [
+          dates: rows.map((p) => p.d), yFormat: moneyShort, tipFormat: money, aria: "Evolução do patrimônio", zeroBased: byClass,
+          empty: "Importe extratos ou posições para ver a evolução.", height: +node.dataset.height || 260,
+          series: !byClass ? [{ label: "Patrimônio", color: c1, values: rows.map((p) => p.nw), area: true }] : [
             { label: "Renda variável", color: c1, values: rows.map((p) => p.eq), area: true, stack: true },
             { label: "Renda fixa", color: c2, values: rows.map((p) => p.fi), area: true, stack: true },
             ...(rows.some((p) => p.pv) ? [{ label: "Previdência", color: COLORS()[3], values: rows.map((p) => p.pv || 0), area: true, stack: true }] : []),
             { label: "Caixa", color: c3, values: rows.map((p) => p.cash), area: true, stack: true },
           ],
-          tipExtra: (i) => [
+          tipExtra: (i) => (byClass ? [
             ...(rows[i].debt ? [{ label: "Cartão (dívida)", value: money(rows[i].debt) }] : []),
             { label: "Total", value: money(rows[i].nw) },
-          ],
+          ] : [
+            { label: "Investido", value: money((rows[i].eq || 0) + (rows[i].fi || 0) + (rows[i].pv || 0)) },
+            { label: "Caixa", value: money(rows[i].cash || 0) },
+          ]),
         });
       });
     },
 
     "cash-flow"(node) {
-      const data = readData("data-cash-flow") || [];
-      // receita e despesa usam as cores de sentido da marca: verde entra, vermelho sai
-      const [c1, c2] = [css("--up"), css("--down")];
+      const all = readData("data-cash-flow") || [];
+      const data = node.dataset.months ? all.slice(-+node.dataset.months) : all;
+      // receita entra em verde; despesa em neutro (despesa não é erro)
+      const [c1, c2] = [css("--up"), css("--s5")];
       withRange(node, () => columnChart(node, {
+        height: +node.dataset.height || 240,
         labels: data.map((r) => r.m), labelFormat: (m) => monthLabel(m + "-01"),
         yFormat: moneyShort, tipFormat: money, aria: "Receitas e despesas por mês",
         empty: "Importe o extrato da conta ou a fatura para ver o fluxo.",
@@ -395,6 +443,25 @@
         if (bench.some((v) => v != null)) series.push({ label: "CDI", color: c2, values: bench });
         if (ib.some((v) => v != null)) series.push({ label: "Ibovespa", color: c3, values: ib });
         lineChart(node, { dates: rows.map((p) => p.d), series, yFormat: pctAxis, tipFormat: (v) => pct(v), aria: "Rentabilidade acumulada" });
+      });
+    },
+
+    "invested-total"(node) {
+      const data = readData("data-invested-total") || [];
+      const [c1, c2, , c4] = COLORS();
+      withRange(node, (range) => {
+        const start = data.length ? rangeStart(data[data.length - 1].d, range, data[0].d) : "";
+        const rows = data.filter((p) => p.d >= start);
+        lineChart(node, {
+          dates: rows.map((p) => p.d), yFormat: moneyShort, tipFormat: money, aria: "Evolução dos investimentos",
+          empty: "Sem histórico de investimentos ainda.",
+          series: [{ label: "Investido", color: c1, values: rows.map((p) => p.eq + p.fi + p.pv), area: true }],
+          tipExtra: (i) => [
+            { label: "Ações e FIIs", color: c1, value: money(rows[i].eq) },
+            { label: "Renda fixa", color: c2, value: money(rows[i].fi) },
+            ...(rows[i].pv ? [{ label: "Previdência", color: c4, value: money(rows[i].pv) }] : []),
+          ],
+        });
       });
     },
 
@@ -572,20 +639,27 @@
         void index;
       });
     });
+    /* Busca e filtro sem recarregar: numa tabela, filtra as linhas; numa lista (data-rows), filtra os [data-row] e
+       esconde o cabeçalho de dia que ficou sem nenhum. */
     document.querySelectorAll("input[data-filter]").forEach((input) => {
-      const table = document.getElementById(input.dataset.filter);
+      const target = document.getElementById(input.dataset.filter);
       const select = document.querySelector(`select[data-filter-for="${input.dataset.filter}"]`);
+      if (!target) return;
+      const items = () => (target.tBodies ? Array.from(target.tBodies[0].rows) : Array.from(target.querySelectorAll("[data-row]")));
       const apply = () => {
         const q = input.value.trim().toLowerCase();
         const cat = select ? select.value : "";
         let shown = 0;
-        Array.from(table.tBodies[0].rows).forEach((row) => {
+        items().forEach((row) => {
           const ok = (!q || row.textContent.toLowerCase().includes(q)) && (!cat || row.dataset.cat === cat);
           row.hidden = !ok;
           if (ok) shown++;
         });
+        target.querySelectorAll("[data-day]").forEach((head) => {
+          head.hidden = !target.querySelector(`[data-row][data-in="${head.dataset.day}"]:not([hidden])`);
+        });
         const counter = document.querySelector(`[data-count-for="${input.dataset.filter}"]`);
-        if (counter) counter.textContent = shown + " lançamentos";
+        if (counter) counter.textContent = shown === 1 ? "1 lançamento" : shown + " lançamentos";
       };
       input.addEventListener("input", apply);
       if (select) select.addEventListener("change", apply);
@@ -668,25 +742,165 @@
       const closer = evt.target.closest("[data-close]");
       if (closer) { closer.closest("dialog").close(); return; }
       // clique no fundo escuro fecha
-      if (evt.target.tagName === "DIALOG" && evt.target.classList.contains("modal")) evt.target.close();
+      if (evt.target.tagName === "DIALOG" && (evt.target.classList.contains("modal") || evt.target.classList.contains("drawer"))) evt.target.close();
     });
+    // abrir um painel pelo endereço (#dlg-...): links de outras telas levam direto ao detalhe
+    const fromHash = location.hash && document.getElementById(location.hash.slice(1));
+    if (fromHash && fromHash.tagName === "DIALOG" && !fromHash.open) fromHash.showModal();
   }
 
-  // o popover nativo abre centralizado; aqui ele vai para perto do "?" que o abriu, sem sair da tela
+  /* O popover nativo abre centralizado; aqui ele vai para perto do botão que o abriu, sem sair da tela.
+     data-align="end" alinha pela direita do botão (menus da barra do topo). */
   function hints() {
-    document.querySelectorAll(".hint-pop[popover]").forEach((pop) => {
+    document.querySelectorAll("[popover]").forEach((pop) => {
       pop.addEventListener("toggle", (evt) => {
-        if (evt.newState !== "open") return;
         const trigger = document.querySelector(`[popovertarget="${pop.id}"]`);
-        if (!trigger) return;
+        if (trigger) trigger.setAttribute("aria-expanded", evt.newState === "open" ? "true" : "false");
+        if (evt.newState !== "open" || !trigger) return;
         const r = trigger.getBoundingClientRect();
         const w = pop.offsetWidth, h = pop.offsetHeight, gap = 8;
-        const left = Math.min(Math.max(12, r.left + r.width / 2 - w / 2), window.innerWidth - w - 12);
+        const wanted = pop.dataset.align === "end" ? r.right - w : r.left + r.width / 2 - w / 2;
+        const left = Math.min(Math.max(12, wanted), window.innerWidth - w - 12);
         let top = r.bottom + gap;
         if (top + h > window.innerHeight - 12) top = Math.max(12, r.top - h - gap);
         pop.style.left = left + "px";
         pop.style.top = top + "px";
       });
+    });
+  }
+
+  // ---------------------------------------------------------------- preferências de interface (ver boot.js)
+  const store = (key, value, session) => {
+    try { (session ? sessionStorage : localStorage).setItem("tabimoney." + key, value); } catch (e) { /* sem storage */ }
+  };
+  function discreetToggle() {
+    const root = document.documentElement;
+    const label = (on) => document.querySelectorAll("[data-discreet-toggle]").forEach((b) => {
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.setAttribute("aria-label", on ? "Mostrar valores" : "Esconder valores");
+      b.title = on ? "Mostrar valores" : "Esconder valores";
+    });
+    label(discreet());
+    document.querySelectorAll("[data-discreet-toggle]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const on = !discreet();
+        root.toggleAttribute("data-discreto", on);
+        store("discreto", on ? "1" : "0");
+        store("discreto", on ? "1" : "0", true);
+        label(on);
+      });
+    });
+  }
+  function navToggle() {
+    const root = document.documentElement;
+    document.querySelectorAll("[data-nav-toggle]").forEach((btn) => {
+      const sync = () => btn.setAttribute("aria-label", root.dataset.nav === "mini" ? "Abrir o menu" : "Recolher o menu");
+      sync();
+      btn.addEventListener("click", () => {
+        const mini = root.dataset.nav !== "mini";
+        if (mini) root.dataset.nav = "mini"; else root.removeAttribute("data-nav");
+        store("menu", mini ? "mini" : "full");
+        sync();
+        window.dispatchEvent(new Event("resize"));
+      });
+    });
+  }
+
+  /* Modo discreto: todo valor em reais ganha a classe .money (borrada pelo CSS). Os templates marcam os números
+     principais; aqui o resto é achado pelo texto "R$", inclusive nos rótulos dos gráficos. */
+  const MONEY = /[−+-]?R\$\s?[−-]?[\d.,]+(?:\s?(?:mil|mi|bi))?/g;
+  function markMoney(root) {
+    const scope = root || document.getElementById("conteudo") || document.body;
+    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => (node.nodeValue.includes("R$") && !node.parentElement.closest(".money, script, style, textarea, option, title")
+        ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((node) => {
+      const parent = node.parentElement;
+      if (parent.namespaceURI === NS) { parent.classList.add("money"); return; }
+      if (parent.childNodes.length === 1 && node.nodeValue.trim().replace(MONEY, "").trim().length <= 1) { parent.classList.add("money"); return; }
+      const frag = document.createDocumentFragment();
+      let last = 0;
+      node.nodeValue.replace(MONEY, (match, offset) => {
+        if (offset > last) frag.appendChild(document.createTextNode(node.nodeValue.slice(last, offset)));
+        const span = document.createElement("span");
+        span.className = "money";
+        span.textContent = match;
+        frag.appendChild(span);
+        last = offset + match.length;
+        return match;
+      });
+      if (last < node.nodeValue.length) frag.appendChild(document.createTextNode(node.nodeValue.slice(last)));
+      parent.replaceChild(frag, node);
+    });
+    document.querySelectorAll("input[inputmode=decimal]").forEach((input) => input.classList.add("money"));
+  }
+
+  // ---------------------------------------------------------------- avisos: somem sozinhos (erro fica até clicar)
+  function toasts() {
+    document.querySelectorAll(".flash-stack .flash").forEach((flash, i) => {
+      const leave = () => { flash.classList.add("is-leaving"); setTimeout(() => flash.remove(), 320); };
+      flash.addEventListener("click", leave);
+      if (!flash.classList.contains("flash-error")) setTimeout(leave, 6000 + i * 800);
+    });
+  }
+
+  // ---------------------------------------------------------------- Lançamentos: um painel só, preenchido pela linha
+  function txDrawer() {
+    const dialog = document.getElementById("dlg-tx");
+    if (!dialog) return;
+    const $ = (sel) => dialog.querySelector(sel);
+    const open = (row) => {
+      const d = row.dataset;
+      $("[data-tx-icon] use").setAttribute("href", "/static/icons.svg#i-" + (d.icon || "circle-dashed"));
+      const amount = $("[data-tx-amount]");
+      amount.textContent = d.amount;
+      amount.classList.toggle("up", d.positive === "1");
+      $("[data-tx-title]").textContent = d.title + (d.pending === "1" ? " · fatura aberta" : "");
+      $("[data-tx-date]").textContent = d.date;
+      $("[data-tx-account]").textContent = d.account;
+      $("[data-tx-source]").textContent = (d.category || "Sem categoria") + " · " + d.source;
+      $("[data-tx-orig]").textContent = d.orig;
+      $("[data-tx-orig-row]").hidden = !d.orig;
+      $("[data-tx-transfer]").textContent = d.transfer;
+      $("[data-tx-transfer-row]").hidden = !d.transfer;
+      $("[data-tx-id]").value = d.tx;
+      $("[data-tx-desc]").value = d.desc;
+      $("[data-tx-rule]").textContent = "“" + d.desc.split("|")[0].trim() + "”";
+      const select = $("[data-tx-select]");
+      $("[data-auto-option]").textContent = "Automática: " + (d.auto || "—");
+      select.value = d.manual === "1" ? d.category : "";
+      $("[data-tx-category-link]").href = "/contas/gastos/" + encodeURIComponent(d.category || "Outros");
+      $("[data-tx-category-link]").hidden = !d.category;
+      dialog.showModal();
+      history.replaceState(null, "", "#tx-" + d.tx);
+    };
+    document.addEventListener("click", (evt) => {
+      const row = evt.target.closest("button[data-tx]");
+      if (row) open(row);
+    });
+    dialog.addEventListener("close", () => { if (location.hash.startsWith("#tx-")) history.replaceState(null, "", location.pathname + location.search); });
+    // link de outra tela (Início › Últimos lançamentos): #tx-123 abre direto
+    const wanted = location.hash.match(/^#tx-(\d+)$/);
+    if (wanted) {
+      const row = document.querySelector(`button[data-tx="${wanted[1]}"]`);
+      if (row) { row.scrollIntoView({ block: "center" }); open(row); }
+    }
+  }
+
+  // ---------------------------------------------------------------- tabela: mostrar todas as colunas
+  function columnToggles() {
+    document.querySelectorAll("[data-toggle-cols]").forEach((btn) => {
+      const table = document.getElementById(btn.dataset.toggleCols);
+      if (!table) return;
+      const key = "colunas." + btn.dataset.toggleCols;
+      let saved = null;
+      try { saved = localStorage.getItem("tabimoney." + key); } catch (e) { saved = null; }
+      const apply = (on) => { table.classList.toggle("show-all", on); btn.setAttribute("aria-pressed", on ? "true" : "false"); };
+      apply(saved === "1");
+      btn.addEventListener("click", () => { const on = !table.classList.contains("show-all"); apply(on); store(key, on ? "1" : "0"); });
     });
   }
 
@@ -700,7 +914,11 @@
     document.querySelectorAll("form[data-busy]").forEach((form) => {
       form.addEventListener("submit", () => {
         const btn = form.querySelector("button[type=submit]");
-        if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = form.dataset.busy; }
+        if (!btn) return;
+        // o envio precisa sair antes de desabilitar, senão o botão não vai no formulário
+        setTimeout(() => { btn.disabled = true; }, 0);
+        const label = btn.querySelector("[data-busy-label]") || (btn.children.length ? null : btn);
+        if (label) { btn.dataset.label = label.textContent; label.textContent = form.dataset.busy; }
       });
     });
   }
@@ -723,8 +941,6 @@
     let saved = null;
     try { saved = JSON.parse(sessionStorage.getItem(SCROLL_KEY) || "null"); sessionStorage.removeItem(SCROLL_KEY); } catch (e) { saved = null; }
     if (!saved || saved.path !== location.pathname || Date.now() - saved.t > 120000) return;
-    const flashes = document.querySelector(".flash-stack");
-    if (flashes && saved.y > 80) flashes.classList.add("toast");
     const restore = () => window.scrollTo({ top: saved.y, behavior: "instant" });
     restore();
     requestAnimationFrame(restore);
@@ -743,10 +959,16 @@
     dialogs();
     hints();
     autosubmit();
+    discreetToggle();
+    navToggle();
+    toasts();
+    columnToggles();
+    txDrawer();
     document.querySelectorAll("[data-chart]").forEach((node) => {
       const fn = charts[node.dataset.chart];
       if (fn) fn(node);
     });
+    markMoney();
     // trocar a categoria de um lançamento envia o formulário da linha
     document.querySelectorAll("select[data-autosubmit]").forEach((select) => {
       select.addEventListener("change", () => select.form && select.form.requestSubmit());

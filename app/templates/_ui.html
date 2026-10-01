@@ -1,3 +1,29 @@
+{#- Componentes da interface. Guia: docs/superpowers/specs/2026-09-30-revamp-ui.md (§6.5). -#}
+
+{#- Ícone do sprite Lucide (app/static/icons.svg, gerado por packaging/icones.py). -#}
+{% macro icon(name, cls="") -%}
+<svg class="i{% if cls %} {{ cls }}{% endif %}" aria-hidden="true"><use href="/static/icons.svg#i-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{#- Número herói: um por tela. value já formatado (use brl_hero para centavos apagados). -#}
+{% macro hero(label, value, icon_name=None) -%}
+<div class="hero">
+  <div class="hero-label">{% if icon_name %}{{ icon(icon_name, "i-sm") }}{% endif %}{{ label }}</div>
+  <div class="hero-value money">{{ value }}</div>
+  {% if caller %}<div class="hero-meta">{{ caller() }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{#- Número de apoio. Com href vira link (card inteiro clicável). -#}
+{% macro stat(label, value, sub=None, icon_name=None, href=None, value_tone="", cls="") -%}
+<{{ 'a href="' ~ href ~ '"' if href else 'div' }} class="stat{% if cls %} {{ cls }}{% endif %}">
+  <span class="stat-label">{% if icon_name %}{{ icon(icon_name) }}{% endif %}{{ label }}{% if href %}{{ icon("arrow-up-right", "go i-sm") }}{% endif %}</span>
+  <span class="stat-value {{ value_tone }}">{{ value }}</span>
+  {% if caller %}<span class="stat-sub">{{ caller() }}</span>{% elif sub %}<span class="stat-sub">{{ sub }}</span>{% endif %}
+</{{ 'a' if href else 'div' }}>
+{%- endmacro %}
+
+{#- Compatibilidade com as telas antigas. -#}
 {% macro kpi(label, value, sub=None, sub_tone="", hero=False, value_tone="") -%}
 <div class="kpi{% if hero %} kpi-hero{% endif %}">
   <div class="kpi-label">{{ label }}</div>
@@ -12,34 +38,103 @@
 </div>
 {%- endmacro %}
 
-{% macro hbars(items, money=True) -%}
+{% macro hbars(items, money=True, limit=None) -%}
 <div class="hbars">
   {% set top = (items|map(attribute='value')|max) if items else 1 %}
-  {% for it in items %}
+  {% for it in (items[:limit] if limit else items) %}
   <div>
-    <div class="hbar-top"><span>{{ it.label }}</span><span><b>{{ it.value|brl_compact if money else it.value }}</b><span class="pct">{{ it.pct|pct(1, False) }}</span></span></div>
+    <div class="hbar-top"><span>{{ it.label }}</span><span><b class="{{ 'money' if money }}">{{ it.value|brl_compact if money else it.value }}</b><span class="pct">{{ it.pct|pct(1, False) }}</span></span></div>
     <div class="hbar-track"><div class="hbar-fill" data-w="{{ (100 * it.value / top)|round(2) }}"></div></div>
   </div>
   {% endfor %}
 </div>
 {%- endmacro %}
 
+{#- Barra de progresso contra um limite: pct é fração (1 = 100%); mark em fração marca a meta ou o dia do mês. -#}
+{% macro progress(pct, tone="", mark=None, mark_title="", thin=False) -%}
+<span class="progress{% if thin %} progress-thin{% endif %}"><span class="hbar-fill {{ tone }}" data-w="{{ ((pct or 0) * 100)|round(2) }}"></span>{% if mark is not none %}<span class="target-mark" data-left="{{ ([mark, 1]|min * 100)|round(2) }}"{% if mark_title %} title="{{ mark_title }}"{% endif %}></span>{% endif %}</span>
+{%- endmacro %}
+
 {% macro delta(value, pct_value=None, money=True) -%}
 {%- if value is none -%}<span class="muted">—</span>
-{%- else -%}<span class="{{ value|tone }}">{{ value|brl_signed if money else value|pct }}{% if pct_value is not none %} · {{ pct_value|pct }}{% endif %}</span>
+{%- else -%}<span class="{{ value|tone }}{{ ' money' if money }}">{{ value|brl_signed if money else value|pct }}{% if pct_value is not none %} · {{ pct_value|pct }}{% endif %}</span>
 {%- endif -%}
+{%- endmacro %}
+
+{#- Chip de variação: seta + valor, verde ou coral. -#}
+{% macro delta_chip(value, pct_value=None, money=True, invert=False) -%}
+{%- if value is not none -%}
+{%- set good = (value < 0) if invert else (value > 0) -%}
+{%- set bad = (value > 0) if invert else (value < 0) -%}
+<span class="chip {{ 'chip-up' if good else 'chip-down' if bad else '' }}">{{ icon("arrow-up-right" if value > 0 else "arrow-down-right" if value < 0 else "arrow-right") }}<span class="{{ 'money' if money }}">{{ value|brl_signed if money else value|pct }}</span>{% if pct_value is not none %}<span>· {{ pct_value|pct }}</span>{% endif %}</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro chip(text, tone="", icon_name=None) -%}
+<span class="chip{% if tone %} chip-{{ tone }}{% endif %}">{% if icon_name %}{{ icon(icon_name) }}{% endif %}<span>{{ text }}</span></span>
 {%- endmacro %}
 
 {% macro badge(kind, text) -%}<span class="badge badge-{{ kind }}">{{ text }}</span>{%- endmacro %}
 
-{% macro sync_buttons(csrf_token) -%}
-<form method="post" action="/sincronizar/cotacoes" data-busy="Atualizando…">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <button class="btn" type="submit"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Atualizar mercado</button>
-</form>
-<form method="post" action="/sincronizar/pluggy" data-busy="Sincronizando…">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <button class="btn" type="submit">Open Finance</button>
-</form>
-<a class="btn btn-primary" href="/importar"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>Importar</a>
+{#- Ajuda sob demanda: um "?" que abre um popover ao lado (posicionado pelo app.js). -#}
+{% macro hint(id, label="Ajuda") -%}
+<button class="hint" type="button" popovertarget="hint-{{ id }}" aria-label="{{ label }}">?</button>
+<div class="hint-pop" popover id="hint-{{ id }}">{{ caller() }}</div>
+{%- endmacro %}
+
+{#- Edição em modal: o botão com data-dialog abre, data-close fecha. -#}
+{% macro modal(id, title, wide=False) -%}
+<dialog class="modal{% if wide %} modal-wide{% endif %}" id="dlg-{{ id }}" aria-labelledby="dlg-{{ id }}-t">
+  <div class="modal-head">
+    <h3 id="dlg-{{ id }}-t">{{ title }}</h3>
+    <button class="icon-btn icon-btn-sm" type="button" data-close aria-label="Fechar">{{ icon("x") }}</button>
+  </div>
+  <div class="modal-body">{{ caller() }}</div>
+</dialog>
+{%- endmacro %}
+
+{#- Painel lateral para detalhe e edição (lançamento, tese da IA). -#}
+{% macro drawer(id, title) -%}
+<dialog class="drawer" id="dlg-{{ id }}" aria-labelledby="dlg-{{ id }}-t">
+  <div class="modal-head">
+    <h3 id="dlg-{{ id }}-t">{{ title }}</h3>
+    <button class="icon-btn icon-btn-sm" type="button" data-close aria-label="Fechar">{{ icon("x") }}</button>
+  </div>
+  <div class="modal-body">{{ caller() }}</div>
+</dialog>
+{%- endmacro %}
+
+{#- Estado vazio: ícone, uma frase e a ação que resolve. -#}
+{% macro empty(icon_name, text, href=None, action=None) -%}
+<div class="empty-inline">
+  <span class="row-icon">{{ icon(icon_name) }}</span>
+  <p>{{ text }}</p>
+  {% if href %}<a class="btn btn-sm" href="{{ href }}">{{ action }}</a>{% endif %}
+</div>
+{%- endmacro %}
+
+{#- Avatar redondo com o ícone da categoria. -#}
+{% macro cat_icon(name, chosen=None) -%}
+<span class="row-icon">{{ icon(category_icon(name, chosen)) }}</span>
+{%- endmacro %}
+
+{#- Avatar com as iniciais (ticker, titular). -#}
+{% macro initials(text, n=4) -%}<span class="row-icon">{{ text[:n] }}</span>{%- endmacro %}
+
+{#- Abas de um hub. items: [(href, rótulo, chave)]. -#}
+{% macro tabs(items, current, label="Seções") -%}
+<nav class="tabs" aria-label="{{ label }}">
+  {% for href, text, key in items %}<a href="{{ href }}"{% if key == current %} aria-current="page"{% endif %}>{{ text }}</a>{% endfor %}
+</nav>
+{%- endmacro %}
+
+{% macro invest_tabs(current) -%}
+{{ tabs([("/investimentos", "Resumo", "resumo"), ("/carteira", "Ações e FIIs", "carteira"), ("/renda-fixa", "Renda fixa", "renda-fixa"),
+         ("/previdencia", "Previdência", "previdencia"), ("/rendimentos", "Proventos", "proventos"), ("/metas", "Metas", "metas")],
+        current, "Investimentos") }}
+{%- endmacro %}
+
+{% macro gastos_tabs(current) -%}
+{{ tabs([("/contas", "Resumo", "resumo"), ("/contas/lancamentos", "Lançamentos", "lancamentos"), ("/contas/orcamento", "Orçamento", "orcamento")],
+        current, "Gastos") }}
 {%- endmacro %}

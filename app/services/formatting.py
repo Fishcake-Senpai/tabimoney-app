@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import re
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+from markupsafe import Markup
 
 
 def parse_decimal(raw: object) -> Decimal:
@@ -165,3 +168,78 @@ def tone(value: float | int | None) -> str:
     if value is None or value == 0:
         return ""
     return "up" if value > 0 else "down"
+
+
+def brl_hero(cents: int | None) -> Markup:
+    """Número herói: 'R$ 226.018' com ',51' menor e apagado (os centavos quase nunca mudam a decisão)."""
+    if cents is None:
+        return Markup("—")
+    whole, _, decimals = brl(cents).partition(",")
+    return Markup('{}<span class="cents">,{}</span>').format(whole.replace("R$ -", "−R$ "), decimals)
+
+
+def tx_title(description: str | None) -> str:
+    """Descrição de lançamento para leitura: 'Pix enviado|Marina' vira 'Pix enviado · Marina'."""
+    parts = [p.strip() for p in str(description or "").split("|") if p.strip()]
+    return " · ".join(parts) or "—"
+
+
+def plural(count: int | None, singular: str, plural_form: str | None = None) -> str:
+    """'1 meta', '5 metas', '0 metas'. Sem o forma plural, acrescenta 's'."""
+    n = int(count or 0)
+    return f"{n} {singular if n == 1 else (plural_form or singular + 's')}"
+
+
+WEEKDAYS = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+MONTHS_LONG = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro",
+               "novembro", "dezembro"]
+
+
+def long_date(value: date | str | None = None) -> str:
+    """'quarta, 30 de setembro' (hoje, sem argumento)."""
+    day = date.fromisoformat(str(value)[:10]) if value else date.today()
+    return f"{WEEKDAYS[day.weekday()]}, {day.day} de {MONTHS_LONG[day.month - 1]}"
+
+
+def month_long(value: str, today: date | None = None) -> str:
+    """'setembro' no ano corrente, 'dezembro de 2025' em outro ano."""
+    year, month = (int(x) for x in str(value)[:7].split("-"))
+    name = MONTHS_LONG[month - 1]
+    return name if year == (today or date.today()).year else f"{name} de {year}"
+
+
+def day_label(value: str | None, today: date | None = None) -> str:
+    """Cabeçalho de grupo de lançamentos: 'Hoje', 'Ontem', 'seg, 28/09' ou '28/09/2025' em outro ano."""
+    if not value:
+        return "—"
+    day = date.fromisoformat(str(value)[:10])
+    today = today or date.today()
+    delta = (today - day).days
+    if delta == 0:
+        return "Hoje"
+    if delta == 1:
+        return "Ontem"
+    if day.year != today.year:
+        return date_br(value)
+    return f"{WEEKDAYS[day.weekday()][:3]}, {day.day:02d}/{day.month:02d}"
+
+
+def ago(value: str | None, now: datetime | None = None) -> str:
+    """'agora', 'há 5 min', 'há 3 h', 'há 2 dias'. Aceita o CURRENT_TIMESTAMP do SQLite (UTC, sem fuso)."""
+    if not value:
+        return ""
+    try:
+        moment = datetime.fromisoformat(str(value).replace(" ", "T"))
+    except ValueError:
+        return ""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    seconds = ((now or datetime.now(timezone.utc)) - moment).total_seconds()
+    if seconds < 90:
+        return "agora"
+    if seconds < 3600:
+        return f"há {int(seconds // 60)} min"
+    if seconds < 86400:
+        return f"há {int(seconds // 3600)} h"
+    days = int(seconds // 86400)
+    return f"há {days} dia{'s' if days > 1 else ''}"

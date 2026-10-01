@@ -1,120 +1,115 @@
 {% extends "base.html" %}
-{% from "_ui.html" import kpi, badge %}
+{% from "_ui.html" import icon, stat, chip, progress, invest_tabs, modal, hint, empty %}
 {% block title %}Metas{% endblock %}
 {% block content %}
 {% set t = snap.targets %}
+{% set who = (" de " ~ view.label) if view and view.current is not none else (" da casa" if view else "") %}
 <div class="page-head">
-  <div><h1>Metas e balanceamento</h1><div class="sub">Reserva de emergência, renda fixa × variável e exposição internacional</div></div>
+  <div><h1>Investimentos</h1></div>
+  <div class="actions"><button class="btn" type="button" data-dialog="dlg-metas">{{ icon("pencil") }}Editar metas</button></div>
 </div>
+{{ invest_tabs("metas") }}
 
-{% if snap.alerts %}
-<div class="flash-stack">
-  {% for a in snap.alerts %}<div class="flash flash-{{ 'error' if a.severity == 'critico' else 'warning' }}" role="status">{{ a.message }}</div>{% endfor %}
-</div>
+{% if view and view.current is not none %}
+<div class="notice"><span class="row-icon">{{ icon("user-round") }}</span><div><p>{% if t.own %}{{ view.label }} tem metas próprias.{% else %}{{ view.label }} ainda usa as metas da casa. Salvar cria metas só para {{ view.label }}.{% endif %}</p></div></div>
 {% endif %}
 
-<section class="kpis">
-  {% call kpi("Investível", snap.investable|brl, hero=True) %}Fora a reserva · renda fixa + variável{% endcall %}
-  {% call kpi("Reserva de emergência", snap.reserve.value|brl_compact) %}{% if snap.reserve.target_value is not none %}meta {{ snap.reserve.target_value|brl_compact }}{% if snap.reserve.gap and snap.reserve.gap > 0 %} · <span class="down">faltam {{ snap.reserve.gap|brl_compact }}</span>{% else %} · <span class="up">completa</span>{% endif %}{% else %}Sem meta definida{% endif %}{% endcall %}
-  {% call kpi("Internacional na RV", snap.equity_intl_share|pct(1, False)) %}{% if t.intl_pct is not none %}meta {{ t.intl_pct|pct(0, False) }}{% else %}Sem meta definida{% endif %}{% endcall %}
-  {% call kpi("Para equilibrar sem vender", snap.rebalance_without_selling|brl_compact if snap.rebalance_without_selling is not none else "—") %}Aporte mínimo para nenhuma classe ficar acima da meta{% endcall %}
+<div class="hero-row">
+  <div class="hero">
+    <div class="hero-label">Investível
+      {% call hint("investivel", "O que é o investível") %}<p>Tudo o que sobra além da reserva de emergência: renda fixa{% if t.pension_in_fixed %} (com a previdência){% endif %} mais renda variável. As metas de alocação são percentuais dele.</p>{% endcall %}</div>
+    <div class="hero-value money">{{ snap.investable|brl_hero }}</div>
+    <div class="hero-meta">
+      {% if snap.alerts %}{% for a in snap.alerts[:2] %}{{ chip(a.message, "down" if a.severity == "critico" else "warn", "triangle-alert") }}{% endfor %}
+      {% elif snap.configured %}{{ chip("Dentro das metas", "up", "check") }}{% endif %}
+    </div>
+  </div>
+</div>
+
+<section class="stats">
+  {% call stat("Reserva de emergência", snap.reserve.value|brl_compact, icon_name="shield-check") %}{% if snap.reserve.target_value is not none %}meta <span class="money">{{ snap.reserve.target_value|brl_compact }}</span>{% if snap.reserve.gap and snap.reserve.gap > 0 %} · <span class="down">faltam <span class="money">{{ snap.reserve.gap|brl_compact }}</span></span>{% else %} · <span class="up">completa</span>{% endif %}{% else %}Sem meta definida{% endif %}{% endcall %}
+  {% call stat("Internacional na renda variável", snap.equity_intl_share|pct(1, False), icon_name="globe") %}{% if t.intl_pct is not none %}meta {{ t.intl_pct|pct(0, False) }}{% else %}Sem meta definida{% endif %}{% endcall %}
+  {% call stat("Para equilibrar sem vender", snap.rebalance_without_selling|brl_compact if snap.rebalance_without_selling is not none else "—", icon_name="scale") %}Aporte mínimo para nenhuma classe ficar acima{% endcall %}
 </section>
 
 <section class="grid">
-  <article class="card card-flush span-7">
+  <article class="card span-7">
     <div class="card-head"><h2 class="card-title">Onde você está</h2><span class="card-note">% sobre o investível</span></div>
-    <div class="table-wrap">
-      <table class="data wrap-first">
-        <thead><tr><th>Classe</th><th class="num">Atual</th><th class="num">Meta</th><th class="num">Falta / sobra</th></tr></thead>
-        <tbody>
-          <tr>
-            <td>{{ snap.reserve.label }}<small class="muted">caixa livre {{ snap.reserve.free_cash|brl_compact }} (conta − fatura)</small></td>
-            <td class="num">{{ snap.reserve.value|brl }}</td>
-            <td class="num">{{ snap.reserve.target_value|brl if snap.reserve.target_value is not none else "—" }}</td>
-            <td class="num {{ 'down' if snap.reserve.gap and snap.reserve.gap > 0 }}">{{ snap.reserve.gap|brl_signed if snap.reserve.gap else "—" }}</td>
-          </tr>
-          {% for b in snap.buckets %}
-          <tr>
-            <td>{{ b.label }}{% if b.key == 'fixed' %}<small class="muted">títulos {{ snap.fixed_products|brl_compact }}{% if snap.reserve.excess_cash %} + caixa excedente {{ snap.reserve.excess_cash|brl_compact }}{% endif %}{% if t.pension_in_fixed and snap.pension %} + previdência {{ snap.pension|brl_compact }}{% endif %}</small>{% endif %}
-              <span class="hbar-track target-bar"><span class="hbar-fill" data-w="{{ ((b.pct or 0) * 100)|round(2) }}"></span>{% if b.target_pct is not none %}<span class="target-mark" data-left="{{ (b.target_pct * 100)|round(2) }}"></span>{% endif %}</span>
-            </td>
-            <td class="num">{{ b.value|brl }}<small class="muted cell-sub">{{ b.pct|pct(1, False) }}</small></td>
-            <td class="num">{{ b.target_value|brl if b.target_value is not none else "—" }}<small class="muted cell-sub">{{ b.target_pct|pct(1, False) if b.target_pct is not none else "" }}</small></td>
-            <td class="num {{ 'down' if b.drift is not none and b.drift|abs >= 0.05 }}">{{ b.gap|brl_signed if b.gap is not none else "—" }}{% if b.drift is not none %}<small class="cell-sub">{{ ('%+.1f'|format(b.drift * 100))|replace('.', ',')|replace('-', '−') }} p.p.</small>{% endif %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="rows">
+      <div class="row">
+        <span class="row-icon">{{ icon("shield-check") }}</span>
+        <span class="row-main"><span class="row-title">{{ snap.reserve.label }}</span><span class="row-sub">caixa livre <span class="money">{{ snap.reserve.free_cash|brl_compact }}</span> (conta − fatura)</span></span>
+        <span class="row-end"><b class="money">{{ snap.reserve.value|brl_compact }}</b><small>{% if snap.reserve.target_value is not none %}meta <span class="money">{{ snap.reserve.target_value|brl_compact }}</span>{% else %}sem meta{% endif %}</small></span>
+      </div>
+      {% for b in snap.buckets %}
+      <div class="row">
+        <span class="row-icon">{{ icon({"fixed": "landmark", "equity_br": "chart-line", "equity_intl": "globe"}.get(b.key, "layers")) }}</span>
+        <span class="row-main"><span class="row-title">{{ b.label }}</span>
+          {{ progress(b.pct, "fill-risk" if b.drift is not none and b.drift|abs >= 0.05 else "", b.target_pct, ("Meta " ~ b.target_pct|pct(0, False)) if b.target_pct is not none else "", True) }}</span>
+        <span class="row-end"><b>{{ b.pct|pct(1, False) }}</b><small>{% if b.target_pct is not none %}meta {{ b.target_pct|pct(0, False) }}{% if b.gap %} · <span class="money">{{ ('faltam ' if b.gap > 0 else 'sobram ') ~ (b.gap|abs)|brl_compact }}</span>{% endif %}{% else %}sem meta{% endif %}</small></span>
+      </div>
+      {% endfor %}
     </div>
-    <p class="footnote">Positivo em "Falta / sobra" = falta dinheiro na classe. Em vermelho, desvio de 5 p.p. ou mais.</p>
   </article>
 
   <article class="card span-5">
-    <div class="card-head"><h2 class="card-title">Próximo aporte</h2></div>
-    <form method="get" action="/metas" class="toolbar footnote">
+    <div class="card-head"><h2 class="card-title">Próximo aporte</h2>
+      {% call hint("aporte", "Como o aporte é dividido") %}<p>Só compra, nunca vende: completa a reserva primeiro, depois reforça as classes abaixo da meta na proporção do que falta.</p><p>A sugestão é a média de receitas − despesas dos últimos 3 meses: {{ suggested|brl }}.</p>{% endcall %}</div>
+    <form method="get" action="/metas" class="toolbar">
       <label class="field grow">Quanto vai aportar<input name="aporte" inputmode="decimal" autocomplete="off" value="{{ (amount|brl)[3:] if amount else '' }}" placeholder="Ex.: 5.000"></label>
       <button class="btn" type="submit">Calcular</button>
     </form>
-    <p class="footnote">Sugestão: {{ suggested|brl }} (média de receitas − despesas dos últimos 3 meses).</p>
     {% if plan %}
-    <div class="list">
+    <div class="rows modal-gap">
       {% for p in plan %}
-      <div class="list-row"><span><b>{{ p.label }}</b><small>{{ p.reason }}{% if p.pct_after is defined and p.pct_after is not none %} → {{ p.pct_after|pct(1, False) }}{% endif %}</small></span><span class="right"><b>{{ p.amount|brl }}</b></span></div>
+      <div class="row"><span class="row-main"><span class="row-title">{{ p.label }}</span><span class="row-sub">{{ p.reason }}{% if p.pct_after is defined and p.pct_after is not none %} → {{ p.pct_after|pct(1, False) }}{% endif %}</span></span><span class="row-end"><b class="money">{{ p.amount|brl }}</b></span></div>
       {% endfor %}
     </div>
-    {% elif not snap.configured %}<p class="muted">Defina as metas abaixo para ver a distribuição.</p>
-    {% else %}<p class="muted">Informe um valor de aporte.</p>{% endif %}
-    <p class="footnote">Só compra, nunca vende: completa a reserva primeiro, depois reforça as classes abaixo da meta na proporção do que falta.
-      {% if recommendation %}Para escolher os ativos, veja as <a class="link" href="/recomendacoes">recomendações de {{ recommendation.period }}</a>.{% endif %}</p>
+    {% if recommendation %}<p class="footnote">Para escolher os ativos, veja as <a class="link" href="/recomendacoes">sugestões de {{ recommendation.period }}</a>.</p>{% endif %}
+    {% elif not snap.configured %}{{ empty("target", "Defina as metas para ver como dividir o aporte.") }}
+    {% else %}<p class="muted footnote">Informe um valor de aporte.</p>{% endif %}
   </article>
 </section>
 
-<section class="grid">
-  <article class="card span-5">
-    <div class="card-head"><h2 class="card-title">Definir metas{% if view and view.current is not none %} de {{ view.label }}{% elif view %} da casa{% endif %}</h2></div>
-    {% if view and view.current is not none %}
-    <p class="footnote muted">{% if t.own %}{{ view.label }} tem metas próprias.{% else %}{{ view.label }} ainda usa as metas da casa. Salvar aqui cria metas só para {{ view.label }}.{% endif %}</p>
-    {% endif %}
-    <form method="post" action="/metas" class="form-grid footnote">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label class="field">Reserva de emergência (R$)<input name="reserve" inputmode="decimal" autocomplete="off" value="{{ (t.reserve_cents|brl)[3:] if t.reserve_cents is not none else '' }}" placeholder="Ex.: 30.000"></label>
-      <div class="form-row">
-        <label class="field">Renda fixa (%)<input name="fixed_pct" inputmode="decimal" autocomplete="off" value="{{ '%g'|format((t.fixed_pct * 100)|round(1)) if t.fixed_pct is not none else '' }}" placeholder="40"></label>
-        <label class="field">Renda variável (%)<input name="equity_pct" inputmode="decimal" autocomplete="off" value="{{ '%g'|format((t.equity_pct * 100)|round(1)) if t.equity_pct is not none else '' }}" placeholder="60"></label>
+<details class="fold" id="exposicao">
+  <summary>Exposição de cada ativo <small>nacional ou internacional</small></summary>
+  <div class="fold-body">
+    <p class="footnote">BDRs e ETFs de índice externo contam como internacionais; o resto, como nacional. Mude onde precisar.</p>
+    <div class="rows">
+      {% for h in snap.holdings|sort(attribute="value", reverse=True) %}
+      <div class="row">
+        <span class="row-icon">{{ h.ticker[:4] }}</span>
+        <span class="row-main"><span class="row-title"><a href="/ativo/{{ h.ticker }}">{{ h.ticker }}</a></span><span class="row-sub">{{ h.asset_class }} · <span class="money">{{ h.value|brl }}</span></span></span>
+        <form method="post" action="/metas/regiao" class="recat">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="ticker" value="{{ h.ticker }}">
+          <select name="region" data-autosubmit aria-label="Exposição de {{ h.ticker }}" class="{{ 'is-manual' if h.region_manual }}">
+            <option value="" {% if not h.region_manual %}selected{% endif %}>Automática ({{ h.region }})</option>
+            <option value="nacional" {% if h.region_manual and h.region == 'nacional' %}selected{% endif %}>Nacional</option>
+            <option value="internacional" {% if h.region_manual and h.region == 'internacional' %}selected{% endif %}>Internacional</option>
+          </select>
+        </form>
       </div>
-      <label class="field">Dentro da renda variável: internacional (%)<input name="intl_pct" inputmode="decimal" autocomplete="off" value="{{ '%g'|format((t.intl_pct * 100)|round(1)) if t.intl_pct is not none else '' }}" placeholder="30 (o resto é nacional)"></label>
-      <label class="check"><input type="checkbox" name="pension_in_fixed" {% if t.pension_in_fixed %}checked{% endif %}> Contar a previdência como renda fixa</label>
-      <p class="muted">Renda fixa + variável = 100% do que sobra além da reserva. Deixe um dos dois em branco para completar sozinho.</p>
-      <div><button class="btn btn-primary" type="submit">Salvar metas</button>
-        {% if view and view.current is not none and t.own %}<button class="btn btn-ghost" type="submit" name="use_household" value="on">Usar as metas da casa</button>{% endif %}</div>
-    </form>
-  </article>
-  <article class="card card-flush span-7" id="exposicao">
-    <div class="card-head"><h2 class="card-title">Exposição de cada ativo</h2><span class="card-note">BDRs e ETFs de índice externo são internacionais por padrão</span></div>
-    <div class="table-wrap">
-      <table class="data">
-        <thead><tr><th>Ativo</th><th class="num">Valor</th><th>Exposição</th></tr></thead>
-        <tbody>
-        {% for h in snap.holdings|sort(attribute="value", reverse=True) %}
-          <tr>
-            <td><a class="link" href="/ativo/{{ h.ticker }}"><b>{{ h.ticker }}</b></a> <small class="muted">{{ h.asset_class }}</small></td>
-            <td class="num">{{ h.value|brl }}</td>
-            <td>
-              <form method="post" action="/metas/regiao" class="recat">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="ticker" value="{{ h.ticker }}">
-                <select name="region" data-autosubmit aria-label="Exposição de {{ h.ticker }}" class="{{ 'is-manual' if h.region_manual }}">
-                  <option value="" {% if not h.region_manual %}selected{% endif %}>Automática ({{ h.region }})</option>
-                  <option value="nacional" {% if h.region_manual and h.region == 'nacional' %}selected{% endif %}>Nacional</option>
-                  <option value="internacional" {% if h.region_manual and h.region == 'internacional' %}selected{% endif %}>Internacional</option>
-                </select>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
+      {% endfor %}
     </div>
-  </article>
-</section>
+  </div>
+</details>
+
+{% call modal("metas", "Definir metas" ~ who) %}
+<form method="post" action="/metas" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label class="field">Reserva de emergência (R$)<input name="reserve" inputmode="decimal" autocomplete="off" value="{{ (t.reserve_cents|brl)[3:] if t.reserve_cents is not none else '' }}" placeholder="Ex.: 30.000"></label>
+  <div class="form-row">
+    <label class="field">Renda fixa (%)<input name="fixed_pct" inputmode="decimal" autocomplete="off" value="{{ '%g'|format((t.fixed_pct * 100)|round(1)) if t.fixed_pct is not none else '' }}" placeholder="40"></label>
+    <label class="field">Renda variável (%)<input name="equity_pct" inputmode="decimal" autocomplete="off" value="{{ '%g'|format((t.equity_pct * 100)|round(1)) if t.equity_pct is not none else '' }}" placeholder="60"></label>
+  </div>
+  <label class="field">Dentro da renda variável: internacional (%)<input name="intl_pct" inputmode="decimal" autocomplete="off" value="{{ '%g'|format((t.intl_pct * 100)|round(1)) if t.intl_pct is not none else '' }}" placeholder="30 (o resto é nacional)"></label>
+  <label class="check"><input type="checkbox" name="pension_in_fixed" {% if t.pension_in_fixed %}checked{% endif %}> Contar a previdência como renda fixa</label>
+  <p class="modal-note">Renda fixa + variável = 100% do que sobra além da reserva. Deixe um dos dois em branco para completar sozinho.</p>
+  <div class="modal-actions">
+    {% if view and view.current is not none and t.own %}<button class="btn btn-ghost" type="submit" name="use_household" value="on">Usar as metas da casa</button>{% endif %}
+    <button class="btn btn-primary" type="submit">Salvar metas</button>
+  </div>
+</form>
+{% endcall %}
 {% endblock %}

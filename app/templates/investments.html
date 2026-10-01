@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, hero, stat, delta_chip, invest_tabs, progress, ranges, empty %}
+{% block title %}Investimentos{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Investimentos</h1></div></div>
+{{ invest_tabs("resumo") }}
+
+{% if not has_assets %}
+<div class="card empty">
+  <h2>Nenhum investimento ainda</h2>
+  <p>Importe a posição da B3 ou conecte o Open Finance para ver ações, FIIs, renda fixa e previdência juntos.</p>
+  <div class="actions"><a class="btn btn-primary" href="/importar">Importar</a></div>
+</div>
+{% else %}
+<div class="hero-row">
+  {% call hero("Investido", total|brl_hero) %}
+    {{ delta_chip(kpis.day_cents, kpis.day_pct) }}<span>em ações e FIIs hoje</span>
+  {% endcall %}
+</div>
+
+<section class="stats">
+  {% call stat("Ações e FIIs", kpis.value|brl_compact, icon_name="chart-line", href="/carteira") %}{% set r12 = kpis.returns["12M"] %}<span class="{{ r12.twr|tone }}">{{ r12.twr|pct(1) }}</span> em 12 meses · CDI {{ r12.cdi|pct(1) }}{% endcall %}
+  {% call stat("Renda fixa", fixed|brl_compact, icon_name="landmark", href="/renda-fixa") %}CDB, caixinhas e Tesouro{% endcall %}
+  {% if pension %}{% call stat("Previdência", pension|brl_compact, icon_name="shield-check", href="/previdencia") %}PGBL e VGBL{% endcall %}{% endif %}
+  {% call stat("Proventos em 12 meses", kpis.income_12m|brl_compact, icon_name="coins", href="/rendimentos") %}Yield {{ kpis.dy_12m|pct(1, False) }}{% endcall %}
+</section>
+
+<section class="grid">
+  <article class="card span-8">
+    <div class="card-head"><h2 class="card-title">Evolução</h2>{{ ranges("12M") }}</div>
+    <div class="chart" data-chart="invested-total"></div>
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Onde aportar</h2><a class="link" href="/metas">Ver plano {{ icon("arrow-right") }}</a></div>
+    {% if plan %}
+    <p class="muted footnote">Com {{ suggested|brl_compact }}, a sobra média dos últimos meses:</p>
+    <div class="rows">
+      {% for p in plan[:3] %}
+      <div class="row"><span class="row-main"><span class="row-title">{{ p.label }}</span><span class="row-sub">{{ p.reason }}</span></span><span class="row-end"><b class="money">{{ p.amount|brl_compact }}</b></span></div>
+      {% endfor %}
+    </div>
+    {% elif snap.configured %}
+    {{ empty("target", "Tudo dentro das metas. Qualquer aporte pode ir para a classe que você preferir.") }}
+    {% else %}
+    {{ empty("target", "Defina a reserva e a divisão entre renda fixa e variável para saber onde aportar.", "/metas", "Definir metas") }}
+    {% endif %}
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card span-8">
+    <div class="card-head"><h2 class="card-title">Alocação</h2><span class="card-note">{{ classes|length }} classes</span></div>
+    <div class="stackbar" role="img" aria-label="Alocação por classe">
+      {% for c in classes %}<span class="c{{ loop.index if loop.index <= 8 else 5 }}" data-w="{{ (c.pct * 100)|round(2) }}" title="{{ c.label }}: {{ c.pct|pct(1, False) }}"></span>{% endfor %}
+    </div>
+    <div class="stack-legend">
+      {% for c in classes %}<div><i class="c{{ loop.index if loop.index <= 8 else 5 }}"></i><span class="lbl">{{ c.label }}</span><b class="money">{{ c.value|brl_compact }}</b><small>{{ c.pct|pct(0, False) }}</small></div>{% endfor %}
+    </div>
+    {% if snap.configured and snap.buckets|selectattr("target_pct")|list %}
+    <div class="card-head"><h2 class="card-title">Contra as metas</h2></div>
+    <div class="rows">
+      {% for b in snap.buckets if b.target_pct is not none %}
+      <div class="row">
+        <span class="row-main"><span class="row-title">{{ b.label }}</span>{{ progress(b.pct, "fill-risk" if b.drift is not none and b.drift|abs >= 0.05 else "", b.target_pct, "Meta " ~ b.target_pct|pct(0, False), True) }}</span>
+        <span class="row-end"><b>{{ b.pct|pct(0, False) }}</b><small>meta {{ b.target_pct|pct(0, False) }}</small></span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </article>
+  <article class="card span-4">
+    <div class="card-head"><h2 class="card-title">Maiores variações hoje</h2></div>
+    {% if movers %}
+    <div class="rows">
+      {% for a in movers %}
+      <a class="row" href="/ativo/{{ a.ticker }}">
+        <span class="row-icon">{{ a.ticker[:4] }}</span>
+        <span class="row-main"><span class="row-title">{{ a.ticker }}</span><span class="row-sub">{{ a.close|brl }}</span></span>
+        <span class="row-end"><b class="{{ a.day_pct|tone }}">{{ a.day_pct|pct }}</b><small>{{ a.day_cents|brl_signed }}</small></span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}{{ empty("chart-line", "Atualize o mercado para ver a variação do dia.") }}{% endif %}
+  </article>
+</section>
+{% endif %}
+<script type="application/json" id="data-invested-total">{{ chart_series|tojson }}</script>
+{% endblock %}

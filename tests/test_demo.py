@@ -260,6 +260,13 @@ def test_cli_recusa_atualizar_e_backup_na_demo(capsys, comando):
     assert "demonstração" in json.loads(capsys.readouterr().out)["erro"]
 
 
-def test_botao_da_demo_aparece_na_visao_geral(client, dados_exemplo):
+def test_botao_da_demo_aparece_nas_boas_vindas(client):
     pagina = client.get("/").text
+    assert "Bem-vindo ao Tabimoney" in pagina
+    assert re.search(r'action="/demo/entrar"', pagina) and "Ver demonstração" in pagina
+
+
+def test_botao_da_demo_fica_nas_configuracoes(client, dados_exemplo):
+    assert 'action="/demo/entrar"' not in client.get("/").text
+    pagina = client.get("/configuracoes").text
     assert re.search(r'action="/demo/entrar"', pagina) and "Ver demonstração" in pagina

@@ -1,36 +1,85 @@
 {% extends "base.html" %}
-{% from "_ui.html" import kpi, hbars, badge %}
-{% block title %}Proventos e CDI{% endblock %}
+{% from "_ui.html" import icon, stat, badge, invest_tabs, modal, hint, empty %}
+{% block title %}Proventos{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Proventos e CDI</h1><div class="sub">Renda passiva: proventos creditados na conta e rendimento do saldo parado</div></div>
+  <div><h1>Investimentos</h1></div>
+  <div class="actions"><button class="btn" type="button" data-dialog="dlg-cdi">{{ icon("sliders-horizontal") }}Quanto cada conta rende</button></div>
+</div>
+{{ invest_tabs("proventos") }}
+
+<div class="hero-row">
+  <div class="hero">
+    <div class="hero-label">Rendeu sozinho em 12 meses
+      {% call hint("renda", "O que entra aqui") %}<p>Proventos creditados na conta (dividendos, JCP, rendimentos de FII) mais o rendimento do saldo parado em conta, pelo CDI.</p><p>Valores brutos: o IR regressivo é descontado no resgate.</p>{% endcall %}</div>
+    <div class="hero-value money">{{ kpis.passive_12m|brl_hero }}</div>
+    <div class="hero-meta"><span>Média de <b class="strong money">{{ kpis.monthly_avg|brl_compact }}</b> por mês</span></div>
+  </div>
 </div>
 
-<section class="kpis">
-  {% call kpi("Renda passiva em 12 meses", kpis.passive_12m|brl, hero=True) %}média de {{ kpis.monthly_avg|brl_compact }}/mês{% endcall %}
-  {% call kpi("Rendimento CDI · 12M", kpis.cdi_12m|brl_compact) %}{% if kpis.measured_share %}{{ kpis.measured_share|pct(0, False) }} medido{% else %}estimado{% endif %} · bruto de IR{% endcall %}
-  {{ kpi("Proventos · 12M", kpis.prov_12m|brl_compact, "Creditados na conta") }}
-  {% call kpi("Rendendo agora", kpis.per_day|brl ~ "/dia") %}≈ {{ kpis.per_month|brl_compact }}/mês{% if kpis.cdi_annual %} · CDI {{ kpis.cdi_annual|pct(2, False) }} a.a.{% endif %}{% endcall %}
+<section class="stats">
+  {% call stat("Proventos", kpis.prov_12m|brl_compact, icon_name="coins") %}Creditados na conta em 12 meses{% endcall %}
+  {% call stat("Saldo em conta rendendo", kpis.cdi_12m|brl_compact, icon_name="piggy-bank") %}{% if kpis.measured_share %}{{ kpis.measured_share|pct(0, False) }} medido pelo Open Finance{% else %}Estimado pelo CDI{% endif %}{% endcall %}
+  {% call stat("Rendendo agora", kpis.per_day|brl ~ "/dia", icon_name="hourglass") %}≈ <span class="money">{{ kpis.per_month|brl_compact }}</span>/mês{% if kpis.cdi_annual %} · CDI {{ kpis.cdi_annual|pct(2, False) }} a.a.{% endif %}{% endcall %}
 </section>
 
 <section class="grid">
   <article class="card span-8">
-    <div class="card-head"><h2 class="card-title">Por mês</h2><span class="card-note">Últimos 12 meses</span></div>
+    <div class="card-head"><h2 class="card-title">Por mês</h2><span class="card-note">12 meses</span></div>
     <div class="chart" data-chart="income"></div>
   </article>
-  <article class="card span-4">
-    <div class="card-head"><h2 class="card-title">Proventos por ativo</h2><span class="card-note">12 meses</span></div>
-    {% if by_asset %}{{ hbars(by_asset[:10]) }}{% else %}<p class="muted">Nenhum provento creditado.</p>{% endif %}
+  <article class="card card-flush span-4">
+    <div class="card-head"><h2 class="card-title">Quem mais pagou</h2><span class="card-note">12 meses</span></div>
+    {% if by_asset %}
+    <div class="rows">
+      {% for a in by_asset[:5] %}
+      <div class="row">
+        <span class="row-icon">{{ a.label[:4] if a.label|length <= 7 else icon("coins") }}</span>
+        <span class="row-main"><span class="row-title">{{ a.label }}</span></span>
+        <span class="row-end"><b class="money">{{ a.value|brl }}</b><small>{{ a.pct|pct(0, False) }}</small></span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}{{ empty("coins", "Nenhum provento creditado nos últimos 12 meses.") }}{% endif %}
   </article>
 </section>
 
-<section class="grid">
-  <article class="card card-flush span-7">
-    <div class="card-head"><h2 class="card-title">Rendimento do saldo em conta</h2></div>
-    {% if yields %}
-    <div class="table-wrap scroll-y">
+<section class="card card-flush">
+  <div class="card-head"><h2 class="card-title">Proventos creditados</h2><span class="card-note">{{ credits|length|plural("lançamento", "lançamentos") }}</span></div>
+  {% if credits %}
+  <div class="rows">
+    {% for c in credits[:8] %}
+    <div class="row">
+      <span class="row-icon tone-up">{{ icon("coins") }}</span>
+      <span class="row-main"><span class="row-title">{% if c.ticker %}<a href="/ativo/{{ c.ticker }}">{{ c.ticker }}</a>{% else %}{{ c.description[:40] }}{% endif %} · {{ c.kind or "Provento" }}</span><span class="row-sub">{{ c.d|date_br }} · {{ c.account }}</span></span>
+      <span class="row-end"><b class="money up">{{ c.amount|brl }}</b></span>
+    </div>
+    {% endfor %}
+  </div>
+  {% if credits|length > 8 %}
+  <details class="more-rows">
+    <summary class="card-foot">Ver todos os {{ credits|length }}</summary>
+    <div class="rows">
+      {% for c in credits[8:] %}
+      <div class="row">
+        <span class="row-icon tone-up">{{ icon("coins") }}</span>
+        <span class="row-main"><span class="row-title">{% if c.ticker %}<a href="/ativo/{{ c.ticker }}">{{ c.ticker }}</a>{% else %}{{ c.description[:40] }}{% endif %} · {{ c.kind or "Provento" }}</span><span class="row-sub">{{ c.d|date_br }} · {{ c.account }}</span></span>
+        <span class="row-end"><b class="money up">{{ c.amount|brl }}</b></span>
+      </div>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+  {% else %}{{ empty("coins", "Nenhum provento na conta ainda.") }}{% endif %}
+</section>
+
+{% if yields %}
+<details class="fold">
+  <summary>Rendimento do saldo em conta <small>mês a mês, por conta</small></summary>
+  <div class="fold-body">
+    <div class="table-wrap">
       <table class="data">
-        <thead><tr><th>Mês</th><th>Conta</th><th class="num">Saldo médio</th><th class="num">CDI no mês</th><th class="num">Rendimento</th><th>Origem</th></tr></thead>
+        <thead><tr><th>Mês</th><th>Conta</th><th class="num">Saldo médio</th><th class="num">CDI no mês</th><th class="num">Rendimento</th><th>Origem {% call hint("origem", "Estimado ou medido") %}<p><b>Estimado</b>: saldo do dia anterior × CDI do dia.</p><p><b>Medido</b>: entre dois saldos reais do Open Finance, rendimento = saldo final − saldo inicial − movimentações; a estimativa é ajustada para bater com ele. Sincronize todo dia para os meses virarem medidos.</p>{% endcall %}</th></tr></thead>
         <tbody>
         {% for y in yields %}
           <tr>
@@ -45,52 +94,29 @@
         </tbody>
       </table>
     </div>
-    {% else %}<div class="empty"><p class="muted">Nenhuma conta rendendo CDI. Configure o percentual ao lado.</p></div>{% endif %}
-  </article>
-  <article class="card span-5">
-    <div class="card-head"><h2 class="card-title">Quanto cada conta rende</h2></div>
-    <form method="post" action="/rendimentos/config" class="form-grid footnote">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      {% for a in accounts %}
-      <label class="field">{{ a.name }} · saldo {{ a.balance|brl_compact }}
-        <input name="pct:{{ a.name }}" value="{{ a.pct_text }}" inputmode="decimal" autocomplete="off" placeholder="0 = não rende">
-      </label>
-      {% endfor %}
-      <div><button class="btn btn-primary" type="submit">Salvar</button></div>
-    </form>
-    <p class="footnote">% do CDI que o saldo parado rende (Nubank: 100%). A taxa diária do CDI vem do Banco Central (série SGS 12){% if kpis.cdi_date %}, última de {{ kpis.cdi_date|date_br }}: {{ (kpis.cdi_rate / 100)|pct(6, False) }} ao dia{% endif %}.</p>
-    <p class="footnote"><b>Estimado</b>: saldo do dia anterior × CDI do dia. <b>Medido</b>: entre dois saldos reais do Open Finance, rendimento = saldo final − saldo inicial − movimentações; a estimativa é ajustada para bater com ele. Sincronize todo dia para os meses virarem medidos. Valores brutos: o IR regressivo é descontado no resgate.</p>
     {% if checks %}
-    <div class="list footnote">
+    <div class="rows modal-gap">
       {% for c in checks %}
-      <div class="list-row"><span>{{ c.account }}<small>{{ c.start|date_br }} → {{ c.end|date_br }} · estimado {{ c.estimated|brl }}</small></span>
-        <span class="right"><b>{{ c.measured|brl_signed }}</b><small>{{ 'usado' if c.reliable else 'fora do esperado, ignorado' }}</small></span></div>
+      <div class="row"><span class="row-main"><span class="row-title">{{ c.account }}</span><span class="row-sub">{{ c.start|date_br }} → {{ c.end|date_br }} · estimado {{ c.estimated|brl }}</span></span>
+        <span class="row-end"><b class="money">{{ c.measured|brl_signed }}</b><small>{{ 'usado' if c.reliable else 'fora do esperado, ignorado' }}</small></span></div>
       {% endfor %}
     </div>
     {% endif %}
-  </article>
-</section>
-
-<section class="card card-flush">
-  <div class="card-head"><h2 class="card-title">Proventos creditados <span class="card-note">{{ credits|length }} lançamentos</span></h2></div>
-  {% if credits %}
-  <div class="table-wrap scroll-y">
-    <table class="data" data-sortable>
-      <thead><tr><th data-sort="text">Data</th><th data-sort="text">Ativo</th><th data-sort="text">Tipo</th><th data-sort="text">Conta</th><th class="num" data-sort="num">Valor</th></tr></thead>
-      <tbody>
-      {% for c in credits %}
-        <tr>
-          <td data-v="{{ c.d }}">{{ c.d|date_br }}</td>
-          <td>{% if c.ticker %}<a class="link" href="/ativo/{{ c.ticker }}"><b>{{ c.ticker }}</b></a>{% else %}<span class="muted">{{ c.description[:40] }}</span>{% endif %}</td>
-          <td class="text-2">{{ c.kind or "—" }}</td>
-          <td class="muted">{{ c.account }}</td>
-          <td class="num up" data-v="{{ c.amount }}">{{ c.amount|brl }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
   </div>
-  {% else %}<div class="empty"><p class="muted">Nenhum provento na conta ainda.</p></div>{% endif %}
-</section>
+</details>
+{% endif %}
+
+{% call modal("cdi", "Quanto cada conta rende") %}
+<form method="post" action="/rendimentos/config" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <p class="modal-note">% do CDI que o saldo parado rende (Nubank: 100%). 0 = não rende.{% if kpis.cdi_date %} CDI do Banco Central de {{ kpis.cdi_date|date_br }}: {{ (kpis.cdi_rate / 100)|pct(6, False) }} ao dia.{% endif %}</p>
+  {% for a in accounts %}
+  <label class="field">{{ a.name }} · saldo {{ a.balance|brl_compact }}
+    <input name="pct:{{ a.name }}" value="{{ a.pct_text }}" inputmode="decimal" autocomplete="off" placeholder="0 = não rende">
+  </label>
+  {% else %}<p class="muted">Nenhuma conta corrente importada ainda.</p>{% endfor %}
+  <div class="modal-actions"><button class="btn btn-primary" type="submit">Salvar</button></div>
+</form>
+{% endcall %}
 <script type="application/json" id="data-income">{{ chart|tojson }}</script>
 {% endblock %}

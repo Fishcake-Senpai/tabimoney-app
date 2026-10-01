@@ -1,0 +1,52 @@
+{#- Lista de lançamentos por dia + o painel lateral (um só, preenchido pelo app.js). Usado em Gastos › Lançamentos
+    e na página de cada categoria. Espera: transactions, category_options, csrf_token; tx_back (para onde voltar). -#}
+{% from "_ui.html" import icon, cat_icon, drawer %}
+{% macro tx_rows(transactions) -%}
+    {% for day, items in transactions|groupby("transaction_date")|reverse %}
+    <div class="day-head" data-day="{{ day }}"><span>{{ day|day_label }}</span><span class="money">{{ items|sum(attribute="amount_cents")|brl_signed }}</span></div>
+    {% for t in items %}
+    {% set source = {"manual": "escolhida por você", "regra": "por regra", "auto": "automática"}.get(t.category_source, "automática") %}
+    <button class="row" type="button" data-row data-in="{{ day }}" data-cat="{{ t.category or '' }}"
+            data-tx="{{ t.id }}" data-title="{{ t.description|tx_title }}" data-desc="{{ t.description }}" data-category="{{ t.category or '' }}"
+            data-auto="{{ t.auto_category or t.category or '' }}" data-manual="{{ '1' if t.category_source == 'manual' else '' }}"
+            data-source="{{ source }}" data-account="{{ t.account_name }}" data-date="{{ t.transaction_date|date_br }}"
+            data-amount="{{ t.amount_cents|brl_signed }}" data-positive="{{ '1' if t.amount_cents > 0 }}" data-icon="{{ category_icon(t.category) }}"
+            data-orig="{{ t.original_amount_cents|foreign_money(t.original_currency) if t.original_currency else '' }}"
+            data-pending="{{ '1' if t.status == 'PENDING' }}" data-transfer="{{ t.transfer_with or '' }}">
+      {{ cat_icon(t.category) }}
+      <span class="row-main"><span class="row-title">{{ t.description|tx_title }}</span>
+        <span class="row-sub">{{ t.category or "Sem categoria" }}{% if t.category_source == 'regra' %} · regra{% endif %} · {{ t.account_name }}{% if t.transfer_with %} · ↔ {{ t.transfer_with }}{% endif %}</span></span>
+      <span class="row-end"><b class="money {{ 'up' if t.amount_cents > 0 }}">{{ t.amount_cents|brl_signed }}</b>{% if t.original_currency %}<small>{{ t.original_amount_cents|foreign_money(t.original_currency) }}</small>{% elif t.status == 'PENDING' %}<small>fatura aberta</small>{% endif %}</span>
+    </button>
+    {% endfor %}
+    {% endfor %}
+{%- endmacro %}
+
+{% macro tx_drawer(category_options, tx_back) -%}
+{% call drawer("tx", "Lançamento") %}
+<div class="drawer-hero">
+  <span class="row-icon" data-tx-icon>{{ icon("circle-dashed") }}</span>
+  <div class="hero-value money" data-tx-amount></div>
+  <p data-tx-title></p>
+</div>
+<div class="kv"><span>Data</span><b data-tx-date></b></div>
+<div class="kv"><span>Conta</span><b data-tx-account></b></div>
+<div class="kv"><span>Categoria</span><b data-tx-source></b></div>
+<div class="kv" data-tx-orig-row><span>Valor original</span><b data-tx-orig></b></div>
+<div class="kv" data-tx-transfer-row><span>Transferência com</span><b data-tx-transfer></b></div>
+<form method="post" action="/contas/categoria" class="form-grid modal-gap">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="transaction_id" data-tx-id>
+  <input type="hidden" name="description" data-tx-desc>
+  <input type="hidden" name="back" value="{{ tx_back }}">
+  <label class="field">Trocar a categoria
+    <select name="category" data-tx-select>
+      <option value="" data-auto-option>Automática</option>
+      {% for c in category_options %}<option>{{ c }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="check"><input type="checkbox" name="create_rule"> <span>Usar sempre para <b data-tx-rule></b></span></label>
+  <div class="modal-actions"><a class="btn btn-ghost" data-tx-category-link href="/contas">Ver a categoria</a><button class="btn btn-primary" type="submit">Salvar</button></div>
+</form>
+{% endcall %}
+{%- endmacro %}

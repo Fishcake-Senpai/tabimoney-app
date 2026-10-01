@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import calendar
+import contextvars
 import hmac
 import os
 import secrets
@@ -19,11 +21,11 @@ from app.mcp_server import instalar as mcp_instalar
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
 from app.services import analytics, budgets, fundamentals, household, pension, recommendations, spending, targets, updates
-from app.services.categories import INCOME_CATEGORIES, INTERNAL_CATEGORIES
+from app.services.categories import CATEGORY_ICON_CHOICES, INCOME_CATEGORIES, INTERNAL_CATEGORIES, category_icon
 from app.services.markdown import render as render_markdown
 from app.services.formatting import (
-    brl, brl_compact, brl_signed, brl_whole, date_br, foreign_money, indicator, metric_value, month_label, multiple, pct,
-    quantity, tone,
+    ago, brl, brl_compact, brl_hero, brl_signed, brl_whole, date_br, day_label, foreign_money, indicator, long_date,
+    metric_value, month_label, month_long, multiple, pct, plural, quantity, tone, tx_title,
 )
 from app.services.importers import import_ofx, import_positions_csv, import_quotes_csv, normalize_ticker
 from app.services.smart_import import import_file
@@ -155,6 +157,22 @@ templates.env.filters["md"] = render_markdown
 templates.env.globals["app_version"] = __version__
 templates.env.globals["vault_name"] = vault_name()
 templates.env.filters["metric_value"] = metric_value
+templates.env.filters["brl_hero"] = brl_hero
+templates.env.filters["plural"] = plural
+templates.env.filters["day_label"] = day_label
+templates.env.filters["ago"] = ago
+templates.env.filters["tx_title"] = tx_title
+templates.env.filters["month_long"] = month_long
+templates.env.globals["long_date"] = long_date
+# ícone escolhido de cada categoria do usuário: lido uma vez por página em _render (o template renderiza na hora)
+_CUSTOM_ICONS: contextvars.ContextVar[dict[str, str]] = contextvars.ContextVar("custom_icons", default={})
+
+
+def _category_icon(name: str | None, chosen: str | None = None) -> str:
+    return category_icon(name, chosen or _CUSTOM_ICONS.get().get(name or ""))
+
+
+templates.env.globals["category_icon"] = _category_icon
 
 
 def _csrf_token(request: Request) -> str:
@@ -184,10 +202,22 @@ def _update_notice():
         return None
 
 
+UI_THEMES = ("escuro", "claro", "sistema")
+
+
+def _ui_prefs() -> dict[str, object]:
+    """Aparência (Configurações › Aparência): tema e se o app abre com os valores escondidos."""
+    theme = db.get_setting("ui_theme", "escuro")
+    return {"theme": theme if theme in UI_THEMES else "escuro", "discreet": db.get_setting("ui_discreet", "0") == "1"}
+
+
 def _render(request: Request, template: str, **context):
     messages = request.session.pop("flash_messages", [])
     context.setdefault("update", None if request.session.get("demo") else _update_notice())
     context.setdefault("demo_mode", bool(request.session.get("demo")))
+    context.setdefault("ui", _ui_prefs())
+    context.setdefault("inbox", {"items": [], "count": 0})
+    _CUSTOM_ICONS.set(spending.custom_icons())
     return templates.TemplateResponse(
         request=request,
         name=template,
@@ -236,8 +266,41 @@ def _household_view(request: Request) -> dict[str, object] | None:
     }
 
 
+def _inbox() -> dict[str, object]:
+    """O sino da barra do topo: o que pede atenção, com o link de onde resolver."""
+    items: list[dict[str, str]] = []
+    count = 0
+    divergent = _nav_counts()["pending"]
+    if divergent:
+        count += divergent
+        items.append({"icon": "arrow-left-right", "tone": "down", "href": "/conciliacao",
+                      "title": plural(divergent, "divergência", "divergências") + " na conciliação",
+                      "sub": "Posição ou saldo que não bate com as movimentações"})
+    warnings = [a for a in fundamentals.alerts() if a["severity"] in ("critico", "atencao")]
+    if warnings:
+        count += len(warnings)
+        tickers = sorted({a["ticker"] for a in warnings if a["ticker"]})
+        items.append({"icon": "triangle-alert", "tone": "warn", "href": "/conciliacao#avisos",
+                      "title": plural(len(warnings), "aviso", "avisos") + " nos seus ativos",
+                      "sub": ", ".join(tickers[:4]) + (" e outros" if len(tickers) > 4 else "")})
+    advice = budgets.latest_advice()
+    open_advice = [i for i in advice["items"] if i["applicable"]] if advice else []
+    if open_advice:
+        count += len(open_advice)
+        items.append({"icon": "sparkles", "tone": "up", "href": "/recomendacoes",
+                      "title": plural(len(open_advice), "sugestão da IA", "sugestões da IA") + " para o orçamento",
+                      "sub": advice["title"]})
+    return {"items": items, "count": count}
+
+
+def _last_sync() -> str:
+    found = db.rows("SELECT MAX(COALESCE(finished_at, started_at)) FROM sync_run WHERE status IN ('success', 'partial')")
+    return ago(found[0][0]) if found and found[0][0] else ""
+
+
 def _page(request: Request, template: str, **context):
-    return _render(request, template, nav=_nav_counts(), view=_household_view(request), **context)
+    return _render(request, template, nav=_nav_counts(), view=_household_view(request), inbox=_inbox(),
+                   last_sync=_last_sync(), **context)
 
 
 def _in_demo(request: Request) -> bool:
@@ -317,41 +380,95 @@ def overview(request: Request):
     flow_by_month = {row["m"]: row for row in flow}
     previous = flow_by_month.get(analytics.month_start(1)[:7])
     card = [a for a in accounts if a["type"] == "CREDIT"]
-    movers = sorted(
-        (a for a in assets if a["day_pct"] is not None and a["qty"] > 0), key=lambda a: -abs(a["day_pct"])
-    )[:5]
     summary = {
         "net_worth": last["nw"] if last else None,
         "change_30d": last["nw"] - month_ago["nw"] if last and month_ago else None,
         "change_30d_pct": analytics._pct(last["nw"] - month_ago["nw"], month_ago["nw"]) if last and month_ago else None,
-        "equity": kpis["value"], "fixed": sum(p["gross"] for p in fixed), "cash": book.cash_at(book.today),
-        "pension": book.pension_at(book.today) or None,
+        "invested": kpis["value"] + sum(p["gross"] for p in fixed) + (book.pension_at(book.today) or 0),
+        "cash": book.cash_at(book.today),
         "card_due": -sum(a["balance"] for a in card) if card else None,
         "card_available": sum(a["available"] or 0 for a in card) if any(a["available"] for a in card) else None,
         "spend_month": flow_by_month.get(analytics.month_start(0)[:7], {}).get("out"),
         "spend_prev": previous["out"] if previous else None,
-        "savings_rate": analytics._pct(previous["net"], previous["in"]) if previous and previous["in"] else None,
     }
-    balance = targets.snapshot(book, assets)
     budget = budgets.status(_household_transactions(member, transactions))
+    has_data = bool(series or transactions)
     return _page(
-        request, "overview.html", summary=summary, kpis=kpis, movers=movers, balance=balance,
-        display_name=db.get_setting("display_name"), budget=budget,
-        allocation=book.allocation(assets),
-        categories=analytics.spending_by_category(transactions, analytics.month_start(0))[:8],
+        request, "overview.html", summary=summary, kpis=kpis, budget=budget,
+        display_name=db.get_setting("display_name"), attention=_attention(budget, kpis),
+        recent=[t for t in transactions if t["category"] not in INTERNAL_CATEGORIES][:6],
         chart_series=[{k: p[k] for k in ("d", "eq", "fi", "pv", "cash", "debt", "nw")} for p in series],
-        chart_flow=flow, has_data=bool(series or transactions),
+        has_data=has_data, welcome=None if has_data else _welcome_steps(),
+    )
+
+
+def _attention(budget: dict, kpis: dict) -> list[dict[str, str]]:
+    """Bloco "Pede sua atenção" do Início: as pendências do sino e o que está fora do ritmo agora."""
+    items = list(_inbox()["items"])
+    if budget["items"] and budget["at_risk"]:
+        items.append({"icon": "wallet", "tone": "warn", "href": "/contas/orcamento",
+                      "title": plural(budget["at_risk"], "meta de gasto", "metas de gasto") + " em risco",
+                      "sub": "O ritmo do mês passa do limite"})
+    stale = (kpis["stale_quotes"] or 0) + (kpis["missing_quotes"] or 0)
+    if stale:
+        items.append({"icon": "clock", "tone": "warn", "href": "/carteira",
+                      "title": plural(stale, "ativo", "ativos") + " com cotação antiga",
+                      "sub": "Sincronize para atualizar o mercado"})
+    return items
+
+
+def _welcome_steps() -> list[dict[str, object]]:
+    """Primeiros passos da base vazia; cada um marca sozinho quando feito."""
+    try:
+        ai = any(c.get("conectado") for c in mcp_instalar.situacao())
+    except Exception:  # noqa: BLE001 - a situação da IA nunca pode derrubar o Início
+        ai = False
+    return [
+        {"icon": "upload", "href": "/importar", "done": False, "title": "Importe um extrato",
+         "sub": "OFX ou CSV do banco, fatura do cartão ou planilhas da B3"},
+        {"icon": "landmark", "href": "/configuracoes#open-finance", "done": bool(household.items()),
+         "title": "Conecte o Open Finance", "sub": "Os bancos chegam sozinhos pelo Meu Pluggy"},
+        {"icon": "sparkles", "href": "/configuracoes#ia", "done": ai, "title": "Conecte a IA",
+         "sub": "Claude ou outro agente lê e organiza suas finanças"},
+    ]
+
+
+@app.get("/investimentos", response_class=HTMLResponse)
+def investments_page(request: Request):
+    """Resumo do hub Investimentos: quanto está investido, onde, e para onde vai o próximo aporte."""
+    member = _member(request)
+    book = analytics.Book(member)
+    assets = book.assets()
+    kpis = book.portfolio_kpis(assets)
+    series = book.series()
+    fixed = sum(p["gross"] for p in book.fixed_income())
+    pension_total = book.pension_at(book.today) or 0
+    snap = targets.snapshot(book, assets)
+    flow = analytics.cash_flow(analytics.cash_transactions(member=member) + book.yield_entries())
+    suggested = targets.suggested_amount(flow)
+    classes = [a for a in book.allocation(assets) if a["label"] != "Caixa"]
+    total = sum(a["value"] for a in classes)
+    for a in classes:
+        a["pct"] = a["value"] / total if total else 0
+    movers = sorted((a for a in assets if a["day_pct"] is not None and a["qty"] > 0), key=lambda a: -abs(a["day_pct"]))[:5]
+    return _page(
+        request, "investments.html", kpis=kpis, total=total, fixed=fixed, pension=pension_total, classes=classes,
+        snap=snap, plan=targets.contribution_plan(snap, suggested) if snap["configured"] else [], suggested=suggested,
+        movers=movers, has_assets=bool(total),
+        chart_series=[{"d": p["d"], "eq": p["eq"], "fi": p["fi"], "pv": p.get("pv") or 0} for p in series
+                      if p["eq"] or p["fi"] or p.get("pv")],
     )
 
 
 @app.get("/carteira", response_class=HTMLResponse)
-def portfolio(request: Request):
+def portfolio(request: Request, vista: str = ""):
     book = analytics.Book(_member(request))
     assets = book.assets()
     kpis = book.portfolio_kpis(assets)
     series = book.series()
     return _page(
         request, "portfolio.html", assets=assets, kpis=kpis, allocation=book.allocation(assets),
+        view_mode="fundamentos" if vista == "fundamentos" else "posicoes",
         fund=fundamentals.portfolio_fundamentals(assets), fund_alerts=fundamentals.alerts(),
         indicator_meta=fundamentals.INDICATORS, fund_synced=db.get_setting("fundamentals_synced_at"),
         chart_returns={
@@ -363,8 +480,11 @@ def portfolio(request: Request):
     )
 
 
+ASSET_TABS = ("visao", "fundamentos", "resultados", "analises", "eventos")
+
+
 @app.get("/ativo/{ticker}", response_class=HTMLResponse)
-def asset_page(request: Request, ticker: str):
+def asset_page(request: Request, ticker: str, aba: str = ""):
     normalized = normalize_ticker(ticker)
     book = analytics.Book(_member(request))
     asset = next((a for a in book.assets() if a["ticker"] == normalized), None)
@@ -374,7 +494,7 @@ def asset_page(request: Request, ticker: str):
     ind = fundamentals.indicators(asset["iid"], asset["close"])
     quarters = ind["quarters"][-12:] if ind else []
     return _page(
-        request, "asset.html", asset=asset, events=history["events"],
+        request, "asset.html", asset=asset, events=history["events"], tab=aba if aba in ASSET_TABS else "visao",
         chart_price={"prices": history["prices"], "avg": asset["average_price"]},
         ind=ind, quarters=list(reversed(quarters[-8:])), indicator_meta=fundamentals.INDICATORS,
         fund_alerts=fundamentals.alerts(asset["iid"]), reports=fundamentals.reports(asset["iid"], limit=50),
@@ -639,27 +759,64 @@ def delete_pension(request: Request, csrf_token: str = Form(...), entry_id: int 
     return _redirect(request, "/previdencia")
 
 
+def _spend_categories() -> list[str]:
+    return [c for c in spending.known_categories()
+            if c not in INTERNAL_CATEGORIES and (c not in INCOME_CATEGORIES or c in ("Outros", "Pix e transferências"))]
+
+
+def _chosen_month(flow: list[dict], raw: str) -> tuple[str, list[str]]:
+    """Mês do seletor de Gastos: um dos meses com movimento (padrão: o corrente)."""
+    current = analytics.month_start(0)[:7]
+    months = sorted({row["m"] for row in flow} | {current})
+    return (raw if raw in months else current), months
+
+
 @app.get("/contas", response_class=HTMLResponse)
-def accounts_page(request: Request):
+def accounts_page(request: Request, mes: str = ""):
+    """Gastos › Resumo: quanto já foi no mês, contra o orçamento, por categoria e o que mudou."""
     member = _member(request)
     book = analytics.Book(member)
     transactions = analytics.cash_transactions(member=member)
     house = _household_transactions(member, transactions)
-    accounts = book.accounts()
+    flow = analytics.cash_flow(transactions + book.yield_entries())
+    month, months = _chosen_month(flow, mes)
+    current = month == analytics.month_start(0)[:7]
+    year, number = (int(x) for x in month.split("-"))
+    last_day = analytics.date(year, number, calendar.monthrange(year, number)[1])
+    budget = budgets.status(house, today=None if current else last_day)
+    month_tx = [t for t in transactions if t["transaction_date"][:7] == month]
+    by_month = {row["m"]: row for row in flow}
+    index = months.index(month)
+    previous = months[index - 1] if index > 0 else None
     return _page(
-        request, "accounts.html", accounts=accounts, transactions=transactions[:400],
-        trends=spending.category_trends(transactions), rules=spending.rules(),
-        category_overview=spending.categories_overview(transactions), deleted_categories=spending.deleted_categories(),
-        category_options=spending.known_categories(),
-        budget=budgets.status(house), budget_list=budgets.budgets(),
+        request, "accounts.html", accounts=book.accounts(), month=month, current=current,
+        prev_month=previous, next_month=months[index + 1] if index + 1 < len(months) else None,
+        month_flow=by_month.get(month), prev_flow=by_month.get(previous) if previous else None,
+        categories=analytics.spending_by_category(month_tx, month + "-01"), budget=budget,
+        trends=spending.category_trends(transactions), chart_flow=[r for r in flow if r["m"] <= month][-6:],
+        has_data=bool(transactions or book.accounts()),
+    )
+
+
+@app.get("/contas/lancamentos", response_class=HTMLResponse)
+def transactions_page(request: Request, todos: str = ""):
+    """Gastos › Lançamentos: lista por dia; clicar abre o painel para trocar a categoria (e criar a regra ali)."""
+    transactions = analytics.cash_transactions(member=_member(request))
+    return _page(
+        request, "transactions.html", transactions=transactions[:3000 if todos else 150], total=len(transactions),
+        category_options=spending.known_categories(), all_shown=bool(todos),
+    )
+
+
+@app.get("/contas/orcamento", response_class=HTMLResponse)
+def budget_page(request: Request):
+    """Gastos › Orçamento: metas de gasto do mês, sugestões da IA e edição em diálogo."""
+    member = _member(request)
+    house = _household_transactions(member, analytics.cash_transactions(member=member))
+    return _page(
+        request, "budget.html", budget=budgets.status(house), budget_list=budgets.budgets(),
         budget_suggestions=budgets.suggestions(house), advice=budgets.latest_advice(),
-        spend_categories=[c for c in spending.known_categories()
-                          if c not in INTERNAL_CATEGORIES and (c not in INCOME_CATEGORIES or c in ("Outros", "Pix e transferências"))],
-        chart_flow=analytics.cash_flow(transactions + book.yield_entries()),
-        categories=analytics.spending_by_category(transactions, analytics.month_start(2)),
-        cash=sum(a["balance"] for a in accounts if a["type"] == "BANK"),
-        card_due=-sum(a["balance"] for a in accounts if a["type"] == "CREDIT"),
-        has_card=any(a["type"] == "CREDIT" for a in accounts),
+        spend_categories=_spend_categories(),
     )
 
 
@@ -703,7 +860,7 @@ async def save_budget(request: Request):
         _flash(request, "success", f"Meta \"{saved['name']}\" salva: {brl(limit)} por mês.")
     except ValueError as exc:
         _flash(request, "error", str(exc))
-    return _redirect(request, "/contas#orcamento")
+    return _redirect(request, "/contas/orcamento")
 
 
 @app.post("/orcamento/excluir")
@@ -711,7 +868,7 @@ def delete_budget(request: Request, csrf_token: str = Form(...), budget_id: int 
     _check_csrf(request, csrf_token)
     budgets.delete_budget(budget_id)
     _flash(request, "success", "Meta de gasto excluída.")
-    return _redirect(request, "/contas#orcamento")
+    return _redirect(request, "/contas/orcamento")
 
 
 @app.post("/orcamento/sugeridas")
@@ -722,12 +879,12 @@ def create_suggested_budgets(request: Request, csrf_token: str = Form(...)):
         _flash(request, "success", f"{created} meta(s) criada(s) pela média dos últimos 3 meses. Ajuste o que quiser.")
     except ValueError as exc:
         _flash(request, "error", str(exc))
-    return _redirect(request, "/contas#orcamento")
+    return _redirect(request, "/contas/orcamento")
 
 
 @app.post("/orcamento/aplicar")
 def apply_budget_advice(request: Request, csrf_token: str = Form(...), item_id: int = Form(...),
-                        back: str = Form("/contas#orcamento")):
+                        back: str = Form("/contas/orcamento")):
     _check_csrf(request, csrf_token)
     try:
         _flash(request, "success", budgets.apply_advice(item_id))
@@ -739,7 +896,7 @@ def apply_budget_advice(request: Request, csrf_token: str = Form(...), item_id: 
 @app.post("/contas/categoria")
 def recategorize(request: Request, csrf_token: str = Form(...), transaction_id: int = Form(...),
                  category: str = Form(""), create_rule: str = Form(""), description: str = Form(""),
-                 back: str = Form("/contas#movimentacoes")):
+                 back: str = Form("/contas/lancamentos")):
     _check_csrf(request, csrf_token)
     try:
         spending.set_category([transaction_id], category)
@@ -750,21 +907,32 @@ def recategorize(request: Request, csrf_token: str = Form(...), transaction_id: 
             _flash(request, "success", f"Categoria alterada para {category.strip() or 'automática'}.")
     except ValueError as exc:
         _flash(request, "error", str(exc))
-    return _redirect(request, _local_path(back, "/contas#movimentacoes"))
+    return _redirect(request, _local_path(back, "/contas/lancamentos"))
 
 
 @app.post("/contas/categorias")
-def create_category(request: Request, csrf_token: str = Form(...), name: str = Form(...)):
+def create_category(request: Request, csrf_token: str = Form(...), name: str = Form(...), icon: str = Form("")):
     _check_csrf(request, csrf_token)
     try:
-        result = spending.create_category(name)
+        result = spending.create_category(name, icon=icon or None)
         if result["criada"]:
             _flash(request, "success", f"Categoria {result['categoria']} criada.")
         else:
             _flash(request, "warning", f"A categoria {result['categoria']} já existe.")
     except ValueError as exc:
         _flash(request, "error", str(exc))
-    return _redirect(request, "/contas#categorias")
+    return _redirect(request, "/configuracoes#categorias")
+
+
+@app.post("/contas/categorias/icone")
+def change_category_icon(request: Request, csrf_token: str = Form(...), name: str = Form(...), icon: str = Form("")):
+    _check_csrf(request, csrf_token)
+    try:
+        spending.set_category_icon(name, icon or None)
+        _flash(request, "success", f"Ícone de {name} trocado.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/configuracoes#categorias")
 
 
 @app.post("/contas/categorias/excluir")
@@ -787,7 +955,7 @@ def delete_category(request: Request, csrf_token: str = Form(...), name: str = F
             _flash(request, "success", f"Categoria {r['categoria']} excluída.{where} Dá para restaurar em Categorias.")
     except ValueError as exc:
         _flash(request, "error", str(exc))
-    return _redirect(request, "/contas#categorias")
+    return _redirect(request, "/configuracoes#categorias")
 
 
 @app.post("/contas/categorias/restaurar")
@@ -799,7 +967,7 @@ def restore_category(request: Request, csrf_token: str = Form(...), name: str = 
                                    f"{r['regras']} regra(s) e {r['metas']} meta(s) voltaram.")
     else:
         _flash(request, "warning", f"A categoria {r['categoria']} {r['motivo']}.")
-    return _redirect(request, "/contas#categorias")
+    return _redirect(request, "/configuracoes#categorias")
 
 
 @app.post("/contas/regras")
@@ -811,7 +979,7 @@ def add_category_rule(request: Request, csrf_token: str = Form(...), pattern: st
         _flash(request, "success", f"Regra '{rule['pattern']}' → {rule['category']}: {rule['matches']} lançamento(s) afetado(s).")
     except ValueError as exc:
         _flash(request, "error", str(exc))
-    return _redirect(request, "/contas#regras")
+    return _redirect(request, "/configuracoes#regras")
 
 
 @app.post("/contas/regras/excluir")
@@ -819,7 +987,7 @@ def delete_category_rule(request: Request, csrf_token: str = Form(...), rule_id:
     _check_csrf(request, csrf_token)
     spending.delete_rule(rule_id)
     _flash(request, "success", "Regra excluída.")
-    return _redirect(request, "/contas#regras")
+    return _redirect(request, "/configuracoes#regras")
 
 
 @app.get("/conciliacao", response_class=HTMLResponse)
@@ -834,7 +1002,7 @@ def reconciliation_page(request: Request):
         bank_alerts=db.rows("SELECT * FROM v_bank_balance_reconciliation WHERE status <> 'OK' ORDER BY status, account_name"),
         reconciliation_notes=db.rows("SELECT * FROM reconciliation_note WHERE resolved_at IS NULL ORDER BY id DESC LIMIT 50"),
         recent_runs=db.rows("SELECT * FROM sync_run ORDER BY id DESC LIMIT 15"),
-        database_path=db.database_path(),
+        fund_alerts=fundamentals.alerts(),
     )
 
 
@@ -858,6 +1026,9 @@ def settings_page(request: Request):
         display_name=db.get_setting("display_name"),
         update_info=updates.summary(),
         ia=_ia_context(request),
+        rules=spending.rules(), category_overview=spending.categories_overview(analytics.cash_transactions()),
+        deleted_categories=spending.deleted_categories(), category_options=spending.known_categories(),
+        accounts=analytics.Book().accounts(), icon_choices=CATEGORY_ICON_CHOICES, database_path=db.database_path(),
     )
 
 
@@ -966,7 +1137,8 @@ def dismiss_update(request: Request, csrf_token: str = Form(...), version: str =
 
 
 # Cada seção de Configurações salva só o que é dela (secao); sem secao, salva tudo, como o formulário antigo.
-SETTINGS_SECTIONS = {"geral": "geral", "brapi": "mercado", "cotacoes": "mercado", "atualizacoes": "atualizacoes"}
+SETTINGS_SECTIONS = {"geral": "geral", "brapi": "mercado", "cotacoes": "mercado", "atualizacoes": "atualizacoes",
+                     "tema": "aparencia", "discreto": "aparencia"}
 
 
 @app.post("/configuracoes")
@@ -979,6 +1151,8 @@ def save_settings(
     update_check: str = Form(""),
     display_name: str = Form(""),
     remove_brapi: str = Form(""),
+    ui_theme: str = Form(""),
+    ui_discreet: str = Form(""),
 ):
     _check_csrf(request, csrf_token)
     every = secao not in SETTINGS_SECTIONS
@@ -997,6 +1171,10 @@ def save_settings(
         updates.set_enabled(update_check == "on")
     if every or secao == "geral":
         db.set_setting("display_name", " ".join(display_name.split())[:40])
+    if secao == "tema" and ui_theme in UI_THEMES:
+        db.set_setting("ui_theme", ui_theme)
+    if secao == "discreto":
+        db.set_setting("ui_discreet", "1" if ui_discreet == "on" else "0")
     _flash(request, "success", "Configurações salvas." if every or secao != "brapi" else f"Token salvo no {vault_name()}.")
     return _redirect(request, back)
 
@@ -1186,6 +1364,28 @@ def upload_quotes(request: Request, csrf_token: str = Form(...), file: UploadFil
     return _redirect(request, "/importar")
 
 
+@app.post("/sincronizar")
+def sync_everything(request: Request, csrf_token: str = Form(...), back: str = Form("/")):
+    """O botão da barra do topo: Open Finance (se houver banco conectado) e depois o mercado."""
+    _check_csrf(request, csrf_token)
+    back = _local_path(back, "/")
+    if blocked := _demo_blocked(request, "sincronizar", back):
+        return blocked
+    if household.items():
+        try:
+            result = sync_pluggy()
+            _flash(request, "warning" if result["status"] == "partial" else "success", result["message"])
+        except SyncError as exc:
+            _flash(request, "error", str(exc))
+    try:
+        result = sync_daily_quotes()
+        kind = "error" if result["status"] == "failed" else "warning" if result["status"] == "partial" else "success"
+        _flash(request, kind, result["message"])
+    except SyncError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, back)
+
+
 @app.post("/sincronizar/pluggy")
 def pluggy_sync(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
@@ -1306,7 +1506,7 @@ def fixed_income_template():
 @app.post("/backup")
 def download_backup(request: Request, csrf_token: str = Form(...)):
     _check_csrf(request, csrf_token)
-    if blocked := _demo_blocked(request, "o backup", "/importar"):
+    if blocked := _demo_blocked(request, "o backup", "/configuracoes#dados"):
         return blocked
     path = db.create_backup()
     return FileResponse(path, filename=path.name, media_type="application/vnd.sqlite3")
@@ -1320,11 +1520,11 @@ def restore_backup(
     file: UploadFile = File(...),
 ):
     _check_csrf(request, csrf_token)
-    if blocked := _demo_blocked(request, "restaurar backup", "/importar"):
+    if blocked := _demo_blocked(request, "restaurar backup", "/configuracoes#dados"):
         return blocked
     if confirmed != "on":
         _flash(request, "error", "Marque a confirmação para substituir os dados atuais por um backup.")
-        return _redirect(request, "/importar")
+        return _redirect(request, "/configuracoes#dados")
     try:
         previous = db.restore_database(_read_upload(file, 250 * 1024 * 1024))
         _flash(request, "success", f"Backup restaurado. Cópia preventiva salva em {previous}.")

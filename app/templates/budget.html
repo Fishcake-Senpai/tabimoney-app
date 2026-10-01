@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, chip, badge, progress, gastos_tabs, modal, hint %}
+{% block title %}Orçamento{% endblock %}
+{% set state_badge = {"ok": ("ok", "No ritmo"), "risco": ("warn", "Em risco"), "estourou": ("err", "Estourou")} %}
+{% set action_label = {"criar": "Criar meta", "ajustar": "Ajustar meta", "manter": "Manter", "remover": "Remover meta", "economizar": "Economizar"} %}
+{% set action_icon = {"criar": "plus", "ajustar": "sliders-horizontal", "manter": "check", "remover": "trash-2", "economizar": "piggy-bank"} %}
+
+{% macro budget_form(b=None) -%}
+<form method="post" action="/orcamento" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if b %}<input type="hidden" name="budget_id" value="{{ b.id }}">{% endif %}
+  <div class="form-row">
+    <label class="field">Nome<input name="name" value="{{ b.name if b else '' }}" maxlength="60" required placeholder="Ex.: Alimentação fora"></label>
+    <label class="field">Limite por mês (R$)<input name="limit" value="{{ (b.monthly_limit_cents|brl)[3:] if b else '' }}" inputmode="decimal" required placeholder="Ex.: 1.200"></label>
+  </div>
+  <label class="field">Avisar ao chegar em (%)<input name="alert_pct" value="{{ (b.alert_pct * 100)|round|int if b else 80 }}" inputmode="numeric"></label>
+  <label class="check"><input type="checkbox" name="total" {% if b and b.is_total %}checked{% endif %}> Meta de todos os gastos do mês</label>
+  <fieldset class="checks-box"><legend>Categorias</legend>
+    <div class="checks">{% for c in spend_categories %}<label class="check"><input type="checkbox" name="categories" value="{{ c }}" {% if b and c in b.categories %}checked{% endif %}> {{ c }}</label>{% endfor %}</div>
+  </fieldset>
+  <p class="modal-note">Cada categoria entra em uma meta só. O aviso dispara no percentual acima ou quando o ritmo do mês aponta estouro.</p>
+  <div class="modal-actions"><button class="btn btn-primary" type="submit">{{ "Salvar" if b else "Criar meta" }}</button></div>
+</form>
+{%- endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div><h1>Gastos</h1></div>
+  <div class="actions"><button class="btn" type="button" data-dialog="dlg-nova-meta">{{ icon("plus") }}Nova meta</button></div>
+</div>
+{{ gastos_tabs("orcamento") }}
+
+{% if budget["items"] %}
+<section class="card hero-card" id="orcamento">
+  <div class="hero">
+    <div class="hero-label">Orçamento de {{ budget.month|month_long }} · {{ budget.days_left|plural("dia", "dias") }} para acabar</div>
+    <div class="hero-value money">{{ budget.total_spent|brl_whole }}<span class="of">de {{ budget.total_limit|brl_whole }}</span></div>
+    <div class="hero-meta">
+      {% if budget.total_spent > budget.total_limit %}{{ chip("Passou " ~ (budget.total_spent - budget.total_limit)|brl_whole, "down") }}
+      {% elif budget.per_day is not none %}<span>Cabe <b class="strong money">{{ budget.per_day|brl_whole }}</b> por dia</span>{% endif %}
+      {% if budget.at_risk %}{{ chip(budget.at_risk|plural("em risco", "em risco"), "warn", "triangle-alert") }}{% endif %}
+      {% if budget.coverage is not none and budget.coverage < 0.9 %}<span>· as metas cobrem {{ budget.coverage|pct(0, False) }} do que você gastou</span>{% endif %}
+    </div>
+  </div>
+  {{ progress(budget.total_pct, "fill-over" if budget.total_pct and budget.total_pct > 1 else "fill-risk" if budget.total_pct and budget.total_pct > budget.day / budget.days_in_month + 0.1 else "",
+              budget.day / budget.days_in_month, "Hoje: " ~ (budget.day / budget.days_in_month)|pct(0, False) ~ " do mês") }}
+</section>
+
+{% set tiles = budget["items"]|rejectattr("is_total")|list %}
+{% set quiet = tiles|selectattr("spent", "equalto", 0)|selectattr("state", "equalto", "ok")|list %}
+<div class="budget-grid">
+  {% for b in tiles if b not in quiet %}
+  {% set saved = budget_list|selectattr("name", "equalto", b.name)|first %}
+  <div class="budget-tile state-{{ b.state }}">
+    <div class="budget-tile-head">
+      <b>{{ b.name }}</b>
+      <span class="actions">{{ badge(*state_badge[b.state]) }}{% if saved %}<button class="icon-btn icon-btn-sm" type="button" data-dialog="dlg-meta-{{ saved.id }}" aria-label="Editar a meta {{ b.name }}">{{ icon("pencil", "i-sm") }}</button>{% endif %}</span>
+    </div>
+    <div class="tabular"><b class="money">{{ b.spent|brl_whole }}</b> <span class="muted">de {{ b.limit|brl_whole }}</span></div>
+    {{ progress(b.pct, "fill-over" if b.state == 'estourou' else "fill-risk" if b.state == 'risco' else "", [b.projected_pct, 1]|min, "Projeção para o mês: " ~ b.projected|brl_whole) }}
+    <small class="muted">{% if b.state == 'estourou' %}Passou {{ (b.spent - b.limit)|brl_whole }}{% else %}Cabe {{ b.per_day|brl_whole }}/dia · projeção {{ b.projected|brl_whole }}{% endif %}</small>
+    <span class="budget-dots" title="Últimos meses: verde = dentro da meta">
+      {% for h in b.history %}<i class="{{ 'hit' if h.hit and h.spent else 'miss' if h.spent else '' }}" title="{{ h.m|month_label }}: {{ h.spent|brl_whole }}"></i>{% endfor %}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+
+{% if quiet or budget.uncovered %}
+<div class="notice">
+  <span class="row-icon">{{ icon("info") }}</span>
+  <div>
+    {% if quiet %}<p><b>Nada gasto ainda:</b> {% for b in quiet %}{{ b.name }} ({{ b.limit|brl_whole }}){{ ", " if not loop.last }}{% endfor %}.</p>{% endif %}
+    {% if budget.uncovered %}<p><b>Sem meta:</b> {% for u in budget.uncovered[:5] %}{{ u.category }} {{ (u.spent or u.avg3)|brl_whole }}{% if not u.spent %} (média){% endif %}{{ ", " if not loop.last }}{% endfor %}.</p>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+<section class="card budget-empty" id="orcamento">
+  <div class="budget-cta">
+    <img src="/static/brand/mascote-128.png" alt="" width="64" height="64">
+    <div>
+      <h2 class="card-title">Coloque rédea nos gastos</h2>
+      <p class="muted">Metas por grupo de categorias mostram, durante o mês, onde o dinheiro escapa e quanto ainda cabe por dia.
+        {% if budget_suggestions %}Pelos seus últimos 3 meses, uma boa largada seria:{% endif %}</p>
+    </div>
+  </div>
+  {% if budget_suggestions %}
+  <div class="budget-grid">
+    {% for s in budget_suggestions %}
+    <div class="budget-tile"><b>{{ s.name }}</b><div class="tabular money">{{ s.limit|brl_whole }}<span class="muted">/mês</span></div><small class="muted">média {{ s.avg3|brl_whole }} · {{ s.categories|join(", ") }}</small></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div class="actions">
+    {% if budget_suggestions %}
+    <form method="post" action="/orcamento/sugeridas">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn btn-primary" type="submit">Criar estas metas</button>
+    </form>
+    {% endif %}
+    <button class="btn" type="button" data-dialog="dlg-nova-meta">Montar do meu jeito</button>
+  </div>
+</section>
+{% endif %}
+
+{% if advice %}
+<h2 class="section-title"><span>A IA sugere <span class="card-note">{{ advice.title }}{% if advice.expected_monthly_savings_cents %} · economia de {{ advice.expected_monthly_savings_cents|brl_compact }}/mês{% endif %}</span></span><a class="link" href="/recomendacoes">Ver tudo {{ icon("arrow-right") }}</a></h2>
+<div class="suggestions">
+  {% for i in advice["items"][:6] %}
+  <article class="suggestion">
+    <div class="suggestion-head">
+      <span class="row-icon tone-up">{{ icon(action_icon.get(i.action, "sparkles")) }}</span>
+      <div><b>{{ action_label[i.action] }}{% if i.budget_name %} · {{ i.budget_name }}{% endif %}</b>
+        <small>{% if i.suggested_limit_cents %}{{ i.before|brl_whole if i.before else "nova" }} → {{ i.suggested_limit_cents|brl_whole }}/mês{% else %}{{ {1: "Prioridade alta", 2: "Prioridade média", 3: "Prioridade baixa"}.get(i.priority, "") }}{% endif %}</small></div>
+    </div>
+    {% if i.rationale %}<p>{{ i.rationale }}</p>{% endif %}
+    <div class="suggestion-foot">
+      {% if i.expected_monthly_savings_cents %}{{ chip("−" ~ i.expected_monthly_savings_cents|brl_compact ~ "/mês", "up") }}{% else %}<span></span>{% endif %}
+      {% if i.applicable %}
+      <form method="post" action="/orcamento/aplicar">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="item_id" value="{{ i.id }}">
+        <input type="hidden" name="back" value="/contas/orcamento">
+        <button class="btn btn-sm" type="submit">Aplicar</button>
+      </form>
+      {% elif i.applied_at %}{{ chip("Aplicada", "", "check") }}{% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% call modal("nova-meta", "Nova meta de gasto") %}{{ budget_form() }}{% endcall %}
+{% for b in budget_list %}
+{% call modal("meta-" ~ b.id, b.name) %}
+{{ budget_form(b) }}
+<form method="post" action="/orcamento/excluir" class="modal-section modal-danger" data-confirm="Excluir a meta {{ b.name }}?">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="budget_id" value="{{ b.id }}">
+  <button class="btn btn-danger btn-sm" type="submit">Excluir meta</button>
+</form>
+{% endcall %}
+{% endfor %}
+{% if budget_list and budget["items"] %}
+<details class="fold">
+  <summary>Todas as metas <small>{{ budget_list|length|plural("meta", "metas") }}</small></summary>
+  <div class="fold-body rows">
+    {% for b in budget_list %}
+    <button class="row" type="button" data-dialog="dlg-meta-{{ b.id }}">
+      <span class="row-icon">{{ icon("target") }}</span>
+      <span class="row-main"><span class="row-title">{{ b.name }}</span><span class="row-sub">{{ "Todos os gastos do mês" if b.is_total else b.categories|join(", ") }} · aviso em {{ b.alert_pct|pct(0, False) }}{% if b.author == 'agente' %} · ajustada pela IA{% endif %}</span></span>
+      <span class="row-end"><b class="money">{{ b.monthly_limit_cents|brl_whole }}</b><small>por mês</small></span>
+    </button>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
+{% endblock %}

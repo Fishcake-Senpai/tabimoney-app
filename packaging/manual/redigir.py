@@ -27,7 +27,7 @@ SHOTS = {
     "220627.png": ("06-conector-meupluggy.png", []),
     "220746.png": ("07-item-conectado.png", [(412, 112, 652, 134)]),
     "220757.png": ("08-item-id.png", [(82, 35, 322, 58)]),
-    "221019.png": ("09-tabimoney-configuracoes.png", [(333, 438, 940, 468), (322, 520, 976, 630)]),
+    # 09-tabimoney-configuracoes.png sai da demonstração (dados fictícios): não passa por aqui.
     "221122.png": ("10-brapi-painel.png", [(560, 370, 730, 398)]),
 }
 

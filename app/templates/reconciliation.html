@@ -1,133 +1,129 @@
 {% extends "base.html" %}
-{% from "_ui.html" import badge %}
-{% block title %}Conciliação{% endblock %}
+{% from "_ui.html" import icon, chip, badge, hint, empty %}
+{% block title %}Pendências{% endblock %}
+{% set run_status = {'success': ('ok', 'Concluída'), 'partial': ('warn', 'Parcial'), 'running': ('warn', 'Em andamento'), 'failed': ('err', 'Falhou')} %}
 {% block content %}
+{% set divergent = (position_alerts|selectattr('status', 'equalto', 'DIVERGENT')|list|length) + (bank_alerts|selectattr('status', 'equalto', 'DIVERGENT')|list|length) %}
+{% set to_check = position_alerts|length + bank_alerts|length %}
 <div class="page-head">
-  <div><h1>Conciliação</h1><div class="sub">Confere posições e saldos contra as movimentações</div></div>
+  <div><h1>Pendências</h1><div class="sub">{% if to_check or fund_alerts or transfer_orphans %}O que pede um olhar seu, em um lugar só.{% else %}Tudo em dia.{% endif %}</div></div>
 </div>
 
 <section class="grid">
   <article class="card card-flush span-8">
-    <div class="card-head"><h2 class="card-title">Pendências</h2></div>
-    {% if position_alerts or bank_alerts %}
-    <div class="table-wrap">
-      <table class="data">
-        <thead><tr><th>Item</th><th>Status</th><th>Data</th><th>Observação</th></tr></thead>
-        <tbody>
-        {% for alert in position_alerts %}
-          <tr>
-            <td><b>{{ alert.ticker }}</b> <span class="muted">{{ alert.account_name }}</span></td>
-            <td>{{ badge('err' if alert.status == 'DIVERGENT' else 'warn', 'Divergente' if alert.status == 'DIVERGENT' else 'Histórico incompleto') }}</td>
-            <td class="text-2">{{ alert.as_of_date|date_br }}</td>
-            <td>
-              <form class="toolbar" method="post" action="/conciliacao/nota">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="entity_type" value="position">
-                <input type="hidden" name="entity_key" value="{{ alert.account_name }}|{{ alert.ticker }}">
-                <input type="text" name="note" maxlength="1000" placeholder="Anotar" aria-label="Observação para {{ alert.ticker }}" required>
-                <button class="btn" type="submit">Salvar</button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-        {% for alert in bank_alerts %}
-          <tr>
-            <td><b>{{ alert.account_name }}</b>{% if alert.difference_cents is not none %} <span class="down">{{ alert.difference_cents|brl_signed }}</span>{% endif %}</td>
-            <td>{{ badge('err' if alert.status == 'DIVERGENT' else 'warn', 'Divergente' if alert.status == 'DIVERGENT' else 'Histórico incompleto') }}</td>
-            <td class="text-2">{{ alert.as_of_date|date_br }}</td>
-            <td>
-              <form class="toolbar" method="post" action="/conciliacao/nota">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="entity_type" value="bank">
-                <input type="hidden" name="entity_key" value="{{ alert.account_name }}">
-                <input type="text" name="note" maxlength="1000" placeholder="Anotar" aria-label="Observação para {{ alert.account_name }}" required>
-                <button class="btn" type="submit">Salvar</button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}<div class="empty"><p>{{ badge('ok', 'Sem divergências') }}</p></div>{% endif %}
-  </article>
-  <article class="card span-4">
-    <div class="card-head"><h2 class="card-title">Observações abertas</h2></div>
-    {% if reconciliation_notes %}
-    <div class="list">
-      {% for note in reconciliation_notes %}
-      <div class="list-row">
-        <span>{{ note.entity_key }}<small>{{ note.note }}</small></span>
-        <form method="post" action="/conciliacao/resolver">
+    <div class="card-head"><h2 class="card-title">Conciliação
+      {% call hint("conc", "O que é a conciliação") %}<p>Confere se a posição de cada ativo e o saldo de cada conta batem com as movimentações importadas. Divergência costuma ser uma operação que faltou importar.</p>{% endcall %}</h2>
+      {% if divergent %}{{ chip(divergent|plural("divergência", "divergências"), "down") }}{% elif not to_check %}{{ chip("Sem divergências", "up", "check") }}{% endif %}</div>
+    {% if to_check %}
+    <div class="rows">
+      {% for alert in position_alerts %}
+      <div class="row pend-row">
+        <span class="row-icon tone-{{ 'down' if alert.status == 'DIVERGENT' else 'warn' }}">{{ alert.ticker[:4] }}</span>
+        <span class="row-main"><span class="row-title">{{ alert.ticker }} · {{ 'Posição divergente' if alert.status == 'DIVERGENT' else 'Histórico incompleto' }}</span><span class="row-sub">{{ alert.account_name }} · {{ alert.as_of_date|date_br }}</span></span>
+        <form class="toolbar note-form" method="post" action="/conciliacao/nota">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="note_id" value="{{ note.id }}">
-          <button class="btn btn-ghost" type="submit">Resolver</button>
+          <input type="hidden" name="entity_type" value="position">
+          <input type="hidden" name="entity_key" value="{{ alert.account_name }}|{{ alert.ticker }}">
+          <input type="text" name="note" maxlength="1000" placeholder="Anotar" aria-label="Observação para {{ alert.ticker }}" required>
+          <button class="btn btn-sm" type="submit">Salvar</button>
+        </form>
+      </div>
+      {% endfor %}
+      {% for alert in bank_alerts %}
+      <div class="row pend-row">
+        <span class="row-icon tone-{{ 'down' if alert.status == 'DIVERGENT' else 'warn' }}">{{ icon("landmark") }}</span>
+        <span class="row-main"><span class="row-title">{{ alert.account_name }}{% if alert.difference_cents is not none %} · <span class="down money">{{ alert.difference_cents|brl_signed }}</span>{% endif %}</span><span class="row-sub">{{ 'Saldo divergente' if alert.status == 'DIVERGENT' else 'Histórico incompleto' }} · {{ alert.as_of_date|date_br }}</span></span>
+        <form class="toolbar note-form" method="post" action="/conciliacao/nota">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="entity_type" value="bank">
+          <input type="hidden" name="entity_key" value="{{ alert.account_name }}">
+          <input type="text" name="note" maxlength="1000" placeholder="Anotar" aria-label="Observação para {{ alert.account_name }}" required>
+          <button class="btn btn-sm" type="submit">Salvar</button>
         </form>
       </div>
       {% endfor %}
     </div>
-    {% else %}<p class="muted">Nenhuma.</p>{% endif %}
-  </article>
-</section>
-
-<section class="grid">
-  <article class="card card-flush span-8">
-    <div class="card-head"><h2 class="card-title">Transferências entre contas</h2><span class="card-note">Últimos 3 meses · fora de receitas e despesas</span></div>
-    {% if transfer_pairs %}
-    <div class="table-wrap scroll-y">
-      <table class="data">
-        <thead><tr><th>Data</th><th>De</th><th>Para</th><th>Tipo</th><th class="num">Valor</th></tr></thead>
-        <tbody>
-        {% for t in transfer_pairs %}
-          <tr>
-            <td class="text-2">{{ t.transaction_date|date_br }}</td>
-            <td>{{ t.account_name }}</td>
-            <td>{{ t.transfer_with }}</td>
-            <td class="muted">{{ t.category }}</td>
-            <td class="num">{{ (-t.amount_cents)|brl }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}<div class="empty"><p class="muted">Nenhum par encontrado. Conecte os dois bancos para conciliar as transferências.</p></div>{% endif %}
-  </article>
-  <article class="card span-4">
-    <div class="card-head"><h2 class="card-title">Sem o outro lado</h2></div>
-    {% if transfer_orphans %}
-    <div class="list">
-      {% for t in transfer_orphans[:30] %}
-      <div class="list-row">
-        <span>{{ t.account_name }}<small>{{ t.transaction_date|date_br }} · {{ t.description[:40] }}</small></span>
-        <span class="right"><b class="{{ 'up' if t.amount_cents > 0 }}">{{ t.amount_cents|brl_signed }}</b></span>
+    {% else %}{{ empty("check", "Posições e saldos batem com as movimentações.") }}{% endif %}
+    {% if reconciliation_notes %}
+    <div class="card-head sub-head"><h2 class="card-title">Observações abertas</h2></div>
+    <div class="rows">
+      {% for note in reconciliation_notes %}
+      <div class="row">
+        <span class="row-icon">{{ icon("pencil") }}</span>
+        <span class="row-main"><span class="row-title">{{ note.entity_key }}</span><span class="row-sub">{{ note.note }}</span></span>
+        <form method="post" action="/conciliacao/resolver">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="note_id" value="{{ note.id }}">
+          <button class="btn btn-ghost btn-sm" type="submit">Resolver</button>
+        </form>
       </div>
       {% endfor %}
     </div>
-    <p class="footnote">Transferências próprias de ou para uma conta não conectada. Continuam fora de receitas e despesas.</p>
-    {% else %}<p class="muted">Todas conciliadas.</p>{% endif %}
+    {% endif %}
+  </article>
+
+  <article class="card card-flush span-4">
+    <div class="card-head"><h2 class="card-title">Transferências sem par</h2>
+      {% call hint("orfas", "O que são") %}<p>Transferências próprias de ou para uma conta não conectada. Continuam fora de receitas e despesas.</p>{% endcall %}</div>
+    {% if transfer_orphans %}
+    <div class="rows">
+      {% for t in transfer_orphans[:12] %}
+      <div class="row">
+        <span class="row-main"><span class="row-title">{{ t.description|tx_title }}</span><span class="row-sub">{{ t.account_name }} · {{ t.transaction_date|date_br }}</span></span>
+        <span class="row-end"><b class="money {{ 'up' if t.amount_cents > 0 }}">{{ t.amount_cents|brl_signed }}</b></span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}{{ empty("arrow-left-right", "Todas as transferências têm o outro lado.") }}{% endif %}
   </article>
 </section>
 
-<section class="card card-flush">
-  <div class="card-head"><h2 class="card-title">Sincronizações e importações</h2></div>
-  <div class="table-wrap">
-    <table class="data">
-      <thead><tr><th>Origem</th><th>Início</th><th>Dados até</th><th>Status</th><th class="num">Lidos</th><th class="num">Gravados</th><th>Resumo</th></tr></thead>
-      <tbody>
-      {% for run in recent_runs %}
-        <tr>
-          <td>{{ run.source }}</td>
-          <td class="text-2">{{ run.started_at|date_br }} {{ run.started_at[11:16] }}</td>
-          <td class="muted">{{ run.external_updated_at|date_br }}</td>
-          <td>{{ badge({'success':'ok','partial':'warn','running':'warn','failed':'err'}[run.status], {'success':'Concluída','partial':'Parcial','running':'Em andamento','failed':'Falhou'}[run.status]) }}</td>
-          <td class="num">{{ run.records_read }}</td>
-          <td class="num">{{ run.records_written }}</td>
-          <td class="muted">{{ (run.message or "—")[:90] }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+<section class="card card-flush" id="avisos">
+  <div class="card-head"><h2 class="card-title">Avisos dos ativos</h2>{% if fund_alerts %}{{ chip(fund_alerts|length|plural("aviso", "avisos"), "warn") }}{% endif %}</div>
+  {% if fund_alerts %}
+  <div class="rows">
+    {% for a in fund_alerts %}
+    <div class="row">
+      <span class="row-icon {{ {'critico': 'tone-down', 'atencao': 'tone-warn', 'positivo': 'tone-up'}.get(a.severity, '') }}">{{ a.ticker[:4] if a.ticker else icon("layers") }}</span>
+      <span class="row-main"><span class="row-title wrap">{{ a.message }}</span><span class="row-sub">{% if a.ticker %}<a href="/ativo/{{ a.ticker }}">{{ a.ticker }}</a>{% else %}Carteira{% endif %} · {{ {'critico': 'Crítico', 'atencao': 'Atenção', 'info': 'Informação', 'positivo': 'Positivo'}[a.severity] }} · {{ 'Regra automática' if a.source == 'regras' else 'IA' }}{% if a.period_end %} · {{ a.period_end|date_br }}{% endif %}</span></span>
+      <form method="post" action="/alertas/resolver">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="alert_id" value="{{ a.id }}">
+        <input type="hidden" name="back" value="/conciliacao#avisos">
+        <button class="btn btn-ghost btn-sm" type="submit">{{ icon("check", "i-sm") }}Visto</button>
+      </form>
+    </div>
+    {% endfor %}
   </div>
+  {% else %}{{ empty("check", "Nenhum aviso nos seus ativos.") }}{% endif %}
 </section>
-<p class="footnote">Banco local: <code>{{ database_path }}</code></p>
+
+<details class="fold">
+  <summary>Transferências conciliadas <small>3 meses · fora de receitas e despesas</small></summary>
+  <div class="fold-body">
+    {% if transfer_pairs %}
+    <div class="rows">
+      {% for t in transfer_pairs %}
+      <div class="row">
+        <span class="row-icon">{{ icon("arrow-left-right") }}</span>
+        <span class="row-main"><span class="row-title">{{ t.account_name }} → {{ t.transfer_with }}</span><span class="row-sub">{{ t.transaction_date|date_br }} · {{ t.category }}</span></span>
+        <span class="row-end"><b class="money">{{ (-t.amount_cents)|brl }}</b></span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Nenhum par encontrado. Conecte os dois bancos para conciliar as transferências.</p>{% endif %}
+  </div>
+</details>
+
+<details class="fold">
+  <summary>Sincronizações e importações <small>as 15 mais recentes</small></summary>
+  <div class="fold-body rows">
+    {% for run in recent_runs %}
+    <div class="row">
+      <span class="row-main"><span class="row-title">{{ run.source }}</span><span class="row-sub">{{ run.started_at|date_br }} {{ run.started_at[11:16] }} · {{ run.records_read }} lidos, {{ run.records_written }} gravados{% if run.message %} · {{ run.message[:90] }}{% endif %}</span></span>
+      {{ badge(*run_status[run.status]) }}
+    </div>
+    {% else %}<p class="muted">Nenhuma ainda.</p>{% endfor %}
+  </div>
+</details>
 {% endblock %}
