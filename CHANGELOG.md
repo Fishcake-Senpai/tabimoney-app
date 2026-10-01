@@ -13,6 +13,10 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [0.13.0] - 2026-09-30
 
+### Corrigido
+- Mac Intel: o executável não abria o servidor MCP (biblioteca de criptografia compilada contra outro OpenSSL).
+  O build agora usa o pacote pronto, com o OpenSSL embutido.
+
 ### Adicionado
 - Servidor MCP: conecte o seu agente de IA (Claude Desktop, Claude Code, Codex, Cursor, VS Code, Gemini CLI) ao
   Tabimoney e use a IA em qualquer conversa e em qualquer pasta, sem terminal e sem chave de API. O agente lê

@@ -9,3 +9,7 @@ itsdangerous>=2.2,<3
 tzdata>=2024.1,<2027
 openpyxl>=3.1,<4
 mcp>=2.2,<3
+# O mcp puxa o cryptography. A partir da 49, ele só publica wheel de Mac para Apple Silicon: no Mac Intel o pip
+# compilaria do código-fonte, ligado ao OpenSSL do Homebrew, e o executável quebraria (o PyInstaller empacota o
+# libssl do Python, mais antigo). A 48 tem wheel universal2 com o OpenSSL embutido.
+cryptography<49; sys_platform == "darwin" and platform_machine == "x86_64"
