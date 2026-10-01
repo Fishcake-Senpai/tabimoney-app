@@ -43,6 +43,7 @@ EQUIVALENTE_CLI: dict[str, str] = {
     "titulares": "titulares", "carteira_contexto": "carteira contexto", "carteira_posicoes": "carteira posicoes",
     "fundamentos_contexto": "fundamentos contexto TICKER", "fundamentos_atualizar": "fundamentos atualizar",
     "metas_mostrar": "metas mostrar", "metas_definir": "metas definir", "metas_regiao": "metas regiao TICKER REGIAO",
+    "perfil_investidor": "perfil mostrar", "perfil_definir": "perfil definir HORIZONTE OBJETIVO",
     "gastos_resumo": "gastos resumo", "gastos_listar": "gastos listar", "gastos_categorias": "gastos categorias",
     "gastos_regras": "gastos regras", "gastos_recategorizar": "gastos recategorizar",
     "gastos_criar_regra": "gastos regra", "gastos_remover_regra": "gastos remover-regra ID",
@@ -222,6 +223,24 @@ def registrar(server: MCPServer, sessao: Sessao) -> None:  # noqa: C901 - uma li
     def metas_regiao(ticker: str, regiao: Literal["nacional", "internacional", "automatica"], ctx: Context) -> CallToolResult:
         """Define se um ativo conta como exposição nacional ou internacional ('automatica' desfaz a correção)."""
         return sessao.rodar(ctx, ESCRITA, lambda: op.metas_regiao(ticker, regiao))
+
+    @tool(LEITURA, "Perfil do investidor")
+    def perfil_investidor(ctx: Context, titular: Titular = None) -> CallToolResult:
+        """Horizonte e objetivo do investidor. Se `configurado` for false ou `vencido` for true, pergunte ao usuário
+        antes de qualquer análise de investimento e grave com perfil_definir."""
+        return sessao.rodar(ctx, LEITURA, lambda m: op.perfil_investidor(member=m), titular, True)
+
+    @tool(ESCRITA, "Gravar perfil do investidor")
+    def perfil_definir(
+        ctx: Context,
+        horizonte: Annotated[Literal["menos-de-5", "5-10", "10-20", "mais-de-20"],
+                             Field(description="Por quanto tempo o dinheiro fica investido, em anos, na resposta do usuário.")],
+        objetivo: Annotated[Literal["renda", "crescimento", "os-dois"],
+                            Field(description="Objetivo da renda variável: renda passiva, crescimento do patrimônio ou os dois.")],
+        titular: Titular = None,
+    ) -> CallToolResult:
+        """Grava o horizonte e o objetivo que o USUÁRIO respondeu. Nunca invente: pergunte antes."""
+        return sessao.rodar(ctx, ESCRITA, lambda m: op.perfil_definir(horizonte, objetivo, member=m), titular, True)
 
     @tool(LONGA, "Atualizar balanços da CVM")
     async def fundamentos_atualizar(

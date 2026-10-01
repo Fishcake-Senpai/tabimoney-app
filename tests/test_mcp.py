@@ -112,6 +112,7 @@ def test_toda_leitura_responde_na_demo():
     ("orcamento_contexto", {}, ["orcamento", "contexto"]),
     ("gastos_resumo", {"meses": 3}, ["gastos", "resumo", "--meses", "3"]),
     ("metas_mostrar", {}, ["metas", "mostrar"]),
+    ("perfil_investidor", {}, ["perfil", "mostrar"]),
     ("gastos_categorias", {}, ["gastos", "categorias"]),
     ("titulares", {}, ["titulares"]),
     ("gastos_listar", {"limite": 30, "so_gastos": True}, ["gastos", "listar", "--limite", "30", "--so-gastos"]),
@@ -183,6 +184,7 @@ def test_backup_automatico_so_antes_da_primeira_escrita(dados_exemplo):
 def test_importa_os_exemplos_com_o_cliente_como_autor(mode):
     """Os exemplos da documentação passam pelos esquemas das ferramentas, e o autor é o nome do cliente."""
     analises = json.loads((EXEMPLOS / "analise-trimestral.json").read_text(encoding="utf-8"))
+    analises += json.loads((EXEMPLOS / "analise-ativo.json").read_text(encoding="utf-8"))
     recomendacoes = json.loads((EXEMPLOS / "recomendacoes.json").read_text(encoding="utf-8"))
     orcamento = json.loads((EXEMPLOS / "orcamento.json").read_text(encoding="utf-8"))
 
@@ -197,6 +199,7 @@ def test_importa_os_exemplos_com_o_cliente_como_autor(mode):
     _dados(a), _dados(r), _dados(o)
     autores = {x["author"] for x in _dados(lista)["relatorios"]}
     assert "teste-agente" in autores
+    assert {"tese", "trimestral"} <= {x["kind"] for x in _dados(lista)["relatorios"] if x["author"] == "teste-agente"}
 
 
 def test_item_invalido_recusa_o_lote_inteiro():
@@ -318,7 +321,7 @@ def test_tarefa_com_falha_traz_a_mensagem(monkeypatch):
 # ---------------------------------------------------------------- roteiros, prompts e resources
 
 def test_roteiros_so_citam_ferramentas_que_existem():
-    padrao = re.compile(r"`((?:gastos|carteira|metas|orcamento|analise|recomendacoes|alertas|fundamentos|atualizar|tarefa)_[a-z_]+)`")
+    padrao = re.compile(r"`((?:gastos|carteira|metas|perfil|orcamento|analise|recomendacoes|alertas|fundamentos|atualizar|tarefa)_[a-z_]+)`")
     campos = {"tarefa_id", "metas_e_balanco", "metas_sugeridas_pela_media"}  # campos das respostas, não ferramentas
     servidor.criar(False)
     for nome in agente.ROTEIROS:

@@ -20,10 +20,15 @@ Antes de começar, chame `roteiro` com o nome indicado e siga os passos.
 | "olha meus gastos", "corrige categorias", "por que gastei mais" | `gastos` |
 | "analise meu orçamento", "onde economizar", "sugira metas de gastos" | `orcamento` |
 | "quanto aportar e onde", "estou balanceado?", "minhas metas" | `metas` |
-| "analisa minhas ações/FIIs/CDB", "relatório trimestral", "atualiza fundamentos" | `analise-trimestral` |
-| "o que mudar na carteira", "recomendações do trimestre", "sugere carteiras" | `recomendacoes` (depois da análise) |
+| "analisa a fundo a WEGE3", "vale a pena ter X por 10 anos?", ativo novo antes de comprar | `analise-ativo` |
+| "analisa minhas ações/FIIs/CDB", "relatório trimestral", "atualiza fundamentos" | `analise-trimestral` (chama `analise-ativo` quando falta tese) |
+| "onde aportar este mês", "o que mudar na carteira", "sugere carteiras" | `recomendacoes` (depois das análises) |
 
 Pergunta simples ("quanto gastei com mercado em agosto?") não precisa de roteiro: responda com a ferramenta certa.
+
+As análises de investimento são de **longo prazo** (5, 10, 20 anos), inspiradas no método de Raul Sena (Investidor
+Sardinha): qualidade primeiro, aportes constantes e venda só quando a tese quebra. Elas começam pelo perfil do
+investidor (`perfil_investidor`); sem ele, pergunte o horizonte e o objetivo ao usuário.
 
 ## Mapa das ferramentas
 
@@ -38,6 +43,7 @@ Pergunta simples ("quanto gastei com mercado em agosto?") não precisa de roteir
 - Gastos: `gastos_resumo`, `gastos_listar`, `gastos_categorias`, `gastos_recategorizar`, `gastos_criar_regra`,
   `gastos_regras`.
 - Metas de alocação: `metas_mostrar`, `metas_definir`, `metas_regiao`.
+- Perfil do investidor (horizonte e objetivo): `perfil_investidor`, `perfil_definir`.
 - Orçamento (metas de gastos): `orcamento_mostrar`, `orcamento_contexto`, `orcamento_importar_recomendacoes`.
 - Fundamentos: `fundamentos_atualizar`, `fundamentos_contexto`.
 - Análises: `analise_importar`, `analise_listar`, `analise_mostrar`.
@@ -53,10 +59,10 @@ relatório está em `tabimoney://docs/modelo-relatorio-trimestral`, e os exemplo
 ## Onde o usuário vê o resultado
 
 - **Investimentos › Ações e FIIs**: fundamentos e avisos (os avisos também no sino, em Pendências).
-- **Página de cada ativo**: a análise mais recente completa e o histórico.
+- **Página de cada ativo**: a tese de longo prazo, o acompanhamento mais recente e o histórico.
 - **Sugestões**: recomendações do orçamento, mudanças sugeridas na carteira e carteiras-modelo.
 - **Análises**: todos os relatórios.
-- **Investimentos › Metas**: balanço e plano de aporte.
+- **Investimentos › Metas**: balanço, plano de aporte e o horizonte do investidor.
 - **Gastos**: resumo do mês, lançamentos e orçamento. Regras e categorias ficam em **Configurações**.
 
 Ao terminar, diga ao usuário onde olhar.

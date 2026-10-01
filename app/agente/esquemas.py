@@ -25,11 +25,11 @@ class _Base(BaseModel):
 class Relatorio(_Base):
     title: str = Field(description="Título curto com a conclusão (ex.: 'EGIE3 2T26: qualidade alta, preço esticado').")
     summary: str = Field(description="Uma ou duas frases com a conclusão.")
-    body_md: str = Field(description="Relatório completo em Markdown, com as seções do modelo "
-                                     "(resource tabimoney://docs/modelo-relatorio-trimestral).")
-    kind: str | None = Field(None, description="Tipo do relatório; padrão 'trimestral'.")
+    body_md: str = Field(description="Relatório completo em Markdown, com as seções do modelo (resources "
+                                     "tabimoney://docs/modelo-relatorio-tese e tabimoney://docs/modelo-relatorio-trimestral).")
+    kind: str | None = Field(None, description="'tese' (análise completa de longo prazo) ou 'trimestral' (acompanhamento; padrão).")
     verdict: str | None = Field(None, description="'barata', 'justa', 'cara' ou null.")
-    score: float | None = Field(None, description="Nota de 0 a 10.")
+    score: float | None = Field(None, description="Nota de 0 a 10 (10 × respostas sim ÷ perguntas do checklist).")
     fair_price: float | None = Field(None, description="Preço justo em reais por ação/cota.")
     sources: list[str] | None = Field(None, description="Links (https://) e documentos de onde vieram os números "
                                                         "que não estão no contexto.")

@@ -20,7 +20,9 @@ from app import db, demo
 from app.mcp_server import instalar as mcp_instalar
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
-from app.services import analytics, budgets, fundamentals, household, pension, recommendations, spending, targets, updates
+from app.services import (
+    analytics, budgets, fundamentals, household, investor_profile, pension, recommendations, spending, targets, updates,
+)
 from app.services.categories import CATEGORY_ICON_CHOICES, INCOME_CATEGORIES, INTERNAL_CATEGORIES, category_icon
 from app.services.markdown import render as render_markdown
 from app.services.formatting import (
@@ -493,11 +495,12 @@ def asset_page(request: Request, ticker: str, aba: str = ""):
     history = book.asset_history(asset["iid"])
     ind = fundamentals.indicators(asset["iid"], asset["close"])
     quarters = ind["quarters"][-12:] if ind else []
+    found = fundamentals.reports(asset["iid"], limit=50)
     return _page(
         request, "asset.html", asset=asset, events=history["events"], tab=aba if aba in ASSET_TABS else "visao",
         chart_price={"prices": history["prices"], "avg": asset["average_price"]},
         ind=ind, quarters=list(reversed(quarters[-8:])), indicator_meta=fundamentals.INDICATORS,
-        fund_alerts=fundamentals.alerts(asset["iid"]), reports=fundamentals.reports(asset["iid"], limit=50),
+        fund_alerts=fundamentals.alerts(asset["iid"]), reports=found, analyses=fundamentals.reports_view(found),
         filings=fundamentals.filings(asset["iid"]), agent_metrics=fundamentals.agent_metrics(asset["iid"]),
         chart_quarters=[
             {"m": q["label"],
@@ -523,7 +526,8 @@ def targets_page(request: Request, aporte: str = ""):
         amount = suggested
     return _page(
         request, "targets.html", snap=snap, plan=targets.contribution_plan(snap, amount or 0), amount=amount,
-        suggested=suggested, recommendation=recommendations.get(),
+        suggested=suggested, recommendation=recommendations.get(), profile=investor_profile.load(member),
+        horizons=investor_profile.HORIZONS, goals=investor_profile.GOALS,
     )
 
 
@@ -555,6 +559,23 @@ def save_targets(request: Request, csrf_token: str = Form(...), reserve: str = F
         )
         who = household.member(member)
         _flash(request, "success", f"Metas de {who['name']} salvas." if who else "Metas salvas.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/metas")
+
+
+@app.post("/metas/perfil")
+def save_investor_profile(request: Request, csrf_token: str = Form(...), horizon: str = Form(""), goal: str = Form(""),
+                          use_household: str = Form("")):
+    _check_csrf(request, csrf_token)
+    member = _member(request)
+    if use_household == "on" and member is not None:
+        investor_profile.clear(member)
+        _flash(request, "success", "A visão deste titular voltou a usar o horizonte da casa.")
+        return _redirect(request, "/metas")
+    try:
+        investor_profile.save(horizon, goal, member)
+        _flash(request, "success", "Horizonte e objetivo salvos.")
     except ValueError as exc:
         _flash(request, "error", str(exc))
     return _redirect(request, "/metas")

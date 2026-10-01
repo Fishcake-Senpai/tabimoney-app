@@ -23,12 +23,15 @@ Roteiros passo a passo, em `app/agente/roteiros/` (no MCP: ferramenta `roteiro`,
 | Revisar gastos e recategorizar | `gastos` |
 | Orçamento: metas de gastos e recomendações de economia | `orcamento` |
 | Metas de alocação e onde aportar | `metas` |
-| Análise fundamentalista trimestral (ações, FIIs, renda fixa) | `analise-trimestral` |
+| Análise completa de um ativo para o longo prazo (tese) | `analise-ativo` |
+| Acompanhamento trimestral das teses (ações, FIIs, renda fixa) | `analise-trimestral` |
 | Recomendações trimestrais e carteiras-modelo | `recomendacoes` |
 
-O modelo do relatório está em `docs/agentes/modelo-relatorio-trimestral.md` (resource
-`tabimoney://docs/modelo-relatorio-trimestral`). Os exemplos de JSON válidos estão em `docs/agentes/exemplos/`
-(resources `tabimoney://exemplos/analise-trimestral`, `recomendacoes` e `orcamento`).
+Os modelos dos relatórios estão em `docs/agentes/modelo-relatorio-tese.md` (a tese de longo prazo, resource
+`tabimoney://docs/modelo-relatorio-tese`) e `docs/agentes/modelo-relatorio-trimestral.md` (o acompanhamento,
+resource `tabimoney://docs/modelo-relatorio-trimestral`). Os exemplos de JSON válidos estão em
+`docs/agentes/exemplos/` (resources `tabimoney://exemplos/analise-ativo`, `analise-trimestral`, `recomendacoes` e
+`orcamento`).
 
 ## Servidor MCP
 
@@ -48,6 +51,8 @@ reversível*, **sensível** (`destructiveHint`; só com pedido explícito do usu
 | `metas_mostrar` | leitura | `financas metas mostrar` |
 | `metas_definir` | **sensível** | `financas metas definir` |
 | `metas_regiao` | escrita reversível | `financas metas regiao TICKER REGIAO` |
+| `perfil_investidor` | leitura | `financas perfil mostrar` |
+| `perfil_definir` | escrita reversível | `financas perfil definir HORIZONTE OBJETIVO` |
 | `gastos_resumo` | leitura | `financas gastos resumo` |
 | `gastos_listar` | leitura | `financas gastos listar` |
 | `gastos_categorias` | leitura | `financas gastos categorias` |
@@ -95,7 +100,7 @@ reversível*, **sensível** (`destructiveHint`; só com pedido explícito do usu
 - **Saída:** JSON compacto, numa linha.
 
 **Prompts** (no Claude Code, `/mcp__tabimoney__NOME`): `ciclo`, `revisar_gastos`, `orcamento`, `onde_aportar`,
-`analise_trimestral` e `recomendacoes`, cada um com o roteiro e os parâmetros do pedido.
+`analise_ativo`, `analise_trimestral` e `recomendacoes`, cada um com o roteiro e os parâmetros do pedido.
 
 ## 0. Titulares (gestão a dois)
 
@@ -149,11 +154,25 @@ As regras do cálculo:
 
 Toda recomendação de carteira precisa respeitar essas metas ou dizer explicitamente por que propõe desviar delas.
 
+## 2.1 Perfil do investidor
+
+| Comando | Para quê |
+|---|---|
+| `financas perfil mostrar` | Horizonte e objetivo guardados, se estão vencidos e as opções válidas |
+| `financas perfil definir HORIZONTE OBJETIVO` | Grava o que o **usuário** respondeu. Horizonte: `menos-de-5`, `5-10`, `10-20` ou `mais-de-20`. Objetivo: `renda`, `crescimento` ou `os-dois` |
+
+- As análises de investimento são de longo prazo e começam pelo perfil. Sem perfil (`configurado: false`) ou com
+  mais de 12 meses (`vencido: true`), o agente pergunta ao usuário antes de analisar; nunca inventa.
+- Com `menos-de-5`, ações e FIIs não cabem no prazo: o agente não faz análise de compra e sugere revisar reserva e
+  renda fixa.
+- Vale por titular, como as metas: sem perfil próprio, o titular usa o da casa (`de`). `carteira contexto` traz o
+  perfil em `perfil`. O usuário também vê e edita em **Investimentos › Metas**.
+
 ## 3. Carteira e fundamentos
 
 | Comando | Para quê |
 |---|---|
-| `financas carteira contexto [--aporte X]` | **Ponto de partida do agente**: metas e balanço, posições com fundamentos, avisos e a última análise de cada ativo, renda fixa, previdência, caixa e a recomendação anterior |
+| `financas carteira contexto [--aporte X]` | **Ponto de partida do agente**: perfil do investidor, metas e balanço, posições com fundamentos, avisos e a última análise de cada ativo, renda fixa, previdência, caixa e a recomendação anterior |
 | `financas carteira posicoes` | Versão curta, só com as posições |
 | `financas fundamentos atualizar [TICKER ...]` | Baixa ITR/DFP da CVM (cache semanal) e recalcula os avisos por regras |
 | `financas fundamentos contexto TICKER` | Tudo sobre uma empresa: perfil, indicadores, série trimestral, links da CVM, avisos e relatórios anteriores |
@@ -167,7 +186,11 @@ As fontes dos dados:
 
 - **CVM**: demonstrações oficiais (ITR/DFP). Em `quarters`, os fluxos (receita, EBIT, lucro, caixa operacional,
   capex, dividendos pagos) são do trimestre isolado; os saldos (ativo, patrimônio, caixa, dívida, ações) são na
-  data. Os campos `*_ttm` somam 12 meses.
+  data. Os campos `*_ttm` somam 12 meses. A série trimestral cobre os últimos 3 anos.
+- **CVM, série anual** (`anos` no `fundamentos contexto`): até 10 exercícios da DFP (31/12), com receita, lucro,
+  margem, ROE, dívida líquida/EBITDA, proventos e payout em `serie`, e CAGR de 5 e 10 anos, ROE médio de 5 anos e
+  anos com lucro ou prejuízo em `resumo`. Ano sem DFP guardada sai da soma dos 4 trimestres. Proventos por ação
+  não são ajustados por desdobramento.
 - **brapi (plano gratuito)**: preço, valor de mercado, setor e descrição.
 - Bancos e seguradoras (`is_financial`) não têm EBIT, EBITDA nem dívida líquida.
 - ETFs e FIIs não têm dados da CVM; analise-os pelo índice, pelos relatórios gerenciais e pelos proventos.
@@ -197,6 +220,8 @@ Um objeto ou uma lista (exemplo em `docs/agentes/exemplos/analise-trimestral.jso
 }
 ```
 
+- **Tipo (`kind`):** `tese` para a análise completa de longo prazo (roteiro `analise-ativo`, vale 12 meses) e
+  `trimestral` (padrão) para o acompanhamento de cada balanço. A tese e o trimestral do mesmo período convivem.
 - **Assunto:** use `ticker` para ação, FII, ETF ou BDR da carteira. Para renda fixa ou previdência, omita
   `ticker` e informe `"subject": "Tesouro IPCA+ 2029"` e `"subject_type": "renda_fixa"` (ou `"previdencia"`).
   Para a carteira toda, use `"subject_type": "carteira"`.
@@ -210,6 +235,10 @@ Um objeto ou uma lista (exemplo em `docs/agentes/exemplos/analise-trimestral.jso
 - **Métricas e avisos exigem ticker.** Métricas usam `snake_case` e `period_type` igual a `Q`, `TTM` ou
   `SNAPSHOT`; avisos usam `severity` igual a `critico`, `atencao`, `info` ou `positivo`, e o mesmo `code` +
   `period_end` atualiza em vez de duplicar.
+- **Métricas do método de longo prazo** (`period_type` `SNAPSHOT`): `nota_qualidade` (sim − não no checklist),
+  `checklist_sim`, `filtro_entrada` (1 passa, 0 reprova) e `margem_seguranca` (fração), além de `roe_medio_5a`,
+  `cagr_receita_5a`, `cagr_lucro_5a`, `cagr_lucro_10a`, `cagr_proventos_5a` e `anos_com_lucro_10a`. `score` = 10 ×
+  respostas sim ÷ perguntas.
 - **Validação:** um item inválido recusa o lote inteiro, sem gravar metade.
 
 ## 5. Recomendações trimestrais (`financas recomendacoes importar arquivo.json`)

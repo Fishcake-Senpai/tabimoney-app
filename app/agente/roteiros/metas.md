@@ -13,12 +13,15 @@ descricao: Consulta ou ajusta as metas de alocação (reserva de emergência, re
    - `aporte_para_equilibrar_sem_vender` e `aporte_mensal_sugerido`, que é a média de sobra dos últimos 3 meses.
    - `exposicao_por_ativo`: qual ativo conta como nacional ou internacional.
 2. Se `configurado` for `false`, pergunte ao usuário as metas antes de sugerir qualquer coisa. Nunca invente metas.
+   Veja também o horizonte (`perfil_investidor`): com menos de 5 anos, a prioridade é reserva e renda fixa, e
+   ações e FIIs não cabem no prazo; diga isso.
 3. **Para definir metas** (só com pedido explícito): `metas_definir` com `reserva`, `renda_fixa`, `renda_variavel`,
    `internacional` e `previdencia`. Os percentuais vão de 0 a 100, e renda fixa + variável = 100.
 4. **Exposição errada** (ex.: um ETF de ações americanas marcado como nacional): `metas_regiao` com o ticker e
    `internacional`.
-5. **Para sugerir ativos dentro de cada classe**, use a última recomendação (`recomendacoes_mostrar`) ou os
-   relatórios (`analise_listar`). Se não houver, diga isso e ofereça seguir o roteiro `analise-trimestral`.
+5. **Para sugerir ativos dentro de cada classe**, use a última recomendação (`recomendacoes_mostrar`) ou as teses
+   (`analise_listar`). Se não houver, diga isso e ofereça seguir os roteiros `analise-trimestral` e
+   `recomendacoes`.
 
 A resposta deve trazer:
 

@@ -4,7 +4,9 @@ Camadas (todas em SQLite, formato padronizado):
 - company_profile: ticker → empresa (CNPJ, setor, descrição, valor de mercado).
 - fundamental_metric: métricas em formato longo (instrumento, fim do período, tipo de período, métrica, valor,
   origem). A CVM grava os valores trimestrais brutos (source='cvm'); os indicadores (P/L, ROE…) são calculados
-  na leitura com o preço do dia. Um agente grava as suas métricas com a própria origem (source='agente').
+  na leitura com o preço do dia. A série anual da DFP (até 10 anos, para a análise de longo prazo) fica em
+  source='cvm_anual': fluxos do ano como TTM e saldos como SNAPSHOT, em 31/12. Um agente grava as suas métricas
+  com a própria origem (source='agente').
 - company_filing: ITR/DFP entregues à CVM, com link para o documento.
 - analysis_report e fundamental_alert: relatórios e avisos (regras automáticas ou agente).
 
@@ -29,7 +31,9 @@ CVM_METRICS = {
     "cash": "R$", "debt": "R$", "shares": "ações",
 }
 FINANCIAL_SECTORS = re.compile(r"banco|segur|intermedia|previd|arrendamento|credito", re.IGNORECASE)
-YEARS_BACK = 3
+YEARS_BACK = 3  # anos de ITR (série trimestral)
+ANNUAL_YEARS_BACK = 10  # anos de DFP (série anual da análise de longo prazo)
+ANNUAL_SOURCE = "cvm_anual"
 SEVERITY_ORDER = {"critico": 0, "atencao": 1, "info": 2, "positivo": 3}
 
 # Indicadores exibidos: chave → (rótulo, formato, explicação curta). Formatos: pct, x (múltiplo), brl.
@@ -117,8 +121,9 @@ def sync_fundamentals(tickers: list[str] | None = None) -> dict[str, Any]:
         return {"companies": 0, "message": "Nenhum ativo da carteira é companhia aberta (ETFs e FIIs ficam de fora)."}
     this_year = date.today().year
     try:
-        series, filings = cvm.statements_by_company(
-            {c.cnpj for c in companies.values()}, list(range(this_year - YEARS_BACK, this_year + 1))
+        series, filings, annual = cvm.statements_by_company(
+            {c.cnpj for c in companies.values()}, list(range(this_year - YEARS_BACK, this_year + 1)),
+            list(range(this_year - ANNUAL_YEARS_BACK, this_year)),
         )
     except cvm.CvmError as exc:
         raise FundamentalsError(str(exc)) from exc
@@ -176,6 +181,18 @@ def sync_fundamentals(tickers: list[str] | None = None) -> dict[str, Any]:
                         "DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
                         (instrument_id, quarter.period_end, "SNAPSHOT" if metric in cvm.STOCK_KEYS else "Q",
                          metric, value, CVM_METRICS.get(metric)),
+                    )
+                    written += 1
+            for year in annual.get(company.cnpj, []):
+                for metric, value in year.values.items():
+                    if metric == "shares" and value < 20_000_000:
+                        value *= 1000
+                    connection.execute(
+                        "INSERT INTO fundamental_metric(instrument_id, period_end, period_type, metric, value, unit, source) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(instrument_id, period_end, period_type, metric, source) "
+                        "DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
+                        (instrument_id, year.period_end, "SNAPSHOT" if metric in cvm.STOCK_KEYS else "TTM",
+                         metric, value, CVM_METRICS.get(metric), ANNUAL_SOURCE),
                     )
                     written += 1
             for filing in filings:
@@ -253,6 +270,90 @@ def quarterly_table(instrument_id: int, financial: bool) -> list[dict[str, Any]]
         })
         table.append(row)
     return table
+
+
+def annual_table(instrument_id: int, financial: bool) -> list[dict[str, Any]]:
+    """Um registro por exercício, do mais antigo ao mais recente: DFP (source='cvm_anual') e, nos anos sem DFP
+    guardada, a soma dos 4 trimestres da série trimestral. Proventos por ação não são ajustados por desdobramento
+    ou bonificação; para crescimento, use os proventos pagos totais."""
+    years: dict[str, dict[str, float]] = {}
+    for r in rows(
+        "SELECT period_end, metric, value FROM fundamental_metric WHERE instrument_id = ? AND source = ? "
+        "AND period_end LIKE '%-12-31'", (instrument_id, ANNUAL_SOURCE),
+    ):
+        if r["value"] is not None:
+            years.setdefault(r["period_end"], {})[r["metric"]] = float(r["value"])
+    quarterly = _series(instrument_id)
+    for end in {p for p in quarterly if p.endswith("12-31")} - set(years):
+        parts = [quarterly.get(f"{end[:4]}-{md}") for md in ("03-31", "06-30", "09-30", "12-31")]
+        if not all(parts):
+            continue
+        row = {k: v for k, v in quarterly[end].items() if k in cvm.STOCK_KEYS}
+        for key in cvm.FLOW_KEYS:
+            values = [p.get(key) for p in parts]
+            if all(v is not None for v in values):
+                row[key] = sum(values)
+        years[end] = row
+    table = []
+    previous_equity = None
+    for end in sorted(years):
+        y = years[end]
+        equity = y.get("equity_parent")
+        equity_avg = (equity + previous_equity) / 2 if equity and previous_equity else equity
+        ebitda = y["ebit"] + y.get("da", 0) if y.get("ebit") is not None else None
+        net_debt = (y.get("debt") or 0) - (y.get("cash") or 0) if ("debt" in y or "cash" in y) and not financial else None
+        table.append({
+            "ano": int(end[:4]), "receita": y.get("revenue"), "ebit": y.get("ebit") if not financial else None,
+            "lucro": y.get("net_income"),
+            "margem_liquida": _div(y.get("net_income"), y.get("revenue")) if not financial else None,
+            "roe": _div(y.get("net_income"), equity_avg), "patrimonio": equity,
+            "divida_liquida": net_debt,
+            "divida_liquida_ebitda": _div(net_debt, ebitda) if net_debt is not None and ebitda and ebitda > 0 else None,
+            "proventos_pagos": y.get("dividends_paid"),
+            "proventos_por_acao": _div(y.get("dividends_paid"), y.get("shares")),
+            "payout": _div(y.get("dividends_paid"), y.get("net_income")) if (y.get("net_income") or 0) > 0 else None,
+            "caixa_operacional": y.get("cfo"), "capex": y.get("capex"), "acoes": y.get("shares"),
+        })
+        previous_equity = equity
+    return table
+
+
+def _cagr(table: list[dict[str, Any]], key: str, years: int) -> float | None:
+    """Crescimento anual composto entre o último ano e `years` anos antes (os dois positivos)."""
+    if not table:
+        return None
+    by_year = {r["ano"]: r.get(key) for r in table}
+    last = table[-1]["ano"]
+    end, start = by_year.get(last), by_year.get(last - years)
+    if not end or not start or end <= 0 or start <= 0:
+        return None
+    return (end / start) ** (1 / years) - 1
+
+
+def annual_summary(table: list[dict[str, Any]]) -> dict[str, Any]:
+    """O que o checklist de longo prazo pergunta, já calculado a partir da série anual."""
+    last5 = table[-5:]
+
+    def mean(key: str) -> float | None:
+        values = [r[key] for r in last5 if r.get(key) is not None]
+        return sum(values) / 5 if len(values) == 5 else None
+
+    with_profit = [r for r in table if r.get("lucro") is not None]
+    return {
+        "anos_disponiveis": len(table), "primeiro_ano": table[0]["ano"] if table else None,
+        "ultimo_ano": table[-1]["ano"] if table else None,
+        "anos_com_lucro": sum(1 for r in with_profit if r["lucro"] > 0),
+        "anos_com_prejuizo": [r["ano"] for r in with_profit if r["lucro"] <= 0],
+        "lucro_em_todos_os_ultimos_5_anos": len(last5) == 5 and all((r.get("lucro") or 0) > 0 for r in last5),
+        "roe_medio_5a": mean("roe"),
+        "roe_minimo_5a": min(r["roe"] for r in last5) if len(last5) == 5 and all(r.get("roe") is not None for r in last5)
+        else None,
+        "margem_liquida_media_5a": mean("margem_liquida"),
+        "cagr_receita_5a": _cagr(table, "receita", 5), "cagr_lucro_5a": _cagr(table, "lucro", 5),
+        "cagr_receita_10a": _cagr(table, "receita", 10), "cagr_lucro_10a": _cagr(table, "lucro", 10),
+        "cagr_proventos_5a": _cagr(table, "proventos_pagos", 5),
+        "anos_pagando_proventos_5a": sum(1 for r in last5 if (r.get("proventos_pagos") or 0) > 0),
+    }
 
 
 def indicators(instrument_id: int, price_cents: int | None = None) -> dict[str, Any] | None:
@@ -448,10 +549,45 @@ def filings(instrument_id: int, limit: int = 8) -> list[dict[str, Any]]:
     )]
 
 
+THESIS_KIND = "tese"
+THESIS_VALID_DAYS = 365
+
+
+def thesis_role(score: float | None) -> str | None:
+    """Papel do ativo na carteira pela nota da tese (0 a 10): núcleo, complementar ou evitar novos aportes."""
+    if score is None:
+        return None
+    return "núcleo" if score >= 8 else "complementar" if score >= 5 else "evitar novos aportes"
+
+
+def reports_view(found: list[dict[str, Any]], today: date | None = None) -> dict[str, Any]:
+    """Como a página do ativo mostra os relatórios (do mais novo ao mais antigo): a tese de longo prazo em destaque,
+    o acompanhamento mais recente depois dela e o resto no histórico. Sem tese, vale o relatório mais recente."""
+    thesis = next((r for r in found if r.get("kind") == THESIS_KIND), None)
+    lead = thesis or (found[0] if found else None)
+    follow = None
+    if thesis:
+        newer = found[:found.index(thesis)]
+        follow = newer[0] if newer else None
+    stale = False
+    if thesis and thesis.get("created_at"):
+        try:
+            created = date.fromisoformat(str(thesis["created_at"])[:10])
+            stale = ((today or date.today()) - created).days > THESIS_VALID_DAYS
+        except ValueError:
+            pass
+    current = follow or lead
+    return {
+        "lead": lead, "thesis": thesis, "follow": follow, "stale": stale,
+        "current": current, "role": thesis_role(current.get("score")) if thesis and current else None,
+        "history": [r for r in found if r is not lead],
+    }
+
+
 def agent_metrics(instrument_id: int) -> list[dict[str, Any]]:
     """Métricas gravadas pelo agente (a mais recente de cada)."""
     return [dict(r) for r in rows(
-        "SELECT m.* FROM fundamental_metric m WHERE m.instrument_id = ? AND m.source <> 'cvm' AND m.period_end = "
+        "SELECT m.* FROM fundamental_metric m WHERE m.instrument_id = ? AND m.source NOT IN ('cvm', 'cvm_anual') AND m.period_end = "
         "(SELECT MAX(period_end) FROM fundamental_metric x WHERE x.instrument_id = m.instrument_id "
         " AND x.metric = m.metric AND x.source = m.source) ORDER BY m.metric", (instrument_id,),
     )]
@@ -584,6 +720,12 @@ def resolve_alert(alert_id: int) -> None:
         connection.execute("UPDATE fundamental_alert SET resolved_at = CURRENT_TIMESTAMP WHERE id = ?", (int(alert_id),))
 
 
+def _annual_context(instrument_id: int, financial: bool) -> dict[str, Any]:
+    table = annual_table(instrument_id, financial)
+    return {"serie": table, "resumo": annual_summary(table),
+            "nota": "exercícios de 31/12 (DFP da CVM, até 10 anos); proventos por ação sem ajuste de desdobramento"}
+
+
 def agent_context(ticker: str) -> dict[str, Any]:
     """Tudo o que um agente precisa para analisar um ativo, num JSON só."""
     found = rows("SELECT id, ticker, name, asset_class FROM instrument WHERE ticker = ?", (ticker.upper(),))
@@ -598,8 +740,9 @@ def agent_context(ticker: str) -> dict[str, Any]:
         "price": price / 100 if price else None,
         "profile": ind["profile"] if ind else None,
         "indicators": ind["values"] if ind else None,
-        "market_cap": ind["market_cap"] if ind else None,
+        "market_cap": ind.get("market_cap") if ind else None,
         "quarters": [{k: v for k, v in q.items()} for q in ind["quarters"]] if ind else [],
+        "anos": _annual_context(iid, ind["financial"]) if ind else None,
         "filings": filings(iid, 12), "alerts": alerts(iid), "reports": reports(iid, 5),
         "agent_metrics": agent_metrics(iid),
         "region": rows("SELECT COALESCE(region, '') FROM instrument WHERE id = ?", (iid,))[0][0] or None,

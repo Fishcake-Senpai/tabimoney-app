@@ -31,8 +31,9 @@ salve o conteúdo numa subpasta `trabalho/` desta pasta e passe o caminho.
 
 {{TABELA}}
 
-O contrato (formatos de JSON e regras de cálculo) está em `docs/agente-financeiro.md`. O modelo do relatório está
-em `docs/agentes/modelo-relatorio-trimestral.md`, e os exemplos válidos em `docs/agentes/exemplos/`.
+O contrato (formatos de JSON e regras de cálculo) está em `docs/agente-financeiro.md`. Os modelos dos relatórios
+estão em `docs/agentes/modelo-relatorio-tese.md` e `docs/agentes/modelo-relatorio-trimestral.md`, e os exemplos
+válidos em `docs/agentes/exemplos/`.
 
 ## Privacidade
 

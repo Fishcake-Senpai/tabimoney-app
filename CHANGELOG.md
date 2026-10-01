@@ -11,6 +11,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.15.0] - 2026-10-01
+
 ### Alterado
 - Interface nova, com cara de aplicativo: um número grande por tela (o patrimônio, o gasto do mês, o total
   investido), três números de apoio e o detalhe a um clique. Cards sem borda, ícones em toda parte, o verde só para
@@ -41,12 +43,37 @@ base (sempre por migração automática) e o contrato da CLI.
 - Avisos depois de salvar viram toasts no canto, que somem sozinhos (os de erro ficam até o clique).
 - No celular, barra de abas embaixo, com **Mais** para Importar, Pendências e Configurações.
 - Manual de conexões atualizado para a barra do topo e as Configurações novas.
+- As análises de investimento passam a ser de **longo prazo** (5, 10, 20 anos) e começam perguntando o horizonte e o
+  objetivo do investidor; com menos de 5 anos, não fazem análise de compra de ações e FIIs.
+- O roteiro `analise-trimestral` virou o **acompanhamento das teses**: a cada balanço, confere os gatilhos que
+  quebrariam a tese, atualiza nota e preço e chama a análise completa quando falta tese.
+- As **recomendações** distribuem o aporte pelo método de notas (peso-alvo proporcional à nota de qualidade, aporte
+  nos ativos mais abaixo do peso, ativo caro espera o próximo aporte) e só sugerem venda com a tese quebrada. Preço
+  alto sozinho não é mais motivo de venda.
+- O ciclo completo não reanalisa mais por oscilação de preço, só por balanço, aviso ou fato novo.
 
 ### Adicionado
 - **Configurações › Aparência**: tema escuro (padrão), claro ou o do sistema, e abrir com os valores escondidos.
 - Modo discreto: o olho da barra do topo borra todo valor em reais, até nos gráficos.
 - Ícone por categoria nas listas; categoria criada por você ganha um ícone escolhido numa grade.
 - Ícones Lucide embutidos (`app/static/icons.svg`, gerado por `packaging/icones.py`), sem depender de internet.
+- **Análise completa de um ativo para o longo prazo** (roteiro `analise-ativo`, prompt `analise_ativo`), inspirada no
+  método de Raul Sena (Investidor Sardinha): pesquisa profunda (RI, Formulário de Referência, CVM, B3, notícias,
+  concorrentes e setor), filtro de entrada, checklist de qualidade com 11 perguntas e nota (sim − não), dez anos de
+  números, leitura de Philip Fisher, preço por margem de segurança e o que quebraria a tese. Grava a tese no app
+  (`kind: "tese"`), que vale 12 meses. Modelo em `docs/agentes/modelo-relatorio-tese.md`.
+- **Dez anos de balanço anual** da CVM (DFP) para a análise de longo prazo: `fundamentos contexto` traz `anos`, com
+  a série por exercício e o resumo (CAGR de 5 e 10 anos, ROE médio, anos com lucro ou prejuízo). A primeira
+  atualização depois de instalar baixa os anos antigos e demora mais; depois, o cache segura.
+- **Página do ativo** mostra a tese de longo prazo em destaque, com o papel na carteira (núcleo, complementar ou
+  evitar novos aportes), o acompanhamento mais recente logo acima e o aviso de tese vencida (mais de um ano).
+- **Horizonte e objetivo do investidor** em **Investimentos › Metas** (5 a 10, 10 a 20 ou mais de 20 anos; renda,
+  crescimento ou os dois). As análises da IA perguntam antes de começar e guardam a resposta, por titular. Para
+  agentes: `perfil_investidor` e `perfil_definir` no MCP, `financas perfil mostrar|definir` na CLI e `perfil` em
+  `carteira contexto`.
+
+### Corrigido
+- `fundamentos contexto` não quebra mais para empresa cadastrada que ainda não tem balanço trimestral.
 
 ## [0.13.0] - 2026-09-30
 
@@ -309,7 +336,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.13.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.13.0...v0.15.0
 [0.13.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.10.0...v0.11.0

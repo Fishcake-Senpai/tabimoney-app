@@ -1,0 +1,59 @@
+[
+  {
+    "ticker": "EGIE3",
+    "period": "2T26",
+    "model": "claude-opus-5-5",
+    "report": {
+      "kind": "tese",
+      "title": "EGIE3: núcleo para 10 anos, preço justo",
+      "summary": "Passa no filtro de entrada e em 9 das 11 perguntas de qualidade; preço perto do justo pelo Bazin.",
+      "body_md": "Horizonte: 10 a 20 anos · Objetivo: renda e crescimento · Papel: núcleo (score 8,2)\n\n## Resumo\nGeradora de energia com contratos longos, caixa previsível e dividendos constantes. Passa no filtro de entrada e em 9 das 11 perguntas: é núcleo para quem fica 10 anos ou mais. O preço está perto do justo; aportar com moderação.\n\n## O negócio\nGera e vende energia elétrica (hidrelétricas, eólicas, solares e térmicas) a distribuidoras e grandes consumidores, em contratos de longo prazo corrigidos pela inflação.\n\n## Vantagem competitiva e setor\nAtivos de geração difíceis de replicar, custo baixo e contratos longos. Energia é necessidade perene; a transição energética favorece renováveis.\n\n## Gestão e governança\nControle privado, Novo Mercado, tag along de 100%. Sem polêmicas relevantes nos últimos 24 meses.\n\n## Dez anos de números\n| Ano | Receita | Lucro | Margem líq. | ROE | DL/EBITDA | Proventos/ação |\n|---|---|---|---|---|---|---|\n| 2025 | R$ 11,8 bi | R$ 3,1 bi | 26% | 28% | 2,4x | R$ 2,10 |\n| 2024 | R$ 11,2 bi | R$ 2,9 bi | 26% | 27% | 2,3x | R$ 2,00 |\n\nCAGR de 5 anos: receita 6%, lucro 7%, proventos 5%. Nenhum ano com prejuízo em 10 anos.\n\n## Filtro de entrada\n| Filtro | Valor | Resultado |\n|---|---|---|\n| Lucro nos últimos 5 anos | 5 de 5 | passa |\n| ROE (12M) | 28% | passa |\n| Margem líquida | 26% | passa |\n| Dívida líquida/EBITDA | 2,4x | passa |\n\n## Checklist de qualidade\n- [x] 1. Rentabilidade alta e constante: ROE médio de 5 anos de 27%.\n- [x] 2. Lucro em todos os últimos 5 anos.\n- [x] 3. Cresceu acima da inflação: lucro com CAGR de 7% contra IPCA de 5%.\n- [x] 4. Dívida sob controle: 2,4x o EBITDA.\n- [x] 5. Proventos consistentes.\n- [ ] 6. Investe em inovação: expansão em renováveis, mas sem P&D relevante.\n- [x] 7. Mais de 30 anos de história.\n- [x] 8. Entre as maiores geradoras privadas do país.\n- [x] 9. Setor perene.\n- [x] 10. Boa governança.\n- [ ] 11. Livre de cliente único: dois clientes somam 35% da receita.\n\nNota: +7 (9 sim, 2 não) · Score 8,2 · Papel: núcleo\n\n## Leitura de longo prazo\nCrescimento por aquisições e projetos renováveis; gestão conservadora, que comunica bem os anos ruins.\n\n## Preço e margem de segurança\nBazin: R$ 2,10 ÷ 6% = R$ 35,00. P/L médio de 10 anos de 14x × LPA de R$ 3,00 = R$ 42,00. Preço justo: R$ 35,00. Com o preço de R$ 36,50, margem de −4%: justa.\n\n## O que quebra a tese\n- Dívida líquida/EBITDA acima de 3x.\n- Prejuízo no ano.\n- Crise hídrica que force compra de energia cara por mais de um ano.\n\n## Conclusão\nNúcleo, preço justo: aportar com moderação, abaixo do peso-alvo. Reavaliar a tese em 12 meses ou se um gatilho disparar.",
+      "verdict": "justa",
+      "score": 8.2,
+      "fair_price": 35.0,
+      "sources": [
+        "https://ri.engie.com.br",
+        "Formulário de Referência 2026 (CVM)",
+        "DFP 2025 (CVM)",
+        "Segmento de listagem na B3",
+        "Notícias dos últimos 24 meses"
+      ]
+    },
+    "metrics": [
+      {
+        "metric": "nota_qualidade",
+        "value": 7,
+        "period_end": "2026-06-30",
+        "period_type": "SNAPSHOT",
+        "unit": "pontos"
+      },
+      {
+        "metric": "checklist_sim",
+        "value": 9,
+        "period_end": "2026-06-30",
+        "period_type": "SNAPSHOT",
+        "unit": "respostas"
+      },
+      {
+        "metric": "filtro_entrada",
+        "value": 1,
+        "period_end": "2026-06-30",
+        "period_type": "SNAPSHOT"
+      },
+      {
+        "metric": "margem_seguranca",
+        "value": -0.04,
+        "period_end": "2026-06-30",
+        "period_type": "SNAPSHOT",
+        "unit": "fração"
+      },
+      {
+        "metric": "cagr_lucro_5a",
+        "value": 0.07,
+        "period_end": "2026-06-30",
+        "period_type": "SNAPSHOT",
+        "unit": "fração"
+      }
+    ]
+  }
+]

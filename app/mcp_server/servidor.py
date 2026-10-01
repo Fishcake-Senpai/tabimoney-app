@@ -23,8 +23,8 @@ ROOT = Path(__file__).resolve().parent.parent.parent  # no executável, a pasta 
 INSTRUCOES = """Tabimoney: finanças pessoais locais do usuário (gastos, orçamento, carteira, metas de alocação, \
 análises fundamentalistas e recomendações). Valores em reais; percentuais como fração (0.15 = 15%).
 Antes de uma tarefa com mais de um passo, chame `roteiro` com o nome da tarefa (ciclo, gastos, orcamento, metas, \
-analise-trimestral, recomendacoes; ou visao-geral para escolher) e siga os passos. Em investimentos, comece por \
-`carteira_contexto`. Pergunta simples se responde direto com a ferramenta certa.
+analise-ativo, analise-trimestral, recomendacoes; ou visao-geral para escolher) e siga os passos. Em investimentos, \
+comece por `carteira_contexto`; as análises são de longo prazo e começam pelo horizonte (`perfil_investidor`). Pergunta simples se responde direto com a ferramenta certa.
 Ferramentas destrutivas (metas_definir, orcamento_definir, orcamento_remover, gastos_excluir_categoria, \
 gastos_remover_regra) só com pedido explícito do usuário. Nada apaga lançamentos, e o servidor faz backup antes \
 da primeira mudança da sessão.
@@ -33,10 +33,12 @@ pública sobre empresas e títulos é permitido."""
 
 RESOURCES = {
     "tabimoney://docs/contrato": ("contrato", "Contrato: formatos e regras de cálculo", ROOT / "docs" / "agente-financeiro.md", "text/markdown"),
-    "tabimoney://docs/modelo-relatorio-trimestral": ("modelo-relatorio-trimestral", "Modelo do relatório trimestral",
+    "tabimoney://docs/modelo-relatorio-tese": ("modelo-relatorio-tese", "Modelo da tese de longo prazo",
+                                               ROOT / "docs" / "agentes" / "modelo-relatorio-tese.md", "text/markdown"),
+    "tabimoney://docs/modelo-relatorio-trimestral": ("modelo-relatorio-trimestral", "Modelo do acompanhamento trimestral",
                                                      ROOT / "docs" / "agentes" / "modelo-relatorio-trimestral.md", "text/markdown"),
     **{f"tabimoney://exemplos/{n}": (f"exemplo-{n}", f"Exemplo válido: {n}", ROOT / "docs" / "agentes" / "exemplos" / f"{n}.json",
-                                     "application/json") for n in ("analise-trimestral", "recomendacoes", "orcamento")},
+                                     "application/json") for n in ("analise-ativo", "analise-trimestral", "recomendacoes", "orcamento")},
 }
 
 # prompt → (roteiro, título, argumentos com descrição)
@@ -45,7 +47,8 @@ PROMPTS = {
     "revisar_gastos": ("gastos", "Revisar gastos e corrigir categorias", {"mes": "Mês AAAA-MM (opcional)", "titular": "Nome do titular (opcional)"}),
     "orcamento": ("orcamento", "Análise orçamentária e onde economizar", {"mes": "Mês AAAA-MM (opcional)"}),
     "onde_aportar": ("metas", "Metas de alocação e para onde vai o aporte", {"aporte": "Valor do aporte em reais (opcional)", "titular": "Nome do titular (opcional)"}),
-    "analise_trimestral": ("analise-trimestral", "Análise fundamentalista trimestral", {"tickers": "Tickers separados por vírgula (opcional; padrão: todos)", "titular": "Nome do titular (opcional)"}),
+    "analise_ativo": ("analise-ativo", "Análise completa de um ativo (longo prazo)", {"ticker": "Ticker do ativo (ou nome do título de renda fixa)", "titular": "Nome do titular (opcional)"}),
+    "analise_trimestral": ("analise-trimestral", "Acompanhamento trimestral das teses", {"tickers": "Tickers separados por vírgula (opcional; padrão: todos)", "titular": "Nome do titular (opcional)"}),
     "recomendacoes": ("recomendacoes", "Recomendações trimestrais da carteira", {"aporte": "Valor do aporte em reais (opcional)", "titular": "Nome do titular (opcional)"}),
 }
 
