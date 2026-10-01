@@ -42,11 +42,26 @@ base (sempre por migração automática) e o contrato da CLI.
 - No celular, barra de abas embaixo, com **Mais** para Importar, Pendências e Configurações.
 - Manual de conexões atualizado para a barra do topo e as Configurações novas.
 
+### Alterado (análises da IA)
+- As análises de investimento passam a ser de **longo prazo** (5, 10, 20 anos) e começam perguntando o horizonte e o
+  objetivo do investidor; com menos de 5 anos, não fazem análise de compra de ações e FIIs.
+- O roteiro `analise-trimestral` virou o **acompanhamento das teses**: a cada balanço, confere os gatilhos que
+  quebrariam a tese, atualiza nota e preço e chama a análise completa quando falta tese.
+- As **recomendações** distribuem o aporte pelo método de notas (peso-alvo proporcional à nota de qualidade, aporte
+  nos ativos mais abaixo do peso, ativo caro espera o próximo aporte) e só sugerem venda com a tese quebrada. Preço
+  alto sozinho não é mais motivo de venda.
+- O ciclo completo não reanalisa mais por oscilação de preço, só por balanço, aviso ou fato novo.
+
 ### Adicionado
 - **Configurações › Aparência**: tema escuro (padrão), claro ou o do sistema, e abrir com os valores escondidos.
 - Modo discreto: o olho da barra do topo borra todo valor em reais, até nos gráficos.
 - Ícone por categoria nas listas; categoria criada por você ganha um ícone escolhido numa grade.
 - Ícones Lucide embutidos (`app/static/icons.svg`, gerado por `packaging/icones.py`), sem depender de internet.
+- **Análise completa de um ativo para o longo prazo** (roteiro `analise-ativo`, prompt `analise_ativo`), inspirada no
+  método de Raul Sena (Investidor Sardinha): pesquisa profunda (RI, Formulário de Referência, CVM, B3, notícias,
+  concorrentes e setor), filtro de entrada, checklist de qualidade com 11 perguntas e nota (sim − não), dez anos de
+  números, leitura de Philip Fisher, preço por margem de segurança e o que quebraria a tese. Grava a tese no app
+  (`kind: "tese"`), que vale 12 meses. Modelo em `docs/agentes/modelo-relatorio-tese.md`.
 - **Horizonte e objetivo do investidor** em **Investimentos › Metas** (5 a 10, 10 a 20 ou mais de 20 anos; renda,
   crescimento ou os dois). As análises da IA perguntam antes de começar e guardam a resposta, por titular. Para
   agentes: `perfil_investidor` e `perfil_definir` no MCP, `financas perfil mostrar|definir` na CLI e `perfil` em

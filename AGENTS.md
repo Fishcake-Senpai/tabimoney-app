@@ -29,11 +29,13 @@ citam as ferramentas do MCP; `EQUIVALENTE_CLI` em `app/mcp_server/ferramentas.py
 | Revisar gastos e recategorizar | `app/agente/roteiros/gastos.md` |
 | Orçamento: metas de gastos e recomendações de economia | `app/agente/roteiros/orcamento.md` |
 | Metas de alocação e onde aportar | `app/agente/roteiros/metas.md` |
-| Análise fundamentalista trimestral | `app/agente/roteiros/analise-trimestral.md` |
+| Análise completa de um ativo (tese de longo prazo, método Investidor Sardinha) | `app/agente/roteiros/analise-ativo.md` |
+| Acompanhamento trimestral das teses | `app/agente/roteiros/analise-trimestral.md` |
 | Recomendações trimestrais e carteiras-modelo | `app/agente/roteiros/recomendacoes.md` |
 
-O contrato (formatos de JSON e regras de cálculo) está em `docs/agente-financeiro.md`. O modelo do relatório
-está em `docs/agentes/modelo-relatorio-trimestral.md`, e os exemplos válidos em `docs/agentes/exemplos/`.
+O contrato (formatos de JSON e regras de cálculo) está em `docs/agente-financeiro.md`. Os modelos dos relatórios
+estão em `docs/agentes/modelo-relatorio-tese.md` e `docs/agentes/modelo-relatorio-trimestral.md`, e os exemplos
+válidos em `docs/agentes/exemplos/`.
 
 ## Privacidade
 

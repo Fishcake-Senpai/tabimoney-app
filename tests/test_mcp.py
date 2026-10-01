@@ -184,6 +184,7 @@ def test_backup_automatico_so_antes_da_primeira_escrita(dados_exemplo):
 def test_importa_os_exemplos_com_o_cliente_como_autor(mode):
     """Os exemplos da documentação passam pelos esquemas das ferramentas, e o autor é o nome do cliente."""
     analises = json.loads((EXEMPLOS / "analise-trimestral.json").read_text(encoding="utf-8"))
+    analises += json.loads((EXEMPLOS / "analise-ativo.json").read_text(encoding="utf-8"))
     recomendacoes = json.loads((EXEMPLOS / "recomendacoes.json").read_text(encoding="utf-8"))
     orcamento = json.loads((EXEMPLOS / "orcamento.json").read_text(encoding="utf-8"))
 
@@ -198,6 +199,7 @@ def test_importa_os_exemplos_com_o_cliente_como_autor(mode):
     _dados(a), _dados(r), _dados(o)
     autores = {x["author"] for x in _dados(lista)["relatorios"]}
     assert "teste-agente" in autores
+    assert {"tese", "trimestral"} <= {x["kind"] for x in _dados(lista)["relatorios"] if x["author"] == "teste-agente"}
 
 
 def test_item_invalido_recusa_o_lote_inteiro():

@@ -1,58 +1,40 @@
-# Modelo do relatório trimestral (campo `body_md`)
+# Modelo do acompanhamento trimestral (campo `body_md`, `kind: "trimestral"`)
 
-Use sempre estas seções, nesta ordem, para que o histórico de cada ativo seja comparável trimestre a trimestre.
-Seja factual: cada número tem de vir do `financas fundamentos contexto` ou de uma fonte citada em `sources`.
-Omita a seção que não se aplica ao tipo de ativo (ex.: dívida para bancos) e diga por quê em uma linha.
+O acompanhamento confere, a cada balanço, se a tese de longo prazo (`kind: "tese"`, modelo em
+`docs/agentes/modelo-relatorio-tese.md`) continua de pé. É curto de propósito: a análise completa está na tese.
+Use sempre estas seções, nesta ordem. Cada número vem do `fundamentos_contexto` ou de uma fonte citada em `sources`.
 
 ```markdown
+Horizonte: 10 a 20 anos · Papel: núcleo (score 8,2) · Tese de 2T26
+
 ## Resumo
-Três a cinco linhas: o que aconteceu no trimestre, se a tese continua de pé e a leitura de preço.
+Três linhas: o que aconteceu no trimestre e se a tese continua de pé.
 
 ## Resultado do trimestre
-| Indicador | 2T26 | 2T25 | Variação |
+| Indicador | 3T26 | 3T25 | Variação |
 |---|---|---|---|
 | Receita | R$ 10,1 bi | R$ 10,2 bi | −0,6% |
-| EBIT | ... | ... | ... |
 | Lucro líquido | ... | ... | ... |
 | Margem líquida | ... | ... | ... |
 Efeitos não recorrentes e o que explica a variação.
 
-## Qualidade e rentabilidade
-ROE (e ROIC, se calcular), margens, conversão de caixa (caixa operacional ÷ lucro) e a tendência dos últimos
-4 a 8 trimestres.
-
-## Endividamento
-Dívida líquida/EBITDA, perfil e custo da dívida. Para bancos: índice de Basileia e inadimplência, se o release trouxer.
-
-## Proventos
-Payout, dividend yield, previsibilidade e se o pagamento cabe no lucro e no caixa.
-
-## Valuation
-P/L, P/VP e EV/EBITDA contra o próprio histórico e contra 2 ou 3 pares. Preço justo e método (múltiplo, fluxo
-de caixa descontado ou Gordon), com as premissas.
-
-## Riscos e gatilhos
-- Riscos que podem quebrar a tese.
-- Eventos a acompanhar no próximo trimestre.
-
-## Mudanças desde o último relatório
-O que mudou em relação ao relatório anterior (`financas analise mostrar ID`): tese, preço justo, veredito.
+## Gatilhos da tese
+| Gatilho | Limite | Hoje | Situação |
+|---|---|---|---|
+| Dívida líquida/EBITDA | acima de 3x | 1,1x | ok |
+| Lucro anual | prejuízo | lucro de R$ 6,2 bi (12M) | ok |
 
 ## Checklist
-- [x] Lucro 12M crescendo ou estável
-- [ ] ROE acima de 15%
-- [x] Dívida líquida/EBITDA abaixo de 2,5x (não financeiras)
-- [x] Payout sustentável (abaixo de 100%)
-- [ ] Preço abaixo do preço justo
+Só as respostas que mudaram, com a evidência. Nota e score de hoje.
+
+## Preço
+Preço justo (mesmos métodos da tese, com o número novo), margem de segurança e veredito.
 
 ## Conclusão
-Veredito (barata, justa ou cara), nota de 0 a 10 e o que fazer com a posição, **respeitando as metas de alocação
-do usuário** (`financas metas mostrar`).
+"Tese de pé" ou "tese quebrada: refazer a análise completa", e o que fazer com os próximos aportes.
 ```
 
-Para **renda fixa** (subject_type `renda_fixa`), use: Resumo; Taxa contratada × taxa de mercado atual; Risco de
-crédito do emissor e FGC; Liquidez e vencimento; Imposto e marcação a mercado; Conclusão (manter, resgatar
-no vencimento, trocar por qual alternativa).
+Para **renda fixa e previdência**: Resumo; Taxa contratada × taxa de hoje; Crédito do emissor; Conclusão.
 
-Para **ETFs e FIIs**, troque as seções de demonstrações por: índice ou portfólio, taxa de administração, liquidez,
-histórico de proventos, vacância e alavancagem (FIIs) e desconto ou prêmio sobre o valor patrimonial.
+Para **FIIs**: Resumo; Rendimentos e vacância do trimestre; Gatilhos da tese; Preço (P/VP e dividend yield);
+Conclusão.

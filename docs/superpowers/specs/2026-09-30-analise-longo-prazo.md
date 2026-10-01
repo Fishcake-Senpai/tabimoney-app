@@ -516,7 +516,7 @@ Cada fase é um commit na `dev` com testes e `CHANGELOG`.
 
 Atualizado a cada passo. Para retomar numa sessão nova: ler este parágrafo e seguir do primeiro item sem `[x]`.
 
-- [ ] Fase 1: roteiros e modelos (`analise-ativo`, trimestral, recomendações, ciclo, visão geral, metas, modelo da
+- [x] Fase 1: roteiros e modelos (`analise-ativo`, trimestral, recomendações, ciclo, visão geral, metas, modelo da
   tese, exemplo, contrato, AGENTS, prompt MCP, CHANGELOG)
 - [x] Fase 2: perfil do investidor (operação, MCP, CLI, `carteira_contexto`, linha em Metas, demo, testes).
   Feita antes da 1 porque os roteiros citam as ferramentas. Serviço em `app/services/investor_profile.py`; testes em
