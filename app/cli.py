@@ -8,6 +8,7 @@
     financas analise importar relatorio.json    grava relatórios, métricas e avisos do agente
     financas carteira contexto                  carteira + metas + fundamentos + últimas análises, num JSON
     financas metas mostrar --aporte 5000        balanço contra as metas e para onde vai o aporte
+    financas perfil definir 10-20 crescimento   horizonte e objetivo do investidor (as análises perguntam antes)
     financas recomendacoes importar recs.json   grava as recomendações trimestrais
     financas orcamento contexto                 metas de gastos × gastos, para a análise orçamentária
     financas orcamento importar-recomendacoes orc.json   grava as sugestões de orçamento do agente
@@ -34,7 +35,7 @@ from typing import Any
 
 from app import __version__, db, demo
 from app.agente import operacoes as op
-from app.services import fundamentals, household, spending
+from app.services import fundamentals, household, investor_profile, spending
 
 _MEMBER: int | None = None  # --titular; None = a casa toda
 
@@ -177,6 +178,13 @@ def build_parser() -> argparse.ArgumentParser:
     p = cmd(g, "regiao", lambda a: op.metas_regiao(a.ticker, a.regiao), help="define se um ativo é exposição nacional ou internacional")
     p.add_argument("ticker")
     p.add_argument("regiao", choices=["nacional", "internacional", "automatica"])
+
+    g = groups.add_parser("perfil", help="horizonte e objetivo do investidor").add_subparsers(dest="acao", required=True)
+    cmd(g, "mostrar", lambda a: op.perfil_investidor(member=_MEMBER), help="horizonte e objetivo guardados")
+    p = cmd(g, "definir", lambda a: op.perfil_definir(a.horizonte, a.objetivo, member=_MEMBER),
+            help="grava o horizonte e o objetivo respondidos pelo usuário")
+    p.add_argument("horizonte", choices=list(investor_profile.HORIZONS))
+    p.add_argument("objetivo", choices=list(investor_profile.GOALS))
 
     g = groups.add_parser("recomendacoes", help="recomendações trimestrais").add_subparsers(dest="acao", required=True)
     p = cmd(g, "importar", lambda a: op.recomendacoes_importar(_read_json(a.arquivo), a.autor),

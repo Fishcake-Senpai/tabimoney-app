@@ -10,7 +10,7 @@ from datetime import date
 from typing import Any, Callable
 
 from app import db
-from app.services import analytics, budgets, fundamentals, household, recommendations, spending, targets
+from app.services import analytics, budgets, fundamentals, household, investor_profile, recommendations, spending, targets
 from app.services.pension import parse_amount
 
 # erros que viram {"erro": ...} na CLI e mensagem de erro no MCP
@@ -234,6 +234,23 @@ def metas_regiao(ticker: str, regiao: str) -> dict[str, Any]:
     return {"ticker": ticker.upper(), "regiao": regiao}
 
 
+def perfil_investidor(member: int | None = None) -> dict[str, Any]:
+    """Horizonte e objetivo do investidor. Sem perfil (ou vencido), as análises perguntam antes de começar."""
+    p = investor_profile.load(member)
+    return {
+        "configurado": p["configured"], "horizonte": p["horizon"], "horizonte_texto": p["horizon_label"],
+        "objetivo": p["goal"], "objetivo_texto": p["goal_label"], "atualizado_em": p["updated_at"], "vencido": p["stale"],
+        "de": "casa" if member is None else ("titular" if p["own"] else "casa (titular sem perfil próprio)"),
+        "opcoes": {"horizonte": investor_profile.HORIZONS, "objetivo": investor_profile.GOALS},
+    }
+
+
+def perfil_definir(horizonte: str, objetivo: str, member: int | None = None) -> dict[str, Any]:
+    """Grava o perfil respondido pelo usuário (horizonte e objetivo da renda variável)."""
+    investor_profile.save(horizonte, objetivo, member)
+    return perfil_investidor(member)
+
+
 def carteira_contexto(aporte: str | float | None = None, member: int | None = None) -> dict[str, Any]:
     """Um JSON com tudo para recomendar: metas, posições com fundamentos, renda fixa, previdência, análises e avisos."""
     book = analytics.Book(member)
@@ -263,6 +280,7 @@ def carteira_contexto(aporte: str | float | None = None, member: int | None = No
         "data": date.today().isoformat(),
         "titular": _member_names().get(member) if member is not None else "casa",
         "titulares": [m["name"] for m in household.members()],
+        "perfil": perfil_investidor(member),
         "metas_e_balanco": _targets_payload(book, assets, _amount_text(aporte)),
         "renda_variavel": {"valor": _money(kpis["value"]), "posicoes": positions,
                            "rentabilidade": kpis["returns"], "volatilidade_12m": kpis["volatility"]},

@@ -47,6 +47,10 @@ base (sempre por migração automática) e o contrato da CLI.
 - Modo discreto: o olho da barra do topo borra todo valor em reais, até nos gráficos.
 - Ícone por categoria nas listas; categoria criada por você ganha um ícone escolhido numa grade.
 - Ícones Lucide embutidos (`app/static/icons.svg`, gerado por `packaging/icones.py`), sem depender de internet.
+- **Horizonte e objetivo do investidor** em **Investimentos › Metas** (5 a 10, 10 a 20 ou mais de 20 anos; renda,
+  crescimento ou os dois). As análises da IA perguntam antes de começar e guardam a resposta, por titular. Para
+  agentes: `perfil_investidor` e `perfil_definir` no MCP, `financas perfil mostrar|definir` na CLI e `perfil` em
+  `carteira contexto`.
 
 ## [0.13.0] - 2026-09-30
 

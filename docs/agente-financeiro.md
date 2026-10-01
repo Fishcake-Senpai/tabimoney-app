@@ -48,6 +48,8 @@ reversível*, **sensível** (`destructiveHint`; só com pedido explícito do usu
 | `metas_mostrar` | leitura | `financas metas mostrar` |
 | `metas_definir` | **sensível** | `financas metas definir` |
 | `metas_regiao` | escrita reversível | `financas metas regiao TICKER REGIAO` |
+| `perfil_investidor` | leitura | `financas perfil mostrar` |
+| `perfil_definir` | escrita reversível | `financas perfil definir HORIZONTE OBJETIVO` |
 | `gastos_resumo` | leitura | `financas gastos resumo` |
 | `gastos_listar` | leitura | `financas gastos listar` |
 | `gastos_categorias` | leitura | `financas gastos categorias` |
@@ -149,11 +151,25 @@ As regras do cálculo:
 
 Toda recomendação de carteira precisa respeitar essas metas ou dizer explicitamente por que propõe desviar delas.
 
+## 2.1 Perfil do investidor
+
+| Comando | Para quê |
+|---|---|
+| `financas perfil mostrar` | Horizonte e objetivo guardados, se estão vencidos e as opções válidas |
+| `financas perfil definir HORIZONTE OBJETIVO` | Grava o que o **usuário** respondeu. Horizonte: `menos-de-5`, `5-10`, `10-20` ou `mais-de-20`. Objetivo: `renda`, `crescimento` ou `os-dois` |
+
+- As análises de investimento são de longo prazo e começam pelo perfil. Sem perfil (`configurado: false`) ou com
+  mais de 12 meses (`vencido: true`), o agente pergunta ao usuário antes de analisar; nunca inventa.
+- Com `menos-de-5`, ações e FIIs não cabem no prazo: o agente não faz análise de compra e sugere revisar reserva e
+  renda fixa.
+- Vale por titular, como as metas: sem perfil próprio, o titular usa o da casa (`de`). `carteira contexto` traz o
+  perfil em `perfil`. O usuário também vê e edita em **Investimentos › Metas**.
+
 ## 3. Carteira e fundamentos
 
 | Comando | Para quê |
 |---|---|
-| `financas carteira contexto [--aporte X]` | **Ponto de partida do agente**: metas e balanço, posições com fundamentos, avisos e a última análise de cada ativo, renda fixa, previdência, caixa e a recomendação anterior |
+| `financas carteira contexto [--aporte X]` | **Ponto de partida do agente**: perfil do investidor, metas e balanço, posições com fundamentos, avisos e a última análise de cada ativo, renda fixa, previdência, caixa e a recomendação anterior |
 | `financas carteira posicoes` | Versão curta, só com as posições |
 | `financas fundamentos atualizar [TICKER ...]` | Baixa ITR/DFP da CVM (cache semanal) e recalcula os avisos por regras |
 | `financas fundamentos contexto TICKER` | Tudo sobre uma empresa: perfil, indicadores, série trimestral, links da CVM, avisos e relatórios anteriores |

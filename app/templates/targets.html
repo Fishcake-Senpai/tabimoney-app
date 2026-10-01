@@ -22,6 +22,7 @@
     <div class="hero-meta">
       {% if snap.alerts %}{% for a in snap.alerts[:2] %}{{ chip(a.message, "down" if a.severity == "critico" else "warn", "triangle-alert") }}{% endfor %}
       {% elif snap.configured %}{{ chip("Dentro das metas", "up", "check") }}{% endif %}
+      <button class="chip" type="button" data-dialog="dlg-perfil">{{ icon("hourglass") }}<span>{% if profile.configured %}Horizonte: {{ profile.horizon_label }} · {{ profile.goal_label }}{% else %}Definir horizonte{% endif %}</span></button>
     </div>
   </div>
 </div>
@@ -109,6 +110,27 @@
   <div class="modal-actions">
     {% if view and view.current is not none and t.own %}<button class="btn btn-ghost" type="submit" name="use_household" value="on">Usar as metas da casa</button>{% endif %}
     <button class="btn btn-primary" type="submit">Salvar metas</button>
+  </div>
+</form>
+{% endcall %}
+
+{% call modal("perfil", "Horizonte e objetivo" ~ who) %}
+<form method="post" action="/metas/perfil" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label class="field">Por quanto tempo esse dinheiro fica investido?
+    <select name="horizon" required>
+      {% if not profile.configured %}<option value="" selected disabled>Escolha</option>{% endif %}
+      {% for k, label in horizons.items() %}<option value="{{ k }}" {% if profile.horizon == k %}selected{% endif %}>{{ label|capitalize }}</option>{% endfor %}
+    </select></label>
+  <label class="field">O que você busca na renda variável?
+    <select name="goal" required>
+      {% if not profile.configured %}<option value="" selected disabled>Escolha</option>{% endif %}
+      {% for k, label in goals.items() %}<option value="{{ k }}" {% if profile.goal == k %}selected{% endif %}>{{ label|capitalize }}</option>{% endfor %}
+    </select></label>
+  <p class="modal-note">As análises da IA são de longo prazo e partem daqui. Com menos de 5 anos, ações e FIIs não cabem: o foco vira reserva e renda fixa.</p>
+  <div class="modal-actions">
+    {% if view and view.current is not none and profile.own %}<button class="btn btn-ghost" type="submit" name="use_household" value="on">Usar o da casa</button>{% endif %}
+    <button class="btn btn-primary" type="submit">Salvar</button>
   </div>
 </form>
 {% endcall %}

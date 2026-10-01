@@ -566,7 +566,7 @@ class _Seeder:
 
     # ------------------------------------------------------------ metas, regras e o "agente"
     def plans(self, partner: int, quarters: list[date]) -> None:
-        from app.services import budgets, fundamentals, recommendations, spending, targets
+        from app.services import budgets, fundamentals, investor_profile, recommendations, spending, targets
 
         spending.create_category("Pets")
         spending.add_rule("PETZ", "Pets", note="Criada na demonstração")
@@ -584,6 +584,7 @@ class _Seeder:
             budgets.save_budget(name, categories, limit, 0.8, author="usuario")
         targets.save(3000000, 0.40, 0.60, 0.25, True)
         targets.save(1500000, 0.50, 0.50, None, True, member=partner)
+        investor_profile.save("10-20", "os-dois", today=self.today)
 
         period, previous = _label(quarters[-1]), _label(quarters[-2])
         month = self.today.strftime("%Y-%m")
