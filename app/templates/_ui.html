@@ -16,11 +16,14 @@
 
 {#- Número de apoio. Com href vira link (card inteiro clicável). -#}
 {% macro stat(label, value, sub=None, icon_name=None, href=None, value_tone="", cls="") -%}
-<{{ 'a href="' ~ href ~ '"' if href else 'div' }} class="stat{% if cls %} {{ cls }}{% endif %}">
+{%- set inner -%}
   <span class="stat-label">{% if icon_name %}{{ icon(icon_name) }}{% endif %}{{ label }}{% if href %}{{ icon("arrow-up-right", "go i-sm") }}{% endif %}</span>
   <span class="stat-value {{ value_tone }}">{{ value }}</span>
   {% if caller %}<span class="stat-sub">{{ caller() }}</span>{% elif sub %}<span class="stat-sub">{{ sub }}</span>{% endif %}
-</{{ 'a' if href else 'div' }}>
+{%- endset -%}
+{#- a tag sai inteira do template (montar "<a href=..." como texto faria o Jinja escapar as aspas do href) -#}
+{% if href %}<a href="{{ href }}" class="stat{% if cls %} {{ cls }}{% endif %}">{{ inner }}</a>
+{%- else %}<div class="stat{% if cls %} {{ cls }}{% endif %}">{{ inner }}</div>{% endif %}
 {%- endmacro %}
 
 {#- Compatibilidade com as telas antigas. -#}

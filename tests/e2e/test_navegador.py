@@ -56,6 +56,18 @@ def test_abas_de_investimentos_e_de_gastos(page: Page, base_url):
         expect(page.locator(".sidebar a[aria-current=page]")).to_have_text(re.compile("Gastos"))
 
 
+@pytest.mark.parametrize("caminho", ["/", "/investimentos", "/carteira"])
+def test_cards_clicaveis_levam_a_pagina_certa(page: Page, base_url, caminho):
+    page.goto(caminho)
+    destinos = page.locator("a.stat").evaluate_all("els => els.map(e => e.getAttribute('href'))")
+    assert destinos and all(d.startswith("/") and '"' not in d for d in destinos), destinos
+    for i, destino in enumerate(destinos):
+        page.goto(caminho)
+        page.locator("a.stat").nth(i).click()
+        expect(page).to_have_url(base_url + destino)
+        expect(page.locator("h1")).to_be_visible()
+
+
 @pytest.mark.parametrize("caminho", ["/", "/contas", "/investimentos", "/carteira", "/rendimentos"])
 def test_graficos_desenham(page: Page, caminho):
     page.goto(caminho)

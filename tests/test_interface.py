@@ -261,3 +261,36 @@ def test_nenhuma_pagina_usa_style_inline(client, dados_exemplo):
     for rota in [r.path for r in app.routes if isinstance(r, APIRoute) and "GET" in r.methods and "{" not in r.path
                  and not r.path.startswith("/csv/") and r.path != "/favicon.ico"]:
         assert ' style="' not in client.get(rota).text, rota
+
+
+def test_todo_link_interno_de_toda_pagina_abre(client):
+    """Clicar em qualquer link (menu, abas, cards, linhas) nunca leva a 404 nem a erro.
+
+    Pega, por exemplo, o href montado como texto num macro, que o Jinja escapava ("/%22/previdencia%22").
+    """
+    import re
+    from html import unescape
+
+    from fastapi.routing import APIRoute
+
+    from app.main import app
+
+    client.post("/demo/entrar", data={"csrf_token": csrf(client)})
+    paginas = [r.path for r in app.routes if isinstance(r, APIRoute) and "GET" in r.methods and "{" not in r.path
+               and not r.path.startswith("/csv/") and r.path not in {"/favicon.ico", "/importacoes"}]
+    paginas += ["/ativo/EGIE3", "/contas/gastos/Mercado", "/carteira?vista=fundamentos"]
+    links: dict[str, str] = {}
+    for pagina in paginas:
+        html = client.get(pagina).text
+        assert "href=&#34;" not in html and "href=&quot;" not in html, f"{pagina}: href com aspas escapadas"
+        for href in re.findall(r'<a [^>]*href="([^"]*)"', html):
+            href = unescape(href).split("#")[0]
+            if href.startswith("/") and not href.startswith("//") and not href.startswith("/static/"):
+                links.setdefault(href, pagina)
+    assert len(links) > 40
+    quebrados = []
+    for href, origem in sorted(links.items()):
+        resposta = client.get(href, follow_redirects=True)
+        if resposta.status_code != 200:
+            quebrados.append(f"{href} (em {origem}): {resposta.status_code}")
+    assert not quebrados, "\n".join(quebrados)
