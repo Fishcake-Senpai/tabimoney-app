@@ -41,7 +41,6 @@ base (sempre por migração automática) e o contrato da CLI.
 - Avisos depois de salvar viram toasts no canto, que somem sozinhos (os de erro ficam até o clique).
 - No celular, barra de abas embaixo, com **Mais** para Importar, Pendências e Configurações.
 - Manual de conexões atualizado para a barra do topo e as Configurações novas.
-
 - As análises de investimento passam a ser de **longo prazo** (5, 10, 20 anos) e começam perguntando o horizonte e o
   objetivo do investidor; com menos de 5 anos, não fazem análise de compra de ações e FIIs.
 - O roteiro `analise-trimestral` virou o **acompanhamento das teses**: a cada balanço, confere os gatilhos que
@@ -70,6 +69,9 @@ base (sempre por migração automática) e o contrato da CLI.
   crescimento ou os dois). As análises da IA perguntam antes de começar e guardam a resposta, por titular. Para
   agentes: `perfil_investidor` e `perfil_definir` no MCP, `financas perfil mostrar|definir` na CLI e `perfil` em
   `carteira contexto`.
+
+### Corrigido
+- `fundamentos contexto` não quebra mais para empresa cadastrada que ainda não tem balanço trimestral.
 
 ## [0.13.0] - 2026-09-30
 

@@ -1,6 +1,6 @@
 # Análise fundamentalista de longo prazo, no método do Investidor Sardinha
 
-Data: 2026-09-30 · Estado: **aprovada, em implementação** (progresso no §11) · Versão-alvo: **0.15.0**
+Data: 2026-09-30 · Estado: **implementada** (fases 1–4, em `[Não lançado]`) · Versão-alvo: **0.15.0**
 
 ## 1. Objetivo
 
@@ -523,4 +523,4 @@ Atualizado a cada passo. Para retomar numa sessão nova: ler este parágrafo e s
   `tests/test_longo_prazo.py`.
 - [x] Fase 3: dez anos de DFP e série `anos` (CVM, `fundamentos_contexto`, demo, testes)
 - [x] Fase 4: tela do ativo mostra a tese acima dos trimestrais (demo, e2e)
-- [ ] Fechamento: suíte completa, CHANGELOG revisado
+- [x] Fechamento: suíte completa (unidade e navegador), CHANGELOG revisado. Falta só o lançamento (§9.1).
