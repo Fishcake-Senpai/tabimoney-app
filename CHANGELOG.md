@@ -42,7 +42,6 @@ base (sempre por migração automática) e o contrato da CLI.
 - No celular, barra de abas embaixo, com **Mais** para Importar, Pendências e Configurações.
 - Manual de conexões atualizado para a barra do topo e as Configurações novas.
 
-### Alterado (análises da IA)
 - As análises de investimento passam a ser de **longo prazo** (5, 10, 20 anos) e começam perguntando o horizonte e o
   objetivo do investidor; com menos de 5 anos, não fazem análise de compra de ações e FIIs.
 - O roteiro `analise-trimestral` virou o **acompanhamento das teses**: a cada balanço, confere os gatilhos que
@@ -62,6 +61,9 @@ base (sempre por migração automática) e o contrato da CLI.
   concorrentes e setor), filtro de entrada, checklist de qualidade com 11 perguntas e nota (sim − não), dez anos de
   números, leitura de Philip Fisher, preço por margem de segurança e o que quebraria a tese. Grava a tese no app
   (`kind: "tese"`), que vale 12 meses. Modelo em `docs/agentes/modelo-relatorio-tese.md`.
+- **Dez anos de balanço anual** da CVM (DFP) para a análise de longo prazo: `fundamentos contexto` traz `anos`, com
+  a série por exercício e o resumo (CAGR de 5 e 10 anos, ROE médio, anos com lucro ou prejuízo). A primeira
+  atualização depois de instalar baixa os anos antigos e demora mais; depois, o cache segura.
 - **Horizonte e objetivo do investidor** em **Investimentos › Metas** (5 a 10, 10 a 20 ou mais de 20 anos; renda,
   crescimento ou os dois). As análises da IA perguntam antes de começar e guardam a resposta, por titular. Para
   agentes: `perfil_investidor` e `perfil_definir` no MCP, `financas perfil mostrar|definir` na CLI e `perfil` em

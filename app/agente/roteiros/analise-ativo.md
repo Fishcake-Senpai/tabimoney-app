@@ -34,9 +34,12 @@ Chame `perfil_investidor` (com `titular`, se a análise for de uma pessoa).
 ## 1. Dados do app
 
 1. `carteira_contexto`: peso do ativo na carteira, preço médio, metas e a `ultima_analise`.
-2. `fundamentos_contexto` com o ticker: indicadores, `quarters`, a série anual `anos` (até 10 anos, com CAGR), os
-   `filings` da CVM, os avisos e os relatórios anteriores. Se a série vier curta, complete com as DFPs da CVM e o
-   histórico do RI, e cite as fontes.
+2. `fundamentos_contexto` com o ticker: indicadores, `quarters`, os `filings` da CVM, os avisos, os relatórios
+   anteriores e **`anos`**: `serie` (um exercício por linha, até 10 anos: receita, lucro, margem, ROE, dívida
+   líquida/EBITDA, proventos, payout) e `resumo` (CAGR de 5 e 10 anos, ROE médio e mínimo de 5 anos, anos com lucro
+   e com prejuízo, anos pagando proventos). As perguntas 1 a 5 do checklist saem quase prontas daí. Se a série
+   vier curta, complete com as DFPs da CVM e o histórico do RI, e cite as fontes. Proventos por ação não são
+   ajustados por desdobramento: para crescimento, use `proventos_pagos`.
 3. Se houver tese anterior (`analise_listar` com o ticker), `analise_mostrar` para comparar.
 
 ## 2. Pesquisa profunda (obrigatória)

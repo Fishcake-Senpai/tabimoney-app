@@ -186,7 +186,11 @@ As fontes dos dados:
 
 - **CVM**: demonstrações oficiais (ITR/DFP). Em `quarters`, os fluxos (receita, EBIT, lucro, caixa operacional,
   capex, dividendos pagos) são do trimestre isolado; os saldos (ativo, patrimônio, caixa, dívida, ações) são na
-  data. Os campos `*_ttm` somam 12 meses.
+  data. Os campos `*_ttm` somam 12 meses. A série trimestral cobre os últimos 3 anos.
+- **CVM, série anual** (`anos` no `fundamentos contexto`): até 10 exercícios da DFP (31/12), com receita, lucro,
+  margem, ROE, dívida líquida/EBITDA, proventos e payout em `serie`, e CAGR de 5 e 10 anos, ROE médio de 5 anos e
+  anos com lucro ou prejuízo em `resumo`. Ano sem DFP guardada sai da soma dos 4 trimestres. Proventos por ação
+  não são ajustados por desdobramento.
 - **brapi (plano gratuito)**: preço, valor de mercado, setor e descrição.
 - Bancos e seguradoras (`is_financial`) não têm EBIT, EBITDA nem dívida líquida.
 - ETFs e FIIs não têm dados da CVM; analise-os pelo índice, pelos relatórios gerenciais e pelos proventos.

@@ -1,7 +1,8 @@
 """Demonstrações financeiras oficiais das companhias abertas (CVM, dados abertos, sem chave).
 
 - FCA (cadastro): liga o ticker (Codigo_Negociacao) ao CNPJ, e traz setor e código CVM.
-- ITR (trimestral) e DFP (anual): DRE, balanço (BPA/BPP), fluxo de caixa (DFC) e composição do capital.
+- ITR (trimestral) e DFP (anual): DRE, balanço (BPA/BPP), fluxo de caixa (DFC) e composição do capital. A série
+  trimestral usa os últimos anos; a anual (só DFP) vai mais longe, para a análise de longo prazo.
 
 Os arquivos (~30 MB por ano) ficam em cache em %LOCALAPPDATA%/FinancasPessoais/cvm e só são baixados de
 novo quando a CVM publica versão nova (a base é atualizada semanalmente). As contas são reconhecidas pela
@@ -337,18 +338,44 @@ PREVIOUS_QUARTER_END = {"06-30": "03-31", "09-30": "06-30", "12-31": "09-30"}
 FINANCIAL_PATTERNS = (r"intermediacao financeira", r"atividades? segurador")
 
 
-def statements_by_company(cnpjs: set[str], years: list[int]) -> tuple[dict[str, list[Quarter]], list[Filing]]:
-    """Série trimestral padronizada por empresa, do trimestre mais antigo ao mais recente."""
+def _annual(cnpj: str, statements: dict[tuple[str, str, str], _Statement],
+            shares: dict[tuple[str, str], float]) -> list[Quarter]:
+    """Um registro por exercício (DFP de 31/12): fluxos do ano inteiro e saldos no fim do ano."""
+    years: list[Quarter] = []
+    for end in sorted({e for (c, e, _) in statements if c == cnpj and e.endswith("12-31")}):
+        year = Quarter(period_end=end)
+        dre = statements.get((cnpj, end, "DRE"))
+        if dre:
+            descriptions = " ".join(d for _, d, *_ in dre.lines)
+            year.is_financial = any(re.search(p, descriptions) for p in FINANCIAL_PATTERNS)
+            year.values.update(_income(dre, f"{end[:4]}-01-01"))
+        year.values.update(_balance(statements.get((cnpj, end, "BPA")), statements.get((cnpj, end, "BPP"))))
+        # na DFP o fluxo de caixa acumulado já é o do ano inteiro
+        year.values.update(_cash_flow_ytd(statements.get((cnpj, end, "DFC_MI")) or statements.get((cnpj, end, "DFC_MD"))))
+        if (cnpj, end) in shares:
+            year.values["shares"] = shares[(cnpj, end)]
+        if year.values.get("net_income") is not None or year.values.get("revenue") is not None:
+            years.append(year)
+    return years
+
+
+def statements_by_company(cnpjs: set[str], years: list[int], annual_years: list[int] | None = None
+                          ) -> tuple[dict[str, list[Quarter]], list[Filing], dict[str, list[Quarter]]]:
+    """Série trimestral (ITR + DFP dos `years`) e série anual (DFP dos `years` e dos `annual_years`) por empresa,
+    da mais antiga à mais recente. Os anos só anuais não entram na série trimestral: sem ITR, não há trimestre."""
     filings: list[Filing] = []
     statements: dict[tuple[str, str, str], _Statement] = {}
     shares: dict[tuple[str, str], float] = {}
-    for year in years:
-        _load_year("ITR", year, cnpjs, filings, statements, shares)
+    for year in sorted(set(years) | set(annual_years or ())):
+        if year in years:
+            _load_year("ITR", year, cnpjs, filings, statements, shares)
         _load_year("DFP", year, cnpjs, filings, statements, shares)
 
     output: dict[str, list[Quarter]] = {}
+    yearly: dict[str, list[Quarter]] = {}
     for cnpj in cnpjs:
-        ends = sorted({end for (c, end, _) in statements if c == cnpj})
+        yearly[cnpj] = _annual(cnpj, statements, shares)
+        ends = sorted({end for (c, end, _) in statements if c == cnpj and int(end[:4]) in years})
         quarters: dict[str, Quarter] = {}
         ytd_cash: dict[str, dict[str, float]] = {}
         for end in ends:
@@ -384,4 +411,4 @@ def statements_by_company(cnpjs: set[str], years: list[int]) -> tuple[dict[str, 
             if quarter.values:
                 quarters[end] = quarter
         output[cnpj] = [quarters[e] for e in sorted(quarters)]
-    return output, filings
+    return output, filings, yearly

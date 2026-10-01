@@ -553,6 +553,31 @@ class _Seeder:
                         [(iid, quarter.isoformat(), "SNAPSHOT" if key in cvm.STOCK_KEYS else "Q", key, value,
                           fundamentals.CVM_METRICS.get(key)) for key, value in metrics.items()],
                     )
+                # dez exercícios anuais (DFP), para a análise de longo prazo; a PETR4 tem um ano de prejuízo
+                first_year = quarters[0].year
+                full_years = {y for y in {q.year for q in quarters} if sum(q.year == y for q in quarters) == 4}
+                for year in range(self.today.year - 10, self.today.year):
+                    if year in full_years:
+                        continue
+                    back = first_year - year
+                    factor = (1 + growth) ** (-4 * back)
+                    y_revenue = revenue * 4 * factor
+                    y_income = y_revenue * margin * (-0.4 if ticker == "PETR4" and back == 6 else 1)
+                    y_equity = equity * (1 - 0.04 * back)
+                    annual = {
+                        "revenue": y_revenue, "net_income": y_income, "net_income_total": y_income,
+                        "equity_parent": y_equity, "equity": y_equity, "dividends_paid": max(y_income, 0) * 0.5,
+                        "shares": shares,
+                    }
+                    if not financial:
+                        annual.update({"ebit": y_revenue * min(margin * 1.5, 0.9), "da": y_revenue * 0.06,
+                                       "cfo": y_income * 1.3, "capex": y_revenue * 0.08, "debt": debt, "cash": cash})
+                    con.executemany(
+                        "INSERT INTO fundamental_metric(instrument_id, period_end, period_type, metric, value, unit, source) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        [(iid, f"{year}-12-31", "SNAPSHOT" if key in cvm.STOCK_KEYS else "TTM", key, value,
+                          fundamentals.CVM_METRICS.get(key), fundamentals.ANNUAL_SOURCE) for key, value in annual.items()],
+                    )
                 for quarter in quarters[-4:]:
                     con.execute(
                         "INSERT INTO company_filing(instrument_id, period_end, doc_type, version, received_at, link) "
