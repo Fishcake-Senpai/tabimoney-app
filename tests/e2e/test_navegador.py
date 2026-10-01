@@ -274,6 +274,36 @@ def test_metas_do_titular_e_da_casa(page: Page):
     expect(page.get_by_role("heading", name="Definir metas da casa")).to_be_visible()
 
 
+def test_horizonte_do_investidor_pelo_chip_de_metas(page: Page):
+    page.goto("/metas")
+    _titular(page, "Marina")
+    chip = page.get_by_role("button", name=re.compile("Horizonte: 10 a 20 anos"))
+    expect(chip).to_be_visible()
+    chip.click()
+    expect(page.get_by_role("heading", name="Horizonte e objetivo de Marina")).to_be_visible()
+    page.get_by_label("Por quanto tempo esse dinheiro fica investido?").select_option("mais-de-20")
+    page.get_by_label("O que você busca na renda variável?").select_option("renda")
+    page.get_by_role("button", name="Salvar", exact=True).click()
+    expect(_aviso(page)).to_contain_text("Horizonte e objetivo salvos.")
+    expect(page.get_by_role("button", name=re.compile("Horizonte: mais de 20 anos · renda passiva"))).to_be_visible()
+
+    page.get_by_role("button", name=re.compile("Horizonte: mais de 20 anos")).click()
+    page.get_by_role("button", name="Usar o da casa").click()
+    expect(_aviso(page)).to_contain_text("voltou a usar o horizonte da casa")
+    expect(page.get_by_role("button", name=re.compile("Horizonte: 10 a 20 anos"))).to_be_visible()
+    _titular(page, "Casa")
+
+
+def test_ativo_mostra_a_tese_e_o_acompanhamento(page: Page):
+    page.goto("/ativo/WEGE3")
+    expect(page.get_by_role("heading", name="Tese de longo prazo")).to_be_visible()
+    expect(page.locator("main")).to_contain_text("Núcleo")
+    page.locator("main").get_by_role("link", name=re.compile("Completa")).click()
+    expect(page.locator("main")).to_contain_text("núcleo para 10 a 20 anos")
+    page.locator("a.notice", has_text="Acompanhamento").click()
+    expect(page.locator("main")).to_contain_text("tese de pé")
+
+
 def test_categoria_nova_com_icone(aceitar_confirmacoes: Page):
     page = aceitar_confirmacoes
     page.goto("/configuracoes#categorias")

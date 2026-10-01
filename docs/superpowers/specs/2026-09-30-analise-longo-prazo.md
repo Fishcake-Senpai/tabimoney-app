@@ -522,5 +522,5 @@ Atualizado a cada passo. Para retomar numa sessão nova: ler este parágrafo e s
   Feita antes da 1 porque os roteiros citam as ferramentas. Serviço em `app/services/investor_profile.py`; testes em
   `tests/test_longo_prazo.py`.
 - [x] Fase 3: dez anos de DFP e série `anos` (CVM, `fundamentos_contexto`, demo, testes)
-- [ ] Fase 4: tela do ativo mostra a tese acima dos trimestrais (demo, e2e)
+- [x] Fase 4: tela do ativo mostra a tese acima dos trimestrais (demo, e2e)
 - [ ] Fechamento: suíte completa, CHANGELOG revisado

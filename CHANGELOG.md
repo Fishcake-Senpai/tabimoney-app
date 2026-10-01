@@ -64,6 +64,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - **Dez anos de balanço anual** da CVM (DFP) para a análise de longo prazo: `fundamentos contexto` traz `anos`, com
   a série por exercício e o resumo (CAGR de 5 e 10 anos, ROE médio, anos com lucro ou prejuízo). A primeira
   atualização depois de instalar baixa os anos antigos e demora mais; depois, o cache segura.
+- **Página do ativo** mostra a tese de longo prazo em destaque, com o papel na carteira (núcleo, complementar ou
+  evitar novos aportes), o acompanhamento mais recente logo acima e o aviso de tese vencida (mais de um ano).
 - **Horizonte e objetivo do investidor** em **Investimentos › Metas** (5 a 10, 10 a 20 ou mais de 20 anos; renda,
   crescimento ou os dois). As análises da IA perguntam antes de começar e guardam a resposta, por titular. Para
   agentes: `perfil_investidor` e `perfil_definir` no MCP, `financas perfil mostrar|definir` na CLI e `perfil` em

@@ -549,6 +549,41 @@ def filings(instrument_id: int, limit: int = 8) -> list[dict[str, Any]]:
     )]
 
 
+THESIS_KIND = "tese"
+THESIS_VALID_DAYS = 365
+
+
+def thesis_role(score: float | None) -> str | None:
+    """Papel do ativo na carteira pela nota da tese (0 a 10): núcleo, complementar ou evitar novos aportes."""
+    if score is None:
+        return None
+    return "núcleo" if score >= 8 else "complementar" if score >= 5 else "evitar novos aportes"
+
+
+def reports_view(found: list[dict[str, Any]], today: date | None = None) -> dict[str, Any]:
+    """Como a página do ativo mostra os relatórios (do mais novo ao mais antigo): a tese de longo prazo em destaque,
+    o acompanhamento mais recente depois dela e o resto no histórico. Sem tese, vale o relatório mais recente."""
+    thesis = next((r for r in found if r.get("kind") == THESIS_KIND), None)
+    lead = thesis or (found[0] if found else None)
+    follow = None
+    if thesis:
+        newer = found[:found.index(thesis)]
+        follow = newer[0] if newer else None
+    stale = False
+    if thesis and thesis.get("created_at"):
+        try:
+            created = date.fromisoformat(str(thesis["created_at"])[:10])
+            stale = ((today or date.today()) - created).days > THESIS_VALID_DAYS
+        except ValueError:
+            pass
+    current = follow or lead
+    return {
+        "lead": lead, "thesis": thesis, "follow": follow, "stale": stale,
+        "current": current, "role": thesis_role(current.get("score")) if thesis and current else None,
+        "history": [r for r in found if r is not lead],
+    }
+
+
 def agent_metrics(instrument_id: int) -> list[dict[str, Any]]:
     """Métricas gravadas pelo agente (a mais recente de cada)."""
     return [dict(r) for r in rows(

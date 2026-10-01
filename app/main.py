@@ -495,11 +495,12 @@ def asset_page(request: Request, ticker: str, aba: str = ""):
     history = book.asset_history(asset["iid"])
     ind = fundamentals.indicators(asset["iid"], asset["close"])
     quarters = ind["quarters"][-12:] if ind else []
+    found = fundamentals.reports(asset["iid"], limit=50)
     return _page(
         request, "asset.html", asset=asset, events=history["events"], tab=aba if aba in ASSET_TABS else "visao",
         chart_price={"prices": history["prices"], "avg": asset["average_price"]},
         ind=ind, quarters=list(reversed(quarters[-8:])), indicator_meta=fundamentals.INDICATORS,
-        fund_alerts=fundamentals.alerts(asset["iid"]), reports=fundamentals.reports(asset["iid"], limit=50),
+        fund_alerts=fundamentals.alerts(asset["iid"]), reports=found, analyses=fundamentals.reports_view(found),
         filings=fundamentals.filings(asset["iid"]), agent_metrics=fundamentals.agent_metrics(asset["iid"]),
         chart_quarters=[
             {"m": q["label"],

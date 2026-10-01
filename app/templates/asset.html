@@ -34,17 +34,19 @@
     <div class="chart" data-chart="price"></div>
   </article>
   <article class="card span-4">
-    {% set r = reports[0] if reports else none %}
-    <div class="card-head"><h2 class="card-title">Leitura da IA</h2>{% if r %}<a class="link" href="{{ base }}?aba=analises">Completa {{ icon("arrow-right") }}</a>{% endif %}</div>
+    {% set r = analyses.lead %}{% set c = analyses.current %}
+    <div class="card-head"><h2 class="card-title">{{ "Tese de longo prazo" if analyses.thesis else "Leitura da IA" }}</h2>{% if r %}<a class="link" href="{{ base }}?aba=analises">Completa {{ icon("arrow-right") }}</a>{% endif %}</div>
     {% if r %}
     <div class="verdict-row">
-      {% if r.verdict %}{{ badge(verdict[r.verdict], r.verdict|capitalize) }}{% endif %}
-      {% if r.score is not none %}<span>Nota <b>{{ r.score|round(1) }}</b>/10</span>{% endif %}
+      {% if analyses.role %}{{ chip(analyses.role|capitalize, "up" if analyses.role == "núcleo" else ("down" if analyses.role.startswith("evitar") else ""), "sprout") }}{% endif %}
+      {% if c.verdict %}{{ badge(verdict[c.verdict], c.verdict|capitalize) }}{% endif %}
+      {% if c.score is not none %}<span>Nota <b>{{ c.score|round(1) }}</b>/10</span>{% endif %}
     </div>
     <p class="strong">{{ r.title }}</p>
     {% if r.summary %}<p class="text-2">{{ r.summary }}</p>{% endif %}
-    {% if r.fair_price_cents %}<div class="kv"><span>Preço justo</span><b>{{ r.fair_price_cents|brl }}{% if asset.close %} <small class="{{ (r.fair_price_cents - asset.close)|tone }}">({{ ((r.fair_price_cents - asset.close) / asset.close)|pct(0) }})</small>{% endif %}</b></div>{% endif %}
-    <div class="kv"><span>Período</span><b>{{ r.period or "—" }} · {{ r.created_at|date_br }}</b></div>
+    {% if c.fair_price_cents %}<div class="kv"><span>Preço justo</span><b>{{ c.fair_price_cents|brl }}{% if asset.close %} <small class="{{ (c.fair_price_cents - asset.close)|tone }}">({{ ((c.fair_price_cents - asset.close) / asset.close)|pct(0) }})</small>{% endif %}</b></div>{% endif %}
+    <div class="kv"><span>{{ "Tese" if analyses.thesis else "Período" }}</span><b>{{ r.period or "—" }} · {{ r.created_at|date_br }}{% if analyses.stale %} · <span class="down">vencida</span>{% endif %}</b></div>
+    {% if analyses.follow %}<div class="kv"><span>Acompanhamento</span><b>{{ analyses.follow.period or "—" }} · {{ analyses.follow.created_at|date_br }}</b></div>{% endif %}
     {% else %}
     <dl class="stat-pairs">
       <div><dt>1 mês</dt><dd class="{{ asset.r1m|tone }}">{{ asset.r1m|pct }}</dd></div>
@@ -52,7 +54,7 @@
       <div><dt>12 meses</dt><dd class="{{ asset.r12m|tone }}">{{ asset.r12m|pct }}</dd></div>
       <div><dt>Dividend yield</dt><dd>{{ asset.dy|pct(2, False) }}</dd></div>
     </dl>
-    <p class="footnote">A IA ainda não analisou este ativo. Peça a análise trimestral ao agente.</p>
+    <p class="footnote">A IA ainda não analisou este ativo. Peça ao agente a análise completa.</p>
     {% endif %}
     {% if fund_alerts %}
     <div class="card-head"><h2 class="card-title">Avisos</h2></div>
@@ -81,7 +83,7 @@
   <article class="card span-8">
     <div class="card-head">
       <h2 class="card-title">Indicadores <span class="card-note">{{ ind.last_label or "—" }} · 12 meses · preço de hoje</span></h2>
-      {% if reports and reports[0].verdict %}{{ badge(verdict[reports[0].verdict], reports[0].verdict|capitalize ~ " pela IA") }}{% endif %}
+      {% if analyses.current and analyses.current.verdict %}{{ badge(verdict[analyses.current.verdict], analyses.current.verdict|capitalize ~ " pela IA") }}{% endif %}
     </div>
     <dl class="stat-pairs stat-grid">
       {% for key, meta in indicator_meta.items() if v[key] is not none %}
@@ -152,14 +154,19 @@
 {% elif tab == "analises" %}
 <section class="grid" id="analise">
   <article class="card span-8 report-full">
-    {% set r = reports[0] if reports else none %}
+    {% set r = analyses.lead %}
     <div class="card-head">
-      <h2 class="card-title">Análise mais recente{% if r %} <span class="card-note">{{ r.period or "" }} · {{ r.author }}{% if r.model %} ({{ r.model }}){% endif %} · {{ r.created_at|date_br }}</span>{% endif %}</h2>
+      <h2 class="card-title">{{ "Tese de longo prazo" if analyses.thesis else "Análise mais recente" }}{% if r %} <span class="card-note">{{ r.period or "" }} · {{ r.author }}{% if r.model %} ({{ r.model }}){% endif %} · {{ r.created_at|date_br }}</span>{% endif %}</h2>
       {% if r %}<a class="link" href="/analises/{{ r.id }}">Abrir em página {{ icon("arrow-up-right") }}</a>{% endif %}
     </div>
     {% if r %}
+    {% if analyses.stale %}<div class="notice tone-warn"><span class="row-icon">{{ icon("hourglass") }}</span><div><p>Esta tese tem mais de um ano. Peça ao agente a análise completa de novo.</p></div></div>{% endif %}
+    {% if analyses.follow %}{% set f = analyses.follow %}
+    <a class="notice" href="/analises/{{ f.id }}"><span class="row-icon">{{ icon("calendar-clock") }}</span><div><p><b>Acompanhamento {{ f.period or "" }}</b>{% if f.verdict %} · {{ f.verdict }}{% endif %}{% if f.score is not none %} · nota {{ f.score|round(1) }}{% endif %}</p>{% if f.summary %}<p class="text-2">{{ f.summary }}</p>{% endif %}</div></a>
+    {% endif %}
     <h3>{{ r.title }}</h3>
     <div class="verdict-row">
+      {% if analyses.role %}{{ chip(analyses.role|capitalize, "up" if analyses.role == "núcleo" else ("down" if analyses.role.startswith("evitar") else ""), "sprout") }}{% endif %}
       {% if r.verdict %}{{ badge(verdict[r.verdict], r.verdict|capitalize) }}{% endif %}
       {% if r.score is not none %}<span>Nota <b>{{ r.score|round(1) }}</b>/10</span>{% endif %}
       {% if r.fair_price_cents %}<span>Preço justo <b>{{ r.fair_price_cents|brl }}</b>{% if asset.close %} <small class="{{ (r.fair_price_cents - asset.close)|tone }}">({{ ((r.fair_price_cents - asset.close) / asset.close)|pct(0) }} contra a cotação)</small>{% endif %}</span>{% endif %}
@@ -168,21 +175,21 @@
     <div class="md">{{ r.body_md|md }}</div>
     {% if r.sources %}<p class="footnote">Fontes: {% for s in r.sources %}{% if s is string and s.startswith('http') %}<a class="link" href="{{ s }}" target="_blank" rel="noreferrer">{{ loop.index }}</a>{% else %}{{ s }}{% endif %}{{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
     {% else %}
-    {{ empty("sparkles", "Nenhuma análise ainda. Peça ao agente a análise trimestral; o relatório aparece aqui e fica no histórico.") }}
+    {{ empty("sparkles", "Nenhuma análise ainda. Peça ao agente a análise completa deste ativo; a tese aparece aqui e fica no histórico.") }}
     {% endif %}
   </article>
   <article class="card span-4">
-    <div class="card-head"><h2 class="card-title">Histórico</h2><span class="card-note">{{ reports|length }}</span></div>
-    {% if reports|length > 1 %}
+    <div class="card-head"><h2 class="card-title">Histórico</h2><span class="card-note">{{ analyses.history|length }}</span></div>
+    {% if analyses.history %}
     <div class="rows">
-      {% for h in reports[1:] %}
+      {% for h in analyses.history %}
       <a class="row" href="/analises/{{ h.id }}">
-        <span class="row-main"><span class="row-title">{{ h.period or "—" }} · {{ h.title }}</span><span class="row-sub">{{ h.author }} · {{ h.created_at|date_br }}</span></span>
+        <span class="row-main"><span class="row-title">{{ h.period or "—" }}{% if h.kind == "tese" %} · tese{% endif %} · {{ h.title }}</span><span class="row-sub">{{ h.author }} · {{ h.created_at|date_br }}</span></span>
         <span class="row-end">{% if h.verdict %}{{ badge(verdict[h.verdict], h.verdict|capitalize) }}{% endif %}</span>
       </a>
       {% endfor %}
     </div>
-    {% else %}<p class="muted">Os relatórios dos trimestres anteriores aparecem aqui.</p>{% endif %}
+    {% else %}<p class="muted">Os acompanhamentos e as teses anteriores aparecem aqui.</p>{% endif %}
     {% if ind and filings %}
     <div class="card-head"><h2 class="card-title">Documentos na CVM</h2></div>
     <div class="rows">

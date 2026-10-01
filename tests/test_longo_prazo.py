@@ -193,3 +193,50 @@ def test_cvm_le_dfp_antiga_so_na_serie_anual(monkeypatch):
     assert anuais["1"][0].values["revenue"] == 3016.0 and anuais["1"][0].values["net_income"] == 100.0
     assert anuais["1"][0].values["equity_parent"] == 800.0
     assert all(q.period_end.startswith("2025") for q in trimestres["1"])
+
+
+# ---------------------------------------------------------------- tela do ativo: a tese em destaque
+
+def _rel(id_: int, kind: str, score: float | None, criado: str) -> dict:
+    return {"id": id_, "kind": kind, "score": score, "created_at": criado, "title": f"r{id_}"}
+
+
+def test_tese_fica_em_destaque_e_o_acompanhamento_mais_novo_vem_junto():
+    from app.services import fundamentals
+    rel = [_rel(3, "trimestral", 7.0, "2026-09-01 10:00:00"), _rel(2, "tese", 9.1, "2026-06-01 10:00:00"),
+           _rel(1, "trimestral", 6.0, "2026-03-01 10:00:00")]
+    v = fundamentals.reports_view(rel, today=date(2026, 9, 30))
+    assert v["lead"]["id"] == 2 and v["follow"]["id"] == 3 and v["current"]["id"] == 3
+    assert v["role"] == "complementar" and v["stale"] is False
+    assert [r["id"] for r in v["history"]] == [3, 1]
+
+
+def test_sem_tese_vale_o_mais_recente_sem_papel():
+    from app.services import fundamentals
+    v = fundamentals.reports_view([_rel(5, "trimestral", 8.5, "2026-09-01 10:00:00")])
+    assert v["lead"]["id"] == 5 and v["thesis"] is None and v["role"] is None and v["history"] == []
+    assert fundamentals.reports_view([])["lead"] is None
+
+
+@pytest.mark.parametrize(("score", "papel"), [(9.1, "núcleo"), (8.0, "núcleo"), (5.0, "complementar"),
+                                              (4.9, "evitar novos aportes"), (None, None)])
+def test_papel_pela_nota(score, papel):
+    from app.services import fundamentals
+    assert fundamentals.thesis_role(score) == papel
+
+
+def test_tese_com_mais_de_um_ano_esta_vencida():
+    from app.services import fundamentals
+    v = fundamentals.reports_view([_rel(1, "tese", 9.0, "2025-09-01 10:00:00")], today=date(2026, 9, 30))
+    assert v["stale"] is True and v["role"] == "núcleo" and v["follow"] is None
+
+
+def test_pagina_do_ativo_na_demo_mostra_tese_e_acompanhamento(client):
+    client.post("/demo/entrar", data={"csrf_token": csrf(client)})
+    visao = client.get("/ativo/WEGE3").text
+    assert "Tese de longo prazo" in visao and "Núcleo" in visao and "Acompanhamento" in visao
+    analises = client.get("/ativo/WEGE3?aba=analises").text
+    assert "Tese de longo prazo" in analises
+    assert "núcleo para 10 a 20 anos" in analises and "tese de pé" in analises  # a tese e o acompanhamento
+    sem_tese = client.get("/ativo/EGIE3?aba=analises").text
+    assert "Análise mais recente" in sem_tese

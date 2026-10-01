@@ -152,6 +152,59 @@ def _quarter_ends(today: date, count: int) -> list[date]:
     return sorted(ends)
 
 
+WEGE3_TESE = """Horizonte: 10 a 20 anos · Objetivo: renda e crescimento · Papel: núcleo (score 9,1)
+
+## Resumo
+Fabricante de motores e equipamentos elétricos com caixa líquido, margem líquida de 17% e receita crescendo perto de
+12% ao ano. Passa no filtro de entrada e em 10 das 11 perguntas: é núcleo para quem fica 10 anos ou mais. O preço já
+embute muito crescimento; aportar só abaixo do preço justo.
+
+## O negócio
+Vende motores, geradores, transformadores e automação para a indústria e para o setor de energia, no Brasil e fora.
+
+## Vantagem competitiva e setor
+Escala, marca e engenharia própria. A eletrificação e a eficiência energética garantem demanda por décadas.
+
+## Gestão e governança
+Controle privado e familiar, Novo Mercado, tag along de 100%. Sem polêmicas relevantes.
+
+## Dez anos de números
+Receita e lucro crescendo todos os anos, sem prejuízo; caixa líquido em todo o período (série em Fundamentos).
+
+## Filtro de entrada
+Lucro nos últimos 5 anos, ROE acima de 10%, margem acima de 8%, caixa líquido e mais de 5 anos de bolsa: passa.
+
+## Checklist de qualidade
+- [x] 1. Rentabilidade alta e constante.
+- [x] 2. Lucro em todos os últimos 5 anos.
+- [x] 3. Cresceu acima da inflação.
+- [x] 4. Dívida sob controle: caixa líquido.
+- [x] 5. Proventos consistentes.
+- [x] 6. Investe em inovação.
+- [x] 7. Mais de 30 anos de história.
+- [x] 8. Líder no setor.
+- [x] 9. Setor perene.
+- [x] 10. Boa gestão e governança.
+- [ ] 11. Livre de cliente único: um grupo de clientes de energia pesa na receita.
+
+Nota: +9 (10 sim, 1 não) · Score 9,1 · Papel: núcleo
+
+## Leitura de longo prazo
+Mercado para crescer por muitos anos, gestão que lança produtos novos e pensa no longo prazo, sem diluir o acionista.
+
+## Preço e margem de segurança
+P/L médio de 10 anos × lucro por ação normalizado e fluxo de caixa descontado conservador: preço justo de R$ 38,00.
+O preço de hoje está mais de 10% acima: cara.
+
+## O que quebra a tese
+- Margem líquida abaixo de 12% por 4 trimestres.
+- Dívida líquida maior que o lucro de 12 meses.
+- Troca de controle.
+
+## Conclusão
+Núcleo, mas cara: manter e pausar aportes até o preço voltar perto de R$ 38,00. Reavaliar em 12 meses."""
+
+
 def _label(quarter_end: date) -> str:
     return f"{quarter_end.month // 3}T{str(quarter_end.year)[2:]}"
 
@@ -633,10 +686,26 @@ class _Seeder:
                 "title": f"BBAS3 {period}: ROE alto, inadimplência subindo", "verdict": "barata", "score": 7.2,
                 "summary": "Rentabilidade acima de 17%, mas o agro pressiona a carteira de crédito.",
                 "body_md": "## Resumo\nPreço baixo compensa o risco.\n\n## Pontos de atenção\n- Inadimplência no agro."}},
+            # a tese de longo prazo vem antes do acompanhamento do trimestre (mais novo), como no uso real
+            {"ticker": "WEGE3", "period": previous, "model": "claude-opus-5-5", "report": {
+                "kind": "tese", "title": "WEGE3: núcleo para 10 a 20 anos, preço esticado",
+                "summary": "Passa no filtro de entrada e em 10 das 11 perguntas de qualidade. Aportar só abaixo do preço justo.",
+                "body_md": WEGE3_TESE, "verdict": "cara", "score": 9.1, "fair_price": 38.0,
+                "sources": ["Relações com investidores (demo)", "Formulário de Referência (demo)", "DFP dos últimos 10 anos (demo)",
+                            "Segmento de listagem na B3 (demo)", "Notícias dos últimos 24 meses (demo)"]},
+             "metrics": [
+                 {"metric": "nota_qualidade", "value": 9, "period_end": quarters[-2].isoformat(), "period_type": "SNAPSHOT",
+                  "unit": "pontos"},
+                 {"metric": "checklist_sim", "value": 10, "period_end": quarters[-2].isoformat(), "period_type": "SNAPSHOT"},
+                 {"metric": "filtro_entrada", "value": 1, "period_end": quarters[-2].isoformat(), "period_type": "SNAPSHOT"},
+             ]},
             {"ticker": "WEGE3", "period": period, "model": "claude-opus-5-5", "report": {
-                "title": f"WEGE3 {period}: crescimento caro", "verdict": "cara", "score": 7.5, "fair_price": 40.0,
-                "summary": "Receita crescendo 12% ao ano, mas o preço já embute anos de crescimento.",
-                "body_md": "## Resumo\nEmpresa excelente, preço esticado."}},
+                "title": f"WEGE3 {period}: tese de pé, preço ainda esticado", "verdict": "cara", "score": 9.1,
+                "fair_price": 40.0, "summary": "Receita crescendo 12% ao ano e margem estável; nenhum gatilho da tese disparou.",
+                "body_md": "## Resumo\nTrimestre forte, tese de pé.\n\n## Gatilhos da tese\n| Gatilho | Limite | Hoje | "
+                           "Situação |\n|---|---|---|---|\n| Margem líquida | abaixo de 12% | 17% | ok |\n| Dívida líquida | "
+                           "acima do lucro 12M | caixa líquido | ok |\n\n## Preço\nPreço justo de R$ 40,00; a cotação segue "
+                           "acima: cara.\n\n## Conclusão\nTese de pé. Manter e pausar aportes."}},
             {"ticker": "HGLG11", "period": period, "model": "claude-opus-5-5", "report": {
                 "title": f"HGLG11 {period}: vacância baixa e dividendos estáveis", "verdict": "justa", "score": 7.8,
                 "summary": "Galpões com vacância de 3% e rendimento mensal estável.", "body_md": "## Resumo\nManter."}},
@@ -693,6 +762,9 @@ class _Seeder:
                 ],
             }],
         }, default_author="agente")
+        with db.transaction() as con:  # a tese é de um trimestre antes
+            con.execute("UPDATE analysis_report SET created_at = ? WHERE kind = 'tese'",
+                        ((self.today - timedelta(days=85)).isoformat() + " 10:00:00",))
         budgets.import_advice({
             "period": month, "title": "Alimentação fora e compras puxam o mês", "model": "claude-opus-5-5",
             "summary": "A casa gasta dentro do total, mas alimentação fora estourou em 4 dos últimos 6 meses.",
