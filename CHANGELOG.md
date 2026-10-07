@@ -11,6 +11,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.16.0] - 2026-10-06
+
 ### Adicionado
 - Yahoo Finance como reserva da brapi nas cotações e no Ibovespa: quando a brapi recusa um ativo (o plano
   gratuito passou a recusar quase todos), a cotação vem do Yahoo, sem chave. O Yahoo também completa, uma vez, o
@@ -357,7 +359,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.15.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.13.0...v0.15.0
 [0.13.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.11.0...v0.12.0
