@@ -11,6 +11,12 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Adicionado
+- Yahoo Finance como reserva da brapi nas cotações e no Ibovespa: quando a brapi recusa um ativo (o plano
+  gratuito passou a recusar quase todos), a cotação vem do Yahoo, sem chave. O Yahoo também completa, uma vez, o
+  histórico antigo que a brapi não traz, desde a primeira posição ou operação da carteira. Na atualização de
+  fundamentos, sem a brapi, o valor de mercado sai da cotação guardada e do total de ações informado à CVM.
+
 ### Alterado
 - Gráficos históricos com períodos de 24 e 36 meses e todo o histórico disponível, incluindo fluxo de caixa,
   gastos por categoria, proventos e rentabilidade mensal. Navegação de Gastos aceita meses anteriores a 12 meses.

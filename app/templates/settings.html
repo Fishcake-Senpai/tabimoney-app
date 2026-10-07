@@ -342,7 +342,7 @@
     <section class="set-section" id="mercado" aria-labelledby="mer-t">
       <div class="set-head">
         <h2 id="mer-t">Mercado</h2>
-        {% call hint("mercado", "De onde vêm os preços") %}<p>Cotações e Ibovespa vêm da <a class="link" href="https://brapi.dev" target="_blank" rel="noreferrer">brapi</a>; o CDI, da API pública do Banco Central (sem chave). A primeira atualização busca 12 meses de histórico.</p>{% endcall %}
+        {% call hint("mercado", "De onde vêm os preços") %}<p>Cotações e Ibovespa vêm da <a class="link" href="https://brapi.dev" target="_blank" rel="noreferrer">brapi</a>. Quando ela recusa um ativo, o app busca no Yahoo Finance (sem chave), que também completa o histórico antigo que o plano gratuito da brapi não traz. O CDI vem da API pública do Banco Central (sem chave).</p>{% endcall %}
       </div>
       <div class="set-group">
         <div class="set-row">

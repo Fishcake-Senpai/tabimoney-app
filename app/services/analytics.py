@@ -30,7 +30,7 @@ CORPORATE = {"SPLIT", "BONUS"}
 INCOME = {"DIVIDEND", "JCP", "INCOME", "INTEREST"}
 SOURCE_PRIORITY = {"b3": 0, "b3_mov": 1, "pluggy": 2, "manual_ops": 3, "manual": 4}
 SNAPSHOT_PRIORITY = {"pluggy": 0, "b3": 1, "manual": 2}
-QUOTE_PRIORITY = {"manual": 0, "brapi": 1, "b3": 2}
+QUOTE_PRIORITY = {"manual": 0, "brapi": 1, "b3": 2, "yahoo": 3}
 QTY_EPSILON = 100  # 0,0001 unidade
 PENSION = "Previdência"
 
