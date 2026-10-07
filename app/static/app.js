@@ -325,14 +325,28 @@
 
   // ---------------------------------------------------------------- seleção de período
   function rangeStart(lastIso, key, firstIso) {
-    const d = new Date(lastIso + "T12:00:00");
-    if (key === "1M") d.setMonth(d.getMonth() - 1);
-    else if (key === "3M") d.setMonth(d.getMonth() - 3);
-    else if (key === "6M") d.setMonth(d.getMonth() - 6);
-    else if (key === "12M") d.setFullYear(d.getFullYear() - 1);
-    else if (key === "YTD") return lastIso.slice(0, 4) + "-01-01";
-    else return firstIso;
+    if (key === "YTD") return lastIso.slice(0, 4) + "-01-01";
+    const months = { "1M": 1, "3M": 3, "6M": 6, "12M": 12, "24M": 24, "36M": 36 }[key];
+    if (!months) return firstIso;
+    // UTC e dia limitado ao fim do mês: 31/out - 1 mês = 30/set, em qualquer fuso.
+    const d = new Date(lastIso + "T00:00:00Z"), day = d.getUTCDate();
+    d.setUTCDate(1);
+    d.setUTCMonth(d.getUTCMonth() - months);
+    const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(day, lastDay));
     return d.toISOString().slice(0, 10);
+  }
+
+  function monthlyRange(data, key) {
+    if (!data.length || key === "ALL") return data;
+    const last = data[data.length - 1].m;
+    if (key === "YTD") return data.filter((p) => p.m >= last.slice(0, 4) + "-01");
+    const months = { "1M": 1, "3M": 3, "6M": 6, "12M": 12, "24M": 24, "36M": 36 }[key];
+    if (!months) return data;
+    // Inclui o mês corrente: 12M são 12 meses, mesmo quando há meses sem movimento.
+    const start = new Date(last + "-01T00:00:00Z");
+    start.setUTCMonth(start.getUTCMonth() - months + 1);
+    return data.filter((p) => p.m >= start.toISOString().slice(0, 7));
   }
 
   /* Período (.seg com data-range) e visão (.seg[data-view], ex.: Total / Por classe) do card do gráfico. */
@@ -401,19 +415,21 @@
     "cash-flow"(node) {
       const all = readData("data-cash-flow") || [];
       const data = node.dataset.months ? all.slice(-+node.dataset.months) : all;
-      // receita entra em verde; despesa em neutro (despesa não é erro)
       const [c1, c2] = [css("--up"), css("--s5")];
-      withRange(node, () => columnChart(node, {
-        height: +node.dataset.height || 240,
-        labels: data.map((r) => r.m), labelFormat: (m) => monthLabel(m + "-01"),
-        yFormat: moneyShort, tipFormat: money, aria: "Receitas e despesas por mês",
-        empty: "Importe o extrato da conta ou a fatura para ver o fluxo.",
-        series: [
-          { label: "Receitas", color: c1, values: data.map((r) => r.in) },
-          { label: "Despesas", color: c2, values: data.map((r) => r.out) },
-        ],
-        tipExtra: (i) => [{ label: "Saldo", value: money(data[i].net) }],
-      }));
+      withRange(node, (range) => {
+        const rows = monthlyRange(data, range);
+        columnChart(node, {
+          height: +node.dataset.height || 240,
+          labels: rows.map((r) => r.m), labelFormat: (m) => monthLabel(m + "-01"),
+          yFormat: moneyShort, tipFormat: money, aria: "Receitas e despesas por mês",
+          empty: "Importe o extrato da conta ou a fatura para ver o fluxo.",
+          series: [
+            { label: "Receitas", color: c1, values: rows.map((r) => r.in) },
+            { label: "Despesas", color: c2, values: rows.map((r) => r.out) },
+          ],
+          tipExtra: (i) => [{ label: "Saldo", value: money(rows[i].net) }],
+        });
+      });
     },
 
     returns(node) {
@@ -425,14 +441,15 @@
       withRange(node, (range) => {
         const s = data.series;
         if (!s.length) return lineChart(node, { dates: [], series: [], yFormat: pctAxis, empty: "Sem histórico de cotações ainda. Atualize o mercado." });
-        const start = rangeStart(s[s.length - 1].d, range, s[0].d);
-        const rows = s.filter((p) => p.d > start);
+        // Período maior que o histórico (ex.: 24M com 1 ano de carteira): carteira e CDI partem do zero no mesmo dia.
+        const start = [rangeStart(s[s.length - 1].d, range, s[0].d), s[0].d].sort()[1];
+        const rows = s.filter((p) => p.d >= start);
         let acc = 1, cdiAcc = 1, ci = cdiDates.findIndex((d) => d > start);
         if (ci < 0) ci = cdiDates.length;
         const ibov0 = ibovAt(start) || ibovAt(rows.length ? rows[0].d : start);
         const port = [], bench = [], ib = [];
         rows.forEach((p) => {
-          acc *= 1 + p.r;
+          if (p.d > start) acc *= 1 + p.r;
           while (ci < cdiDates.length && cdiDates[ci] <= p.d) { cdiAcc *= 1 + cdi.get(cdiDates[ci]) / 100; ci++; }
           port.push(acc - 1);
           bench.push(cdiDates.length ? cdiAcc - 1 : null);
@@ -498,16 +515,19 @@
     income(node) {
       const data = readData("data-income") || [];
       const [c1, c2] = COLORS();
-      withRange(node, () => columnChart(node, {
-        labels: data.map((r) => r.m), labelFormat: (m) => monthLabel(m + "-01"),
-        yFormat: moneyShort, tipFormat: money, aria: "Proventos e rendimento do CDI por mês",
-        empty: "Sem proventos ou saldo rendendo no período.",
-        series: [
-          { label: "Proventos", color: c1, values: data.map((r) => r.prov) },
-          { label: "Rendimento CDI", color: c2, values: data.map((r) => r.cdi) },
-        ],
-        tipExtra: (i) => [{ label: "Total", value: money(data[i].prov + data[i].cdi) }],
-      }));
+      withRange(node, (range) => {
+        const rows = monthlyRange(data, range);
+        columnChart(node, {
+          labels: rows.map((r) => r.m), labelFormat: (m) => monthLabel(m + "-01"),
+          yFormat: moneyShort, tipFormat: money, aria: "Proventos e rendimento do CDI por mês",
+          empty: "Sem proventos ou saldo rendendo no período.",
+          series: [
+            { label: "Proventos", color: c1, values: rows.map((r) => r.prov) },
+            { label: "Rendimento CDI", color: c2, values: rows.map((r) => r.cdi) },
+          ],
+          tipExtra: (i) => [{ label: "Total", value: money(rows[i].prov + rows[i].cdi) }],
+        });
+      });
     },
 
     pension(node) {
@@ -529,29 +549,34 @@
     monthly(node) {
       const data = readData("data-monthly") || [];
       const [c1, c2] = COLORS();
-      const series = [{ label: "Carteira", color: c1, values: data.map((r) => r.r) }];
-      if (data.some((r) => r.cdi != null)) series.push({ label: "CDI", color: c2, values: data.map((r) => r.cdi) });
-      withRange(node, () => columnChart(node, {
-        labels: data.map((r) => r.m), labelFormat: (m) => monthLabel(m + "-01"), yFormat: pctAxis, tipFormat: (v) => pct(v),
-        series, aria: "Rentabilidade mensal", empty: "Sem meses completos ainda.",
-      }));
+      withRange(node, (range) => {
+        const rows = monthlyRange(data, range);
+        const series = [{ label: "Carteira", color: c1, values: rows.map((r) => r.r) }];
+        if (rows.some((r) => r.cdi != null)) series.push({ label: "CDI", color: c2, values: rows.map((r) => r.cdi) });
+        columnChart(node, {
+          labels: rows.map((r) => r.m), labelFormat: (m) => monthLabel(m + "-01"), yFormat: pctAxis, tipFormat: (v) => pct(v),
+          series, aria: "Rentabilidade mensal", empty: "Sem meses completos ainda.",
+        });
+      });
     },
 
     "category-monthly"(node) {
       const data = readData("data-category");
       if (!data) return;
-      const rows = data.months, last = rows.length - 1;
       const [c1, c2] = COLORS();
-      withRange(node, () => columnChart(node, {
-        labels: rows.map((r) => r.m), labelFormat: (m) => monthLabel(m + "-01"),
-        yFormat: moneyShort, tipFormat: money, aria: "Gasto da categoria por mês", height: 320,
-        series: [{ label: "Gasto", color: c2, values: rows.map((r) => r.v), colorFor: (v, i) => (i === last ? c1 : c2) }],
-        refLine: data.avg > 0 ? { value: data.avg, label: "Média " + moneyShort(data.avg) } : null,
-        tipExtra: (i) => [
-          ...(i === last ? [{ label: "Mês corrente", value: "incompleto" }] : []),
-          ...(data.avg > 0 ? [{ label: "vs média", value: pct(rows[i].v / data.avg - 1, 0) }] : []),
-        ],
-      }));
+      withRange(node, (range) => {
+        const rows = monthlyRange(data.months, range);
+        columnChart(node, {
+          labels: rows.map((r) => r.m), labelFormat: (m) => monthLabel(m + "-01"),
+          yFormat: moneyShort, tipFormat: money, aria: "Gasto da categoria por mês", height: 320,
+          series: [{ label: "Gasto", color: c2, values: rows.map((r) => r.v), colorFor: (v, i) => (rows[i].m === data.current ? c1 : c2) }],
+          refLine: data.avg > 0 ? { value: data.avg, label: "Média 12M " + moneyShort(data.avg) } : null,
+          tipExtra: (i) => [
+            ...(rows[i].m === data.current ? [{ label: "Mês corrente", value: "incompleto" }] : []),
+            ...(data.avg > 0 ? [{ label: "vs média 12M", value: pct(rows[i].v / data.avg - 1, 0) }] : []),
+          ],
+        });
+      });
     },
 
     "category-pace"(node) {

@@ -12,6 +12,7 @@ Titulares: as contas de cada pessoa da casa têm apelidos diferentes (ver servic
 """
 from __future__ import annotations
 
+import calendar
 import math
 from bisect import bisect_right
 from collections import defaultdict
@@ -46,6 +47,14 @@ def _group(event_type: str) -> str:
 
 def _shift(day: str, days: int) -> str:
     return (date.fromisoformat(day) - timedelta(days=days)).isoformat()
+
+
+def _shift_months(day: str, months: int) -> str:
+    """Subtrai meses de calendário, limitando o dia ao fim do mês de destino."""
+    current = date.fromisoformat(day)
+    year, month0 = divmod(current.year * 12 + current.month - 1 - months, 12)
+    month = month0 + 1
+    return date(year, month, min(current.day, calendar.monthrange(year, month)[1])).isoformat()
 
 
 def _asof(dates: list[str], values: list[Any], day: str) -> Any:
@@ -375,7 +384,8 @@ class Book:
                 "move_dates": move_days, "move_cum": move_cum, "institution": meta["institution"],
                 "cdi_pct": cdi_yield_pct(yield_settings, name, kind, meta["institution"]), "back": {},
             }
-            # O histórico reconstruído só vale a partir da primeira movimentação de cada conta.
+            # O histórico reconstruído só vale a partir da primeira movimentação de cada conta. Conta sem
+            # movimentação antes do primeiro saldo (ex.: cartão recém-conectado) não corta o patrimônio.
             if move_days and move_days[0] < days[0]:
                 self.history_start = max(self.history_start or move_days[0], move_days[0])
         for name, series in self.balance_series.items():
@@ -523,10 +533,15 @@ class Book:
 
     # ------------------------------------------------------------ série diária
 
-    def series(self) -> list[dict[str, Any]]:
-        """Patrimônio dia a dia e retorno diário da renda variável (método de cotas/TWR)."""
+    def series(self, *, full_history: bool = False) -> list[dict[str, Any]]:
+        """Patrimônio dia a dia e retorno diário da renda variável (método de cotas/TWR).
+
+        Sem full_history, só os dias com cobertura das contas (desde history_start). Com full_history, também os
+        dias anteriores, com caixa, dívida e patrimônio desconhecidos (None): os investimentos têm histórico próprio.
+        Antes da primeira cotação de um ativo vale a primeira cotação conhecida (o ativo já estava na carteira).
+        """
         if self._series is not None:
-            return self._series
+            return self._series if full_history else [p for p in self._series if p["nw"] is not None]
         held = [iid for iid in self.by_instrument if iid in self.quote_dates]
         day_set: set[str] = set()
         for iid in held:
@@ -538,7 +553,7 @@ class Book:
             day_set.update(product["dates"])
         for s in self.balance_series.values():
             day_set.update(s["dates"])
-        days = sorted(d for d in day_set if d <= self.today and (not self.history_start or d >= self.history_start))
+        days =sorted(d for d in day_set if d <= self.today)
         income_by_day: dict[str, int] = defaultdict(int)
         for pk in self.position_keys:
             for day, amount in pk.income:
@@ -565,15 +580,17 @@ class Book:
                     continue
                 close = self.close_at(iid, day, backfill=True) or 0
                 equity += qty * close // 1_000_000
-                corp = sum(pk.corp_between(previous_day, day) for pk in self.by_instrument[iid]) if previous_day else 0
+                corp = (sum(pk.corp_between(previous_day, day) for pk in self.by_instrument[iid])
+                        if previous_day and iid in previous_qty else 0)
                 delta = qty - previous_qty.get(iid, 0) - corp
                 flow += delta * close // 1_000_000
                 previous_qty[iid] = qty
             fixed = self.fixed_income_at(day)
             pension = self.pension_at(day)
-            cash = self.cash_at(day)
-            debt = self.card_debt_at(day)
-            if not started and equity == 0 and fixed == 0 and pension == 0 and cash == 0:
+            covered = not self.history_start or day >= self.history_start
+            cash = self.cash_at(day) if covered else None
+            debt = self.card_debt_at(day) if covered else None
+            if not started and equity == 0 and fixed == 0 and pension == 0 and (cash or 0) == 0:
                 previous_day = day
                 continue
             if not started:
@@ -591,18 +608,18 @@ class Book:
                     daily_return = 0.0
             output.append({
                 "d": day, "eq": equity, "fi": fixed, "pv": pension, "cash": cash, "debt": debt,
-                "nw": equity + fixed + pension + cash + debt,
+                "nw": equity + fixed + pension + cash + debt if covered else None,
                 "cap": capital, "r": round(daily_return, 8),
             })
             previous_equity = equity
             previous_day = day
         self._series = output
-        return output
+        return output if full_history else [p for p in output if p["nw"] is not None]
 
     # ------------------------------------------------------------ retornos
 
     def twr(self, start: str, end: str | None = None) -> float | None:
-        series = [p for p in self.series() if p["d"] > start and (end is None or p["d"] <= end)]
+        series = [p for p in self.series(full_history=True) if p["d"] > start and (end is None or p["d"] <= end)]
         if not series or all(p["eq"] == 0 for p in series):
             return None
         total = 1.0
@@ -626,18 +643,30 @@ class Book:
         return last / base - 1 if base and last else None
 
     def windows(self) -> dict[str, str]:
-        last = self.series()[-1]["d"] if self.series() else self.today
-        first = self.series()[0]["d"] if self.series() else self.today
+        last = self.series(full_history=True)[-1]["d"] if self.series(full_history=True) else self.today
+        equity_series = [p for p in self.series(full_history=True) if p["eq"] or p["r"]]
+        first = equity_series[0]["d"] if equity_series else self.today
         year_start = (date.fromisoformat(last).replace(month=1, day=1) - timedelta(days=1)).isoformat()
         return {
-            "1M": _shift(last, 30), "3M": _shift(last, 91), "6M": _shift(last, 182),
-            "YTD": year_start, "12M": _shift(last, 365), "Início": _shift(first, 1),
+            "1M": _shift_months(last, 1), "3M": _shift_months(last, 3), "6M": _shift_months(last, 6),
+            "YTD": year_start, "12M": _shift_months(last, 12),
+            "24M": _shift_months(last, 24), "36M": _shift_months(last, 36), "Início": first,
         }
 
     def risk(self) -> dict[str, float | None]:
-        series = self.series()
+        series = self.series(full_history=True)
         start = _shift(series[-1]["d"], 365) if series else self.today
-        returns = [p["r"] for p in series if p["d"] > start and p["eq"] > 0]
+        quote_days = {d for iid in self.by_instrument for d in self.quote_dates.get(iid, [])}
+        returns = []
+        factor = 1.0
+        for p in series:
+            if p["d"] <= start:
+                continue
+            factor *= 1 + p["r"]
+            if p["d"] in quote_days:
+                if p["eq"] > 0:
+                    returns.append(factor - 1)
+                factor = 1.0
         volatility = None
         if len(returns) > 20:
             mean = sum(returns) / len(returns)
@@ -652,9 +681,9 @@ class Book:
             drawdown = min(drawdown, index / peak - 1)
         return {"volatility": volatility, "max_drawdown": drawdown if series else None}
 
-    def monthly_returns(self, months: int = 12) -> list[dict[str, Any]]:
+    def monthly_returns(self, months: int | None = 12) -> list[dict[str, Any]]:
         by_month: dict[str, float] = {}
-        for p in self.series():
+        for p in self.series(full_history=True):
             if p["eq"] <= 0 and p["r"] == 0:
                 continue
             month = p["d"][:7]
@@ -665,7 +694,7 @@ class Book:
             cdi_month[month] = (1 + cdi_month.get(month, 0.0)) * (1 + self.cdi[day] / 100) - 1
         return [
             {"m": month, "r": round(value, 6), "cdi": round(cdi_month[month], 6) if month in cdi_month else None}
-            for month, value in sorted(by_month.items())[-months:]
+            for month, value in sorted(by_month.items())[(-months if months is not None else 0):]
         ]
 
     # ------------------------------------------------------------ ativos
@@ -1020,7 +1049,7 @@ def _flow_kind(t: dict[str, Any]) -> str | None:
     return "refund"
 
 
-def cash_flow(transactions: list[dict[str, Any]], months: int = 12) -> list[dict[str, Any]]:
+def cash_flow(transactions: list[dict[str, Any]], months: int | None = 12) -> list[dict[str, Any]]:
     by_month: dict[str, dict[str, int]] = defaultdict(lambda: {"in": 0, "out": 0})
     for t in transactions:
         kind = _flow_kind(t)
@@ -1032,7 +1061,7 @@ def cash_flow(transactions: list[dict[str, Any]], months: int = 12) -> list[dict
             by_month[month]["in"] += amount
         else:
             by_month[month]["out"] -= amount
-    return [{"m": m, **v, "net": v["in"] - v["out"]} for m, v in sorted(by_month.items())[-months:]]
+    return [{"m": m, **v, "net": v["in"] - v["out"]} for m, v in sorted(by_month.items())[(-months if months is not None else 0):]]
 
 
 def spending_by_category(transactions: list[dict[str, Any]], since: str) -> list[dict[str, Any]]:

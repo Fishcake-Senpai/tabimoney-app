@@ -11,6 +11,21 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Alterado
+- Gráficos históricos com períodos de 24 e 36 meses e todo o histórico disponível, incluindo fluxo de caixa,
+  gastos por categoria, proventos e rentabilidade mensal. Navegação de Gastos aceita meses anteriores a 12 meses.
+- Demonstração com mais de três anos de cotações, gastos e rendimentos para exercitar os períodos longos.
+
+### Corrigido
+- Histórico dos investimentos independente da cobertura dos extratos bancários: contas recentes não escondem
+  cotações antigas. O patrimônio total começa onde há extrato das contas e informa quando começa esse trecho.
+- Rentabilidade acumulada: num período maior que o histórico da carteira (ex.: 24M com um ano de carteira),
+  CDI e Ibovespa partem do zero junto com a carteira, em vez de acumular os meses anteriores a ela.
+- Primeiro ponto de “Tudo” incluído na rentabilidade acumulada, com base zero. Períodos de meses respeitam
+  o calendário, incluindo fins de mês e anos bissextos, em qualquer fuso horário.
+- Volatilidade calculada por pregões, sem influência de Pix e compras em fins de semana, preservando proventos
+  entre pregões.
+
 ## [0.15.0] - 2026-10-01
 
 ### Alterado

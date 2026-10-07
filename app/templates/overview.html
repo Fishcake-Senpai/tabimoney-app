@@ -44,10 +44,11 @@
           <button type="button" data-value="total" aria-pressed="true">Total</button>
           <button type="button" data-value="classes" aria-pressed="false">Por classe</button>
         </div>
-        {{ ranges("12M", ("1M", "3M", "12M", "ALL")) }}
+        {{ ranges("12M", ("1M", "3M", "12M", "24M", "36M", "ALL")) }}
       </div>
     </div>
     <div class="chart" data-chart="net-worth" data-height="240"></div>
+    {% if history_coverage %}<p class="footnote">Histórico do patrimônio disponível desde {{ history_coverage|date_br }}. Antes disso, faltam os extratos das contas; os investimentos têm seu próprio histórico.</p>{% endif %}
   </article>
 
   <div class="span-4 stack">

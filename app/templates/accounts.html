@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_ui.html" import icon, stat, delta_chip, chip, progress, cat_icon, gastos_tabs, modal, hint, empty %}
+{% from "_ui.html" import icon, stat, delta_chip, chip, progress, cat_icon, gastos_tabs, modal, hint, empty, ranges %}
 {% block title %}Gastos{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -86,7 +86,7 @@
 
   <div class="span-4 stack">
     <article class="card">
-      <div class="card-head"><h2 class="card-title">Entrou e saiu</h2><span class="card-note">6 meses</span></div>
+      <div class="card-head"><h2 class="card-title">Entrou e saiu</h2>{{ ranges("6M", ("6M", "12M", "24M", "36M", "ALL")) }}</div>
       <div class="chart" data-chart="cash-flow" data-height="170"></div>
     </article>
     <article class="card">

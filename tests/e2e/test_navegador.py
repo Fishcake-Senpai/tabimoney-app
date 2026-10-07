@@ -486,3 +486,91 @@ def test_celular_tem_a_barra_de_abas(page: Page, base_url):
     barra.get_by_role("button", name="Mais opções").click()
     page.locator("#pop-more").get_by_role("link", name=re.compile("Configurações")).click()
     expect(page).to_have_url(base_url + "/configuracoes")
+
+
+@pytest.mark.parametrize('path, chart, data_id', [
+    ('/contas', 'cash-flow', 'data-cash-flow'),
+    ('/rendimentos', 'income', 'data-income'),
+    ('/carteira', 'monthly', 'data-monthly'),
+    ('/contas/gastos/Mercado', 'category-monthly', 'data-category'),
+])
+def test_periodos_mensais_mostram_historico_completo(page: Page, path, chart, data_id):
+    page.goto(path)
+    if chart == 'monthly':
+        page.locator('details.fold > summary').click()
+    graph = page.locator(f'[data-chart="{chart}"]')
+    card = graph.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " card ")][1]')
+    for key, count in [('24M', 24), ('36M', 36), ('ALL', None), ('12M', 12)]:
+        card.locator(f'button[data-range="{key}"]').click()
+        data = page.locator(f'#{data_id}').evaluate('e => JSON.parse(e.textContent)')
+        data = data['months'] if chart == 'category-monthly' else data
+        assert len(data) > 24
+        assert graph.locator('.col-hit').count() == (len(data) if count is None else min(count, len(data)))
+
+
+def test_tudo_inclui_primeiro_ponto_com_retorno_zero(page: Page):
+    page.goto('/carteira')
+    graph = page.locator('[data-chart=returns]')
+    card = page.locator('.card', has=graph)
+    card.locator('button[data-range=ALL]').click()
+    hit = graph.locator('svg > rect').last
+    hit.hover(position={'x': 0, 'y': 60})
+    data = page.locator('#data-returns').evaluate('e => JSON.parse(e.textContent)')
+    from datetime import date
+    first = date.fromisoformat(data['series'][0]['d']).strftime('%d/%m/%y')
+    expect(page.locator('[role=status]')).to_contain_text(first)
+    expect(page.locator('[role=status]')).to_contain_text('0,00%')
+
+
+def test_cdi_parte_do_zero_com_a_carteira_quando_o_periodo_e_maior(page: Page):
+    # Regressão: no 36M com 1 ano de carteira, o CDI acumulava os 2 anos anteriores e já começava em +25%.
+    import json
+    import re
+
+    def short_history(route):
+        response = route.fetch()
+        html = response.text()
+        pattern = re.compile(r'(<script[^>]*id="data-returns"[^>]*>)(.*?)(</script>)', re.S)
+        data = json.loads(pattern.search(html)[2])
+        data['series'] = data['series'][-250:]
+        route.fulfill(response=response, body=pattern.sub(lambda m: m[1] + json.dumps(data) + m[3], html))
+
+    page.route('**/carteira', short_history)
+    page.goto('/carteira')
+    graph = page.locator('[data-chart=returns]')
+    page.locator('.card', has=graph).locator('button[data-range="36M"]').click()
+    graph.locator('svg > rect').last.hover(position={'x': 0, 'y': 60})
+    status = page.locator('[role=status]')
+    expect(status).to_contain_text('CDI')
+    assert 'Carteira\n0,00%\nCDI\n0,00%' in status.inner_text()
+
+
+@pytest.mark.parametrize('last, boundary', [
+    ('2026-10-31', '2026-09-30'), ('2024-03-31', '2024-02-29'),
+])
+def test_periodo_diario_respeita_fim_de_mes_e_fuso(browser, base_url, last, boundary):
+    import json
+    context = browser.new_context(base_url=base_url, timezone_id='Pacific/Kiritimati')
+    page = context.new_page()
+
+    def prices(route):
+        response = route.fetch()
+        data = json.dumps({'prices': [{'d': '2023-01-01', 'v': 8000},
+                                    {'d': boundary, 'v': 10000}, {'d': last, 'v': 11000}], 'avg': None})
+        html = re.sub(r'(<script[^>]*id="data-price"[^>]*>).*?(</script>)',
+                      lambda m: m[1] + data + m[2], response.text(), flags=re.S)
+        route.fulfill(response=response, body=html)
+
+    page.route('**/ativo/ITSA4', prices)
+    try:
+        page.goto('/ativo/ITSA4')
+        graph = page.locator('[data-chart=price]')
+        card = page.locator('.card', has=graph)
+        for key, first in [('1M', boundary), ('24M', '2023-01-01' if last.startswith('2024') else boundary), ('36M', '2023-01-01' if last.startswith('2024') else boundary),
+                           ('ALL', '2023-01-01')]:
+            card.locator(f'button[data-range="{key}"]').click()
+            graph.locator('svg > rect').last.hover(position={'x': 0, 'y': 60})
+            label = first[8:10] + '/' + first[5:7] + '/' + first[2:4]
+            expect(page.locator('.chart-tip')).to_contain_text(label)
+    finally:
+        context.close()

@@ -13,7 +13,7 @@ páginas na demo e falha se alguma aparecer vazia.
 
 Um casal fictício, Lucas (titular principal) e Marina, com:
 - Nubank do Lucas (conta, cartão, NuInvest) e Itaú e XP da Marina, em duas conexões Pluggy;
-- 12 meses de salário, gastos no cartão, contas da casa, Pix entre os dois, compras em dólar e estorno;
+- mais de 36 meses de salário, gastos no cartão, contas da casa, Pix entre os dois, compras em dólar e estorno;
 - ações, FIIs e ETF com histórico de cotações, proventos, uma venda com lucro e uma divergência de custódia;
 - CDB, LCI, caixinha, Tesouro e previdência; metas de alocação (da casa e da Marina) e de gastos;
 - balanços trimestrais das empresas, análises, recomendações e sugestões de orçamento do "agente".
@@ -75,7 +75,7 @@ def active() -> Iterator[Path]:
 
 
 def _stamp() -> str:
-    return f"{__version__}|{date.today().isoformat()}"
+    return f"{__version__}|{date.today().isoformat()}|historico-36m"
 
 
 def is_fresh() -> bool:
@@ -229,7 +229,7 @@ INCOME_RULES = {
 }
 # (conta, ticker, [(dias atrás, quantidade)]); quantidade negativa é venda
 TRADES = [
-    (3, "ITSA4", [(330, 400), (150, 400)]),
+    (3, "ITSA4", [(1140, 400), (150, 400)]),
     (3, "EGIE3", [(300, 200)]),
     (3, "BBAS3", [(250, 300)]),
     (3, "HGLG11", [(280, 40), (90, 20)]),
@@ -292,7 +292,7 @@ class _Seeder:
 
     # ------------------------------------------------------------ mercado
     def market(self) -> None:
-        days = _business_days(self.today - timedelta(days=420), self.today)
+        days = _business_days(self.today - timedelta(days=1160), self.today)
         with db.transaction() as con:
             for ticker, name, asset_class, price, vol, drift in ASSETS:
                 cursor = con.execute(
@@ -349,7 +349,7 @@ class _Seeder:
                 self.tx(con, card, when, description, cents, category, original=original)
                 card_by_month[(card, months_back)] = card_by_month.get((card, months_back), 0) + cents
 
-            for m in range(12, -1, -1):
+            for m in range(36, -1, -1):
                 # Lucas: cartão
                 for day in (4, 12, 23):
                     buy(2, m, day, "iFood *Restaurante", 3500, 8900, "Alimentação")
@@ -406,7 +406,7 @@ class _Seeder:
             self.tx(con, 5, today + timedelta(days=30), "Magazine Luiza 3/10", -18900, "Compras", status="PENDING")
             # fatura: no dia 10, a conta paga o cartão do mês anterior
             for card, bank in ((2, 1), (5, 4)):
-                for m in range(11, -1, -1):
+                for m in range(35, -1, -1):
                     due = -card_by_month.get((card, m + 1), 0)
                     when = _month_day(today, m, 10)
                     if due and when:
@@ -442,7 +442,7 @@ class _Seeder:
                 # proventos: evento no ativo e crédito na conta de quem tem
                 rule = INCOME_RULES.get(ticker)
                 bank = 1 if account == 3 else 4
-                for m in range(13, -1, -1):
+                for m in range(36, -1, -1):
                     pay_day = _month_day(today, m, 15)
                     if rule is None or pay_day is None or pay_day.month not in rule[1]:
                         continue
@@ -481,7 +481,7 @@ class _Seeder:
         with db.transaction() as con:
             for account, key, kind, name, issuer, indexer, rate, cdi_share, invested, days_ago, maturity in products:
                 start = today - timedelta(days=days_ago)
-                for m in range(13, -1, -1):
+                for m in range(36, -1, -1):
                     as_of = _month_day(today, m, 28) if m else today
                     if as_of is None or as_of < start:
                         continue
@@ -500,7 +500,7 @@ class _Seeder:
                     )
             # caixinha: recebe R$ 3.000 por mês (as "Aplicação RDB" da conta) e rende 100% do CDI
             balance = deposited = 0.0
-            for m in range(12, -1, -1):
+            for m in range(36, -1, -1):
                 deposit_day = _month_day(today, m, 7)
                 month_end = _month_day(today, m, 28) if m else today
                 balance *= (1 + daily_cdi) ** 21
@@ -514,20 +514,20 @@ class _Seeder:
                         "VALUES (3, 'pluggy', 'demo:caixinha', 'Caixinha', 'Caixinha Reserva', 'Nubank', 'CDI', '100%', "
                         "?, ?, ?, ?, ?)",
                         (month_end.isoformat(), int(deposited), int(balance), int(balance - (balance - deposited) * 0.175),
-                         _month_day(today, 12, 7).isoformat()),
+                         _month_day(today, 36, 7).isoformat()),
                     )
 
     def pension(self) -> None:
         from app.services import pension
 
-        start = _month_day(self.today, 12, 1) or self.today
+        start = _month_day(self.today, 36, 1) or self.today
         contributed = 1800000.0
         gross = 1950000.0
-        for m in (12, 9, 6, 3, 0):
+        for m in (36, 27, 18, 9, 0):
             as_of = _month_day(self.today, m, 20) if m else self.today
-            if m != 12:
-                contributed += 3 * 50000
-                gross = gross * 1.028 + 3 * 50000
+            if m != 36:
+                contributed += 9 * 50000
+                gross = gross * (1.028 ** 3) + 9 * 50000
             pension.save_entry({
                 "name": "Itaú Flexprev PGBL", "institution": "Itaú", "plan_type": "PGBL", "regime": "Regressivo",
                 "as_of_date": as_of.isoformat(), "start_date": (start - timedelta(days=900)).isoformat(),

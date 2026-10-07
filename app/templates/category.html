@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_ui.html" import icon, stat, chip, badge, progress, cat_icon, hint %}
+{% from "_ui.html" import icon, stat, chip, badge, progress, cat_icon, hint, ranges %}
 {% from "_transactions.html" import tx_rows, tx_drawer with context %}
 {% set d = detail %}
 {% block title %}{{ d.category }}{% endblock %}
@@ -30,7 +30,7 @@
       <div><dt>Ticket médio</dt><dd class="money">{{ d.ticket|brl_compact }}</dd></div>
     </dl>
   </div>
-  <div class="card-head"><h2 class="card-title">Por mês</h2><span class="card-note">Linha: média de {{ d.window_months }} meses{% if d.share is not none %} · {{ d.rank }}ª maior categoria ({{ d.share|pct(0, False) }} dos gastos){% endif %}</span></div>
+  <div class="card-head"><h2 class="card-title">Por mês</h2>{{ ranges("12M", ("6M", "12M", "24M", "36M", "ALL")) }}<span class="card-note">Linha: média de {{ d.window_months }} meses{% if d.share is not none %} · {{ d.rank }}ª maior categoria ({{ d.share|pct(0, False) }} dos gastos){% endif %}</span></div>
   <div class="chart" data-chart="category-monthly"></div>
 </section>
 
