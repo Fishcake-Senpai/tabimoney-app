@@ -452,6 +452,7 @@ button.chip[aria-pressed="true"] { background: var(--text); color: var(--page); 
 .seg { display: inline-flex; background: var(--surface-2); border-radius: 99px; padding: 3px; gap: 2px; }
 .seg button, .seg a { border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; height: 26px; padding: 0 11px;
   border-radius: 99px; cursor: pointer; display: inline-flex; align-items: center; white-space: nowrap; }
+.period-control { max-width: 100%; flex-wrap: wrap; }
 .seg button:hover, .seg a:hover { color: var(--text); }
 .seg button[aria-pressed="true"], .seg a[aria-current="page"] { background: var(--surface-3); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
 

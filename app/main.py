@@ -372,6 +372,7 @@ def overview(request: Request):
     book = analytics.Book(member)
     assets = book.assets()
     kpis = book.portfolio_kpis(assets)
+    full_series = book.series(full_history=True)
     series = book.series()
     transactions = analytics.cash_transactions(member=member)
     flow = analytics.cash_flow(transactions + book.yield_entries())
@@ -400,6 +401,7 @@ def overview(request: Request):
         display_name=db.get_setting("display_name"), attention=_attention(budget, kpis),
         recent=[t for t in transactions if t["category"] not in INTERNAL_CATEGORIES][:6],
         chart_series=[{k: p[k] for k in ("d", "eq", "fi", "pv", "cash", "debt", "nw")} for p in series],
+        history_coverage=series[0]["d"] if series and full_series and full_series[0]["d"] < series[0]["d"] else None,
         has_data=has_data, welcome=None if has_data else _welcome_steps(),
     )
 
@@ -442,7 +444,7 @@ def investments_page(request: Request):
     book = analytics.Book(member)
     assets = book.assets()
     kpis = book.portfolio_kpis(assets)
-    series = book.series()
+    series = book.series(full_history=True)
     fixed = sum(p["gross"] for p in book.fixed_income())
     pension_total = book.pension_at(book.today) or 0
     snap = targets.snapshot(book, assets)
@@ -467,7 +469,7 @@ def portfolio(request: Request, vista: str = ""):
     book = analytics.Book(_member(request))
     assets = book.assets()
     kpis = book.portfolio_kpis(assets)
-    series = book.series()
+    series = book.series(full_history=True)
     return _page(
         request, "portfolio.html", assets=assets, kpis=kpis, allocation=book.allocation(assets),
         view_mode="fundamentos" if vista == "fundamentos" else "posicoes",
@@ -478,7 +480,7 @@ def portfolio(request: Request, vista: str = ""):
             **analytics.benchmark_payload(book),
         },
         chart_value=[{"d": p["d"], "eq": p["eq"], "cap": p["cap"]} for p in series if p["eq"] or p["cap"]],
-        monthly=book.monthly_returns(12),
+        monthly=book.monthly_returns(months=None),
     )
 
 
@@ -694,7 +696,7 @@ def income_page(request: Request):
         months.setdefault(c["d"][:7], {"prov": 0, "cdi": 0})["prov"] += c["amount"]
     for y in yields:
         months.setdefault(y["m"], {"prov": 0, "cdi": 0})["cdi"] += y["cents"]
-    chart = [{"m": m, **v} for m, v in sorted(months.items())][-12:]
+    chart = [{"m": m, **v} for m, v in sorted(months.items())]
     first_month = analytics.month_start(11)[:7]
     prov_12m = sum(c["amount"] for c in credits if c["d"] > year_ago)
     cdi_12m = sum(y["cents"] for y in yields if y["m"] >= first_month)
@@ -799,7 +801,7 @@ def accounts_page(request: Request, mes: str = ""):
     book = analytics.Book(member)
     transactions = analytics.cash_transactions(member=member)
     house = _household_transactions(member, transactions)
-    flow = analytics.cash_flow(transactions + book.yield_entries())
+    flow = analytics.cash_flow(transactions + book.yield_entries(), months=None)
     month, months = _chosen_month(flow, mes)
     current = month == analytics.month_start(0)[:7]
     year, number = (int(x) for x in month.split("-"))
@@ -814,7 +816,7 @@ def accounts_page(request: Request, mes: str = ""):
         prev_month=previous, next_month=months[index + 1] if index + 1 < len(months) else None,
         month_flow=by_month.get(month), prev_flow=by_month.get(previous) if previous else None,
         categories=analytics.spending_by_category(month_tx, month + "-01"), budget=budget,
-        trends=spending.category_trends(transactions), chart_flow=[r for r in flow if r["m"] <= month][-6:],
+        trends=spending.category_trends(transactions), chart_flow=[r for r in flow if r["m"] <= month],
         has_data=bool(transactions or book.accounts()),
     )
 

@@ -191,7 +191,9 @@ As fontes dos dados:
   margem, ROE, dívida líquida/EBITDA, proventos e payout em `serie`, e CAGR de 5 e 10 anos, ROE médio de 5 anos e
   anos com lucro ou prejuízo em `resumo`. Ano sem DFP guardada sai da soma dos 4 trimestres. Proventos por ação
   não são ajustados por desdobramento.
-- **brapi (plano gratuito)**: preço, valor de mercado, setor e descrição.
+- **brapi (plano gratuito)**: preço, valor de mercado, setor e descrição. Se a brapi recusar o ativo, o valor de
+  mercado sai da última cotação guardada × total de ações informado à CVM (setor e descrição ficam os anteriores).
+- **Cotações diárias**: brapi; o Yahoo Finance é a reserva quando ela recusa e completa o histórico antigo.
 - Bancos e seguradoras (`is_financial`) não têm EBIT, EBITDA nem dívida líquida.
 - ETFs e FIIs não têm dados da CVM; analise-os pelo índice, pelos relatórios gerenciais e pelos proventos.
 

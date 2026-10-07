@@ -11,6 +11,29 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.16.0] - 2026-10-06
+
+### Adicionado
+- Yahoo Finance como reserva da brapi nas cotações e no Ibovespa: quando a brapi recusa um ativo (o plano
+  gratuito passou a recusar quase todos), a cotação vem do Yahoo, sem chave. O Yahoo também completa, uma vez, o
+  histórico antigo que a brapi não traz, desde a primeira posição ou operação da carteira. Na atualização de
+  fundamentos, sem a brapi, o valor de mercado sai da cotação guardada e do total de ações informado à CVM.
+
+### Alterado
+- Gráficos históricos com períodos de 24 e 36 meses e todo o histórico disponível, incluindo fluxo de caixa,
+  gastos por categoria, proventos e rentabilidade mensal. Navegação de Gastos aceita meses anteriores a 12 meses.
+- Demonstração com mais de três anos de cotações, gastos e rendimentos para exercitar os períodos longos.
+
+### Corrigido
+- Histórico dos investimentos independente da cobertura dos extratos bancários: contas recentes não escondem
+  cotações antigas. O patrimônio total começa onde há extrato das contas e informa quando começa esse trecho.
+- Rentabilidade acumulada: num período maior que o histórico da carteira (ex.: 24M com um ano de carteira),
+  CDI e Ibovespa partem do zero junto com a carteira, em vez de acumular os meses anteriores a ela.
+- Primeiro ponto de “Tudo” incluído na rentabilidade acumulada, com base zero. Períodos de meses respeitam
+  o calendário, incluindo fins de mês e anos bissextos, em qualquer fuso horário.
+- Volatilidade calculada por pregões, sem influência de Pix e compras em fins de semana, preservando proventos
+  entre pregões.
+
 ## [0.15.0] - 2026-10-01
 
 ### Alterado
@@ -336,7 +359,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.15.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.13.0...v0.15.0
 [0.13.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.11.0...v0.12.0

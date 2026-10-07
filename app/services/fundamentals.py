@@ -143,13 +143,25 @@ def sync_fundamentals(tickers: list[str] | None = None) -> dict[str, Any]:
             market_cap = quote.get("marketCap")
             price = quote.get("regularMarketPrice")
             shares = int(market_cap / price) if market_cap and price else None
+            if not price:
+                # Sem a brapi: último fechamento guardado (brapi, Yahoo, B3 ou manual).
+                last = connection.execute(
+                    "SELECT close_cents FROM daily_quote WHERE instrument_id = ? ORDER BY trade_date DESC LIMIT 1",
+                    (instrument_id,),
+                ).fetchone()
+                price = last[0] / 100 if last else None
             per_unit = company.shares_per_unit.get(ticker)
             cvm_shares = next((q.values["shares"] for q in reversed(quarters) if q.values.get("shares")), None)
+            if cvm_shares:
+                cvm_shares = cvm_shares * 1000 if cvm_shares < 20_000_000 else cvm_shares
             if per_unit and cvm_shares:
                 # unit = pacote de ações: o valor de mercado é preço da unit × (ações ÷ ações por unit)
-                cvm_shares = cvm_shares * 1000 if cvm_shares < 20_000_000 else cvm_shares
                 shares = int(cvm_shares / per_unit)
                 market_cap = price * shares if price else None
+            elif not market_cap and cvm_shares and price:
+                # Sem a brapi: preço × total de ações informado à CVM (todas as classes, ao preço deste código).
+                shares = int(cvm_shares)
+                market_cap = price * shares
             connection.execute(
                 "INSERT INTO company_profile(instrument_id, cnpj, cvm_code, company_name, sector, industry, summary, "
                 "is_financial, market_cap_cents, shares_outstanding, price_earnings, market_updated_at, statements_updated_at) "

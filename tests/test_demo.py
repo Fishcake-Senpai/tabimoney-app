@@ -270,3 +270,11 @@ def test_botao_da_demo_fica_nas_configuracoes(client, dados_exemplo):
     assert 'action="/demo/entrar"' not in client.get("/").text
     pagina = client.get("/configuracoes").text
     assert re.search(r'action="/demo/entrar"', pagina) and "Ver demonstração" in pagina
+
+
+def test_demo_exercita_historico_acima_de_tres_anos(base_demo):
+    book = analytics.Book()
+    assert len(book.monthly_returns(months=None)) > 36
+    flow = analytics.cash_flow(analytics.cash_transactions(), months=None)
+    assert len(flow) > 36
+    assert book.series(full_history=True)[0]['d'] < book.series()[0]['d']

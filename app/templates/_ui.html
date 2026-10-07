@@ -35,8 +35,8 @@
 </div>
 {%- endmacro %}
 
-{% macro ranges(default="12M", options=("1M", "3M", "6M", "YTD", "12M", "ALL")) -%}
-<div class="seg" role="group" aria-label="Período">
+{% macro ranges(default="12M", options=("1M", "3M", "6M", "YTD", "12M", "24M", "36M", "ALL")) -%}
+<div class="seg period-control" role="group" aria-label="Período">
   {% for r in options %}<button type="button" data-range="{{ r }}" aria-pressed="{{ 'true' if r == default else 'false' }}">{{ 'Tudo' if r == 'ALL' else 'Ano' if r == 'YTD' else r }}</button>{% endfor %}
 </div>
 {%- endmacro %}

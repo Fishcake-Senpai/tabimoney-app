@@ -4,13 +4,14 @@ import hashlib
 import re
 import threading
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.db import get_setting, rows, set_setting, transaction
 from app.providers.bcb import BcbError, cdi_daily_rates
 from app.providers.brapi import BrapiError, daily_history
+from app.providers import yahoo
 from app.providers.pluggy import PluggyClient, PluggyData, PluggyError
 from app.security import get_secret, vault_name
 from app.services.accounts import link_accounts
@@ -692,19 +693,62 @@ def _fetch_history(ticker: str, token: str | None) -> list[tuple[str, int]]:
     raise last_error or BrapiError(f"{ticker}: sem histórico.")
 
 
-def sync_benchmarks(token: str | None) -> list[str]:
-    """IBOV (brapi) e CDI (Banco Central). Falhas aqui não invalidam as cotações da carteira."""
-    errors: list[str] = []
+def _history_floor() -> date:
+    """Até onde o histórico de cotações precisa ir: a primeira posição, operação ou cotação já guardada."""
+    found = rows(
+        "SELECT MIN(d) AS d FROM (SELECT MIN(as_of_date) AS d FROM position_snapshot "
+        "UNION ALL SELECT MIN(event_date) FROM investment_event UNION ALL SELECT MIN(trade_date) FROM daily_quote)"
+    )
+    day = found[0]["d"] if found and found[0]["d"] else None
+    return date.fromisoformat(str(day)[:10]) if day else date.today() - timedelta(days=365)
+
+
+def _quotes_with_fallback(
+    ticker: str, token: str | None, known: tuple[str | None, str | None], floor: date,
+) -> tuple[list[tuple[str, str, int]], str | None]:
+    """[(fonte, dia, centavos)] da brapi; se ela falhar, do Yahoo. Devolve também o erro, se as duas falharem.
+
+    O Yahoo ainda completa o histórico antigo que a brapi não cobre (o plano gratuito só traz 3 meses): uma vez
+    por ativo, do floor até a cotação mais antiga guardada. Os pontos completados vêm antes, para que, no mesmo
+    dia, o valor da fonte principal seja o último gravado.
+    """
+    first, last = known
+    current: list[tuple[str, str, int]] = []
     try:
-        ibov = _fetch_history("^BVSP", token)
-        with transaction() as connection:
-            connection.executemany(
-                "INSERT INTO benchmark_quote(code, trade_date, value, provider) VALUES ('IBOV', ?, ?, 'brapi') "
-                "ON CONFLICT(code, trade_date) DO UPDATE SET value = excluded.value, fetched_at = CURRENT_TIMESTAMP",
-                [(day, cents / 100) for day, cents in ibov],
-            )
-    except BrapiError as exc:
-        errors.append(f"IBOV: {exc}")
+        current = [("brapi", day, close) for day, close in _fetch_history(ticker, token)]
+    except BrapiError as brapi_error:
+        start = date.fromisoformat(last) - timedelta(days=7) if last else floor
+        try:
+            current = [("yahoo", day, close) for day, close in yahoo.daily_history(ticker, start)]
+        except yahoo.YahooError as yahoo_error:
+            return [], f"{brapi_error} Reserva: {yahoo_error}"
+    earliest = min([d for d in (first, current[0][1] if current else None) if d], default=None)
+    older: list[tuple[str, str, int]] = []
+    if earliest and date.fromisoformat(earliest) > floor + timedelta(days=7):
+        try:
+            older = [("yahoo", day, close) for day, close in
+                     yahoo.daily_history(ticker, floor, date.fromisoformat(earliest)) if day < earliest]
+        except yahoo.YahooError:
+            pass  # completar o passado é bônus: sem ele, a atualização do dia segue valendo
+    return older + current, None
+
+
+def sync_benchmarks(token: str | None) -> list[str]:
+    """IBOV (brapi, com o Yahoo de reserva) e CDI (Banco Central). Falhas aqui não invalidam as cotações da carteira."""
+    errors: list[str] = []
+    known = rows("SELECT MIN(trade_date) AS first, MAX(trade_date) AS last FROM benchmark_quote WHERE code = 'IBOV'")
+    ibov, error = _quotes_with_fallback(
+        "^BVSP", token, (known[0]["first"], known[0]["last"]) if known else (None, None), _history_floor(),
+    )
+    if error:
+        errors.append(f"IBOV: {error}")
+    with transaction() as connection:
+        connection.executemany(
+            "INSERT INTO benchmark_quote(code, trade_date, value, provider) VALUES ('IBOV', ?, ?, ?) "
+            "ON CONFLICT(code, trade_date) DO UPDATE SET value = excluded.value, provider = excluded.provider, "
+            "fetched_at = CURRENT_TIMESTAMP",
+            [(day, cents / 100, provider) for provider, day, cents in ibov],
+        )
     try:
         last = rows("SELECT MAX(trade_date) AS d FROM benchmark_quote WHERE code = 'CDI'")
         cdi = cdi_daily_rates(last[0]["d"] if last and last[0]["d"] else None)
@@ -734,15 +778,25 @@ def sync_daily_quotes() -> dict[str, Any]:
         message = str(exc) if isinstance(exc, RuntimeError) else f"Não foi possível acessar o token no {vault_name()}."
         _run_finish(run_id, "failed", 0, 0, message)
         raise SyncError(message) from exc
-    fetched: list[tuple[str, list[tuple[str, int]]]] = []
+    fetched: list[tuple[str, list[tuple[str, str, int]]]] = []
     errors: list[str] = []
+    floor = _history_floor()
+    known = {
+        r["ticker"]: (r["first"], r["last"]) for r in rows(
+            "SELECT i.ticker, MIN(dq.trade_date) AS first, MAX(dq.trade_date) AS last "
+            "FROM daily_quote dq JOIN instrument i ON i.id = dq.instrument_id GROUP BY i.ticker"
+        )
+    }
     for ticker in tickers:
         try:
-            fetched.append((ticker, _fetch_history(ticker, token)))
-        except BrapiError as exc:
-            errors.append(str(exc))
+            history, error = _quotes_with_fallback(ticker, token, known.get(ticker, (None, None)), floor)
         except Exception:
             errors.append(f"{ticker}: falha inesperada ao processar a cotação.")
+            continue
+        if error:
+            errors.append(error)
+        if history:
+            fetched.append((ticker, history))
     if truncated:
         errors.append("Foram consultados os primeiros 200 ativos; limite local atingido.")
     written = 0
@@ -754,10 +808,10 @@ def sync_daily_quotes() -> dict[str, Any]:
                 )
                 connection.executemany(
                     "INSERT INTO daily_quote(instrument_id, trade_date, close_cents, provider) "
-                    "VALUES (?, ?, ?, 'brapi') "
+                    "VALUES (?, ?, ?, ?) "
                     "ON CONFLICT(instrument_id, trade_date, provider) DO UPDATE SET "
                     "close_cents = excluded.close_cents, fetched_at = CURRENT_TIMESTAMP",
-                    [(instrument_id, day, close) for day, close in history],
+                    [(instrument_id, day, close, provider) for provider, day, close in history],
                 )
                 written += len(history)
     except Exception as exc:
@@ -772,6 +826,9 @@ def sync_daily_quotes() -> dict[str, Any]:
     else:
         status = "partial" if benchmark_errors else "success"
     message = f"{len(fetched)} ativo(s) atualizado(s), {written} fechamento(s) gravado(s)."
+    by_yahoo = sum(1 for _, history in fetched if history[-1][0] == "yahoo")
+    if by_yahoo:
+        message += f" {by_yahoo} pelo Yahoo, porque a brapi recusou."
     if errors or benchmark_errors:
         message += " " + " ".join((errors + benchmark_errors)[:4])
     _run_finish(run_id, status, len(tickers), written, message)

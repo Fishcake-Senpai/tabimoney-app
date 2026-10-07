@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_ui.html" import icon, stat, badge, invest_tabs, modal, hint, empty %}
+{% from "_ui.html" import icon, stat, badge, invest_tabs, modal, hint, empty, ranges %}
 {% block title %}Proventos{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -25,7 +25,7 @@
 
 <section class="grid">
   <article class="card span-8">
-    <div class="card-head"><h2 class="card-title">Por mês</h2><span class="card-note">12 meses</span></div>
+    <div class="card-head"><h2 class="card-title">Por mês</h2>{{ ranges("12M", ("6M", "12M", "24M", "36M", "ALL")) }}</div>
     <div class="chart" data-chart="income"></div>
   </article>
   <article class="card card-flush span-4">

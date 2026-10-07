@@ -247,7 +247,7 @@ def registrar(server: MCPServer, sessao: Sessao) -> None:  # noqa: C901 - uma li
         ctx: Context,
         tickers: Annotated[list[str] | None, Field(description="Só estes tickers; sem eles, a carteira toda.")] = None,
     ) -> CallToolResult:
-        """Baixa ITR/DFP da CVM (cache semanal), atualiza preços da brapi e recalcula os avisos. Pode levar minutos:
+        """Baixa ITR/DFP da CVM (cache semanal), atualiza valor de mercado (brapi; sem ela, cotação guardada × ações da CVM) e recalcula os avisos. Pode levar minutos:
         se não terminar em ~25 s, devolve tarefa_id para acompanhar com tarefa_status."""
         return await sessao.longa(ctx, "fundamentos", lambda progresso: op.fundamentos_atualizar(tickers))
 

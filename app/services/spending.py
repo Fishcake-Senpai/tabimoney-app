@@ -482,7 +482,7 @@ def category_detail(transactions: list[dict[str, Any]], category: str, today: da
     current = today.strftime("%Y-%m")
     first = min(t["transaction_date"][:7] for t in transactions)
     count = (today.year - int(first[:4])) * 12 + today.month - int(first[5:7]) + 1
-    months = _months(today, max(1, min(count, 24)))
+    months = _months(today, max(1, count))
     closed = months[:-1]
     window = closed[-12:]
     since = (window[0] if window else current) + "-01"
