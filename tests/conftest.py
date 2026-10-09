@@ -93,6 +93,13 @@ def sem_rede(monkeypatch):
     monkeypatch.setattr(httpx, "get", recusar)
     monkeypatch.setattr(httpx, "post", recusar)
 
+    from app.services import atualizador
+
+    def recusar_pedido(request):
+        raise httpx.ConnectError("rede desligada nos testes", request=request)
+
+    monkeypatch.setattr(atualizador, "_transport", httpx.MockTransport(recusar_pedido))
+
 
 @pytest.fixture
 def client(monkeypatch):
@@ -103,6 +110,7 @@ def client(monkeypatch):
 
     monkeypatch.setattr(main, "quote_scheduler", lambda _stop: None)
     monkeypatch.setattr(main.updates, "scheduler", lambda _stop: None)
+    monkeypatch.setattr(main.atualizador, "janitor", lambda _stop: None)
     with TestClient(main.app, base_url=f"http://127.0.0.1:{main.PORT}", client=("127.0.0.1", 50000)) as c:
         yield c
 

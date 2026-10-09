@@ -143,3 +143,16 @@ def test_sufixo_do_sistema(monkeypatch, sistema, chip, rosetta, esperado):
     monkeypatch.setattr(updates, "platform", SimpleNamespace(machine=lambda: chip))
     monkeypatch.setattr(updates, "_rosetta", lambda: rosetta)
     assert updates.platform_suffix() == esperado
+
+
+def test_resultado_guardado_corrompido_nao_derruba_nada():
+    db.set_setting(updates.KEY_LATEST, "não é json")
+    assert updates.latest() == {} and updates.status() is None
+
+
+def test_verificador_roda_em_loop_ate_o_app_fechar(monkeypatch):
+    chamadas = []
+    monkeypatch.setattr(updates, "check", lambda: chamadas.append(1))
+    esperas = iter([False, False, True])  # 5 s depois de abrir; depois a cada meia hora até o app fechar
+    updates.scheduler(SimpleNamespace(wait=lambda _segundos: next(esperas)))
+    assert len(chamadas) == 2

@@ -7,6 +7,8 @@ No Mac, o executável fica em Tabimoney.app/Contents/MacOS/Tabimoney e aceita os
     Tabimoney.exe mcp [--demo]    o servidor MCP (stdio) que o agente de IA abre; ver app/mcp_server.
     Tabimoney.exe --servidor      o servidor em si (o passo anterior chama este, sem janela).
     Tabimoney.exe --primeiro-plano servidor nesta janela, com o log na tela (para investigar problemas).
+    Tabimoney.exe --apos-atualizacao  abre como o duplo clique, sem aba nova (a página de progresso já está aberta).
+    Tabimoney.exe --vigiar-atualizacao  o vigia da atualização com um clique (app/services/atualizador.py).
 
 Clicar de novo reinicia: o servidor aberto recebe um pedido de encerramento autenticado por um token guardado
 no arquivo de trava, termina o que estiver fazendo e sai; se não responder, o processo é finalizado.
@@ -30,7 +32,9 @@ from app import __version__
 from app.db import data_dir
 
 HOST = "127.0.0.1"
-PORT = 8765
+# TABIMONEY_PORTA só existe para os testes (o mesmo nome que app/main.py lê): packaging/teste_atualizacao.py roda o
+# app em outra porta para não precisar fechar o Tabimoney do dia a dia.
+PORT = int(os.environ.get("TABIMONEY_PORTA") or 8765)
 URL = f"http://{HOST}:{PORT}"
 FROZEN = getattr(sys, "frozen", False)
 
@@ -196,7 +200,7 @@ def _pause_and_exit(code: int) -> None:
     raise SystemExit(code)
 
 
-def open_app() -> None:
+def open_app(open_browser: bool = True) -> None:
     print(f"Tabimoney {__version__} · finanças sérias (mais ou menos)\n")
     if FROZEN:
         from app import agent_workspace
@@ -230,7 +234,8 @@ def open_app() -> None:
         print(f"\nNão deu para abrir o Tabimoney: {exc}")
         _alert(f"Não deu para abrir o Tabimoney: {exc}")
         _pause_and_exit(1)
-    webbrowser.open(URL, new=2)
+    if open_browser:  # depois da atualização com um clique, a página de progresso já está aberta
+        webbrowser.open(URL, new=2)
     print(f"\nPronto! O Tabimoney está aberto no navegador: {URL}")
     print("Esta janela fecha sozinha. Para reiniciar ou atualizar, abra o Tabimoney de novo.")
     if _has_console():
@@ -275,7 +280,13 @@ def main(argv: list[str] | None = None) -> None:
         run_server(foreground=True)
     elif args and args[0] in {"--versao", "--version"}:
         print(__version__)
-    else:
+    elif args and args[0] == "--vigiar-atualizacao":
+        from app.services import atualizador
+
+        atualizador.watch()
+    elif args and args[0] == "--apos-atualizacao":
+        open_app(open_browser=False)
+    else:  # argumento desconhecido também abre o app: versões futuras podem chamar flags que esta não conhece
         open_app()
 
 

@@ -21,6 +21,7 @@ from .conftest import avisos, csrf
 ROTAS_GET = sorted(
     r.path for r in app.routes if isinstance(r, APIRoute) and "GET" in r.methods and "{" not in r.path
     and not r.path.startswith("/csv/") and r.path not in {"/favicon.ico", "/importacoes"}
+    and not r.path.startswith("/atualizacao")  # progresso da atualização: página à parte, sem dado nenhum
 )
 # Textos que as telas mostram quando não há dado. Na demo, nenhum pode aparecer.
 VAZIOS = [

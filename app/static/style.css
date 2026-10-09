@@ -277,6 +277,23 @@ a.inbox-item:hover { background: var(--surface-3); }
 .update-text small { color: var(--text-2); font-size: 12.5px; }
 .update-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .update-actions form { margin: 0; }
+.update-why { display: block; margin-top: 4px; color: var(--warn); }
+.update-manual { display: inline-block; margin-top: 6px; font-size: 12px; color: var(--muted); text-decoration: underline; }
+/* página de progresso da atualização (/atualizacao) */
+.update-page { max-width: 440px; margin: 0 auto; }
+.update-steps { list-style: none; margin: 18px 0 0; padding: 0; width: 100%; text-align: left; display: flex; flex-direction: column; gap: 10px; }
+.update-steps li { position: relative; padding: 12px 14px 12px 40px; border-radius: var(--r-md); background: var(--surface); color: var(--muted); font-size: 14px; }
+.update-steps li::before { content: ""; position: absolute; left: 14px; top: 15px; width: 12px; height: 12px; border-radius: 99px; border: 2px solid var(--border-strong); }
+.update-steps li.is-current { color: var(--text); font-weight: 550; }
+.update-steps li.is-current::before { border-color: var(--brand); border-right-color: transparent; animation: update-spin 0.9s linear infinite; }
+.update-steps li.is-done { color: var(--text-2); }
+.update-steps li.is-done::before { background: var(--up); border-color: var(--up); }
+.update-steps .hbar-track { display: none; margin-top: 8px; }
+.update-steps li.is-current .hbar-track { display: block; }
+.update-steps .hbar-fill { background: var(--brand); }
+.update-links { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+@keyframes update-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .update-steps li.is-current::before { animation: none; } }
 
 /* barra de abas inferior no celular */
 .tabbar { display: none; }

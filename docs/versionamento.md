@@ -78,13 +78,29 @@ tem tag, o merge publica o Release; se já tem, o merge só gera os executáveis
 6. Abra o PR `dev → main` (título `Tabimoney X.Y.Z`) e faça o merge quando o **Testes ok** passar. Use *Create
    a merge commit*, para a `dev` e a `main` continuarem com o mesmo histórico.
 7. O workflow **Gerar executáveis** confere que o CHANGELOG tem a seção `## [X.Y.Z]`, gera e testa as versões
-   Windows, Mac Apple Silicon e Mac Intel, cria a tag `vX.Y.Z` e publica o *Release* com os três zips (app,
-   `LEIA-ME.txt` e manual). É o link desse Release que vai para os amigos. Não crie a tag à mão.
+   Windows, Mac Apple Silicon e Mac Intel (no Windows, inclusive a atualização com um clique e a reversão, de ponta a
+   ponta, com um Release falso: leva uns 3 minutos),
+   cria a tag `vX.Y.Z` e publica o *Release* com os três zips (app, `LEIA-ME.txt` e manual) e o
+   `SHA256SUMS.txt`. É o link desse Release que vai para os amigos. Não crie a tag à mão.
 8. Opcional, no Windows: rode `build.bat`, abra o `dist\Tabimoney.exe`, clique de novo (tem que reiniciar) e
    encerre pelo menu.
 
 Merge na `main` sem subir a versão (uma correção de documentação, por exemplo) não publica nada novo: quem usa o
 app só recebe aviso de versão nova quando há Release.
+
+## Atualização com um clique: o contrato entre versões
+
+No Windows, o botão **Atualizar agora** (`app/services/atualizador.py`) envolve duas versões: a instalada baixa,
+troca o executável e vigia; a nova sobe e limpa. Por isso estas peças não podem mudar de sentido entre versões
+(detalhes na §10 de `docs/superpowers/specs/2026-10-07-atualizacao-automatica.md`):
+
+- os nomes dos assets do Release (`Tabimoney-X.Y.Z-windows.zip`, com o `Tabimoney.exe` na raiz) e o
+  `SHA256SUMS.txt` no formato do `sha256sum`;
+- as flags `--versao`, `--apos-atualizacao` e `--vigiar-atualizacao`;
+- a rota `GET /atualizacao/estado` e o arquivo `atualizacao.json` na pasta de dados (campos novos podem entrar);
+- os nomes `Tabimoney.anterior.exe`, `Tabimoney.novo.exe` e `Tabimoney.falhou.exe`.
+
+Um Release sem `SHA256SUMS.txt` faz o app voltar ao botão Baixar.
 
 ## Antes de tornar o repositório público
 

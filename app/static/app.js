@@ -973,7 +973,67 @@
     window.addEventListener("load", () => { restore(); setTimeout(restore, 30); }, { once: true });
   }
 
+  // ---------------------------------------------------------------- atualização com um clique
+  /* /atualizacao: consulta o estado a cada segundo. No meio, o servidor reinicia e a consulta falha por alguns
+     segundos ("Reiniciando…"); quem responde depois é a versão nova, ou a antiga se a atualização foi desfeita. */
+  function updateProgress() {
+    const root = document.querySelector("[data-update-progress]");
+    if (!root || !root.dataset.estado || ["concluida", "revertida", "falhou"].includes(root.dataset.estado)) return;
+    const STEPS = ["baixando", "conferindo", "preparando", "reiniciando"];
+    const STEP_OF = { trocando: "reiniciando" };
+    const title = root.querySelector("[data-update-title]");
+    const sub = root.querySelector("[data-update-sub]");
+    const bar = root.querySelector("[data-update-bar]");
+    const bytes = root.querySelector("[data-update-bytes]");
+    const mb = (n) => nf(1).format(n / 1e6) + " MB";
+    const started = Date.now();
+    const mark = (estado) => {
+      const at = STEPS.indexOf(STEP_OF[estado] || estado);
+      root.querySelectorAll("[data-step]").forEach((li) => {
+        const i = STEPS.indexOf(li.dataset.step);
+        li.classList.toggle("is-done", i < at);
+        li.classList.toggle("is-current", i === at);
+      });
+    };
+    const finish = (head, text) => {
+      title.textContent = head;
+      sub.textContent = text;
+      root.querySelector(".update-steps").hidden = true;
+      root.querySelector("[data-update-links]").hidden = false;
+    };
+    async function tick() {
+      let s = null;
+      try {
+        const response = await fetch("/atualizacao/estado", { cache: "no-store" });
+        s = await response.json();
+      } catch (e) {
+        mark("reiniciando");
+        sub.textContent = "Reiniciando… a página volta sozinha.";
+        if (Date.now() - started > 240000) {
+          finish("O Tabimoney não voltou", "Abra o Tabimoney de novo pelo atalho. Seus dados ficam.");
+          return;
+        }
+        setTimeout(tick, 1000);
+        return;
+      }
+      if (s.estado === "concluida" && s.versao_em_uso === s.para) { location.href = "/"; return; }
+      if (s.estado === "revertida" && s.versao_em_uso === s.de) { location.href = "/"; return; }
+      if (s.estado === "falhou") { finish("Não deu para atualizar", s.motivo || ""); return; }
+      if (!s.estado) { finish("Nenhuma atualização em andamento", "Você está na versão " + s.versao_em_uso + "."); return; }
+      mark(s.estado);
+      if (s.estado === "baixando" && s.total) {
+        bar.style.width = Math.round((s.progresso || 0) * 100) + "%";
+        bytes.textContent = mb(s.baixado || 0) + " de " + mb(s.total);
+      } else if (s.estado !== "baixando") {
+        bar.style.width = "100%";
+      }
+      setTimeout(tick, 1000);
+    }
+    tick();
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
+    updateProgress();
     keepScroll();
     bars();
     sortable();

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR" data-tema-padrao="{{ ui.theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="{{ 'light dark' if ui.theme != 'escuro' else 'dark' }}">
+  <title>Atualização · Tabimoney</title>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <script src="/static/boot.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+{# A página consulta /atualizacao/estado a cada segundo (app.js › updateProgress). No meio, o servidor que a serviu
+   encerra e quem responde depois é a versão nova, ou a antiga se a atualização foi desfeita. #}
+<main class="closed update-page" data-update-progress data-estado="{{ state.estado or '' }}" data-de="{{ state.de or '' }}" data-para="{{ state.para or '' }}">
+  <img src="/static/brand/mascote-128.png" alt="" width="96" height="96">
+  {% if state.estado and state.estado not in ("concluida", "revertida", "falhou") %}
+  <h1 data-update-title>Atualizando para a {{ state.para }}</h1>
+  <p class="muted" data-update-sub>Não feche esta aba. Leva cerca de um minuto.</p>
+  {% elif state.estado == "falhou" %}
+  <h1 data-update-title>Não deu para atualizar</h1>
+  <p class="muted" data-update-sub>{{ state.motivo }}</p>
+  {% elif state.estado == "revertida" %}
+  <h1 data-update-title>A versão {{ state.para }} não abriu</h1>
+  <p class="muted" data-update-sub>Voltamos para a {{ state.de }} e seus dados estão como antes.</p>
+  {% elif state.estado == "concluida" %}
+  <h1 data-update-title>Tabimoney {{ state.para }} instalado</h1>
+  <p class="muted" data-update-sub>Tudo certo.</p>
+  {% else %}
+  <h1 data-update-title>Nenhuma atualização em andamento</h1>
+  <p class="muted" data-update-sub>Você está na versão {{ current }}.</p>
+  {% endif %}
+
+  <ol class="update-steps"{% if not state.estado or state.estado in ("concluida", "revertida", "falhou") %} hidden{% endif %}>
+    <li data-step="baixando">Baixando a versão nova <span class="muted" data-update-bytes></span>
+      <span class="hbar-track"><span class="hbar-fill" data-update-bar></span></span></li>
+    <li data-step="conferindo">Conferindo o arquivo</li>
+    <li data-step="preparando">Fazendo backup dos seus dados</li>
+    <li data-step="reiniciando">Reiniciando o Tabimoney</li>
+  </ol>
+
+  <p class="update-links" data-update-links{% if state.estado and state.estado not in ("concluida", "revertida", "falhou") %} hidden{% endif %}>
+    <a class="btn btn-primary" href="/">Voltar ao Tabimoney</a>
+    <a class="btn" href="/configuracoes#atualizacoes">Configurações</a>
+  </p>
+</main>
+</body>
+</html>

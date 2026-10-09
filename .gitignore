@@ -17,3 +17,4 @@ manual_marca/
 /specs/
 # backlog de ideias: fica só na máquina do autor
 /backlog.md
+.coverage

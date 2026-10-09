@@ -1,12 +1,14 @@
 """Aviso de versão nova: consulta o último Release público do GitHub e compara com a versão instalada.
 
 A consulta sai no máximo a cada 12 horas (e ao abrir o app), não manda nenhum dado do usuário e pode ser
-desligada em Configurações. Sem internet, o aviso simplesmente não aparece.
+desligada em Configurações. Sem internet, o aviso simplesmente não aparece. Baixar e instalar a versão nova com um
+clique fica em app/services/atualizador.py.
 """
 from __future__ import annotations
 
 import json
 import logging
+import os
 import platform
 import re
 import subprocess
@@ -24,6 +26,9 @@ REPO = "Fishcake-Senpai/tabimoney-app"
 LATEST_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
 INTERVAL = timedelta(hours=12)
+SUMS_NAME = "SHA256SUMS.txt"  # publicado pelo workflow junto com os zips; a atualização com um clique confere por ele
+# Só para o teste do executável no CI: um "Release" servido na própria máquina. Fora de 127.0.0.1 é ignorado.
+ENV_TEST_API = "TABIMONEY_ATUALIZACAO_API"
 
 KEY_ENABLED = "update_check_enabled"
 KEY_LATEST = "update_latest"
@@ -58,6 +63,12 @@ def platform_suffix() -> str | None:
     return None
 
 
+def local_test_api() -> str | None:
+    """A API de teste (ENV_TEST_API), se apontar para esta máquina. Com ela, a mesma versão conta como nova."""
+    url = os.environ.get(ENV_TEST_API, "")
+    return url if url.startswith("http://127.0.0.1:") else None
+
+
 def enabled() -> bool:
     return get_setting(KEY_ENABLED, "1") == "1"
 
@@ -78,7 +89,7 @@ def check(force: bool = False) -> dict[str, Any]:
                 return latest()
         try:
             response = httpx.get(
-                LATEST_URL, timeout=10, follow_redirects=True,
+                local_test_api() or LATEST_URL, timeout=10, follow_redirects=True,
                 headers={"Accept": "application/vnd.github+json", "User-Agent": f"Tabimoney/{__version__}"},
             )
             if response.status_code == 404:  # nenhum Release publicado ainda
@@ -87,12 +98,16 @@ def check(force: bool = False) -> dict[str, Any]:
                 response.raise_for_status()
                 release = response.json()
                 suffix = platform_suffix()
-                asset = next((a for a in release.get("assets", [])
-                              if suffix and a.get("name", "").endswith(f"-{suffix}.zip")), None)
+                assets = release.get("assets", [])
+                asset = next((a for a in assets if suffix and a.get("name", "").endswith(f"-{suffix}.zip")), None)
+                sums = next((a for a in assets if a.get("name") == SUMS_NAME), None)
                 data = {
                     "version": str(release.get("tag_name", "")).lstrip("v"),
                     "url": release.get("html_url") or RELEASES_URL,
                     "download_url": asset.get("browser_download_url") if asset else None,
+                    "asset_name": asset.get("name") if asset else None,
+                    "size": asset.get("size") if asset else None,
+                    "sums_url": sums.get("browser_download_url") if sums else None,
                     "published_at": release.get("published_at"),
                 }
             set_setting(KEY_LATEST, json.dumps(data))
@@ -111,13 +126,19 @@ def latest() -> dict[str, Any]:
         return {}
 
 
+def is_newer(version: str | None) -> bool:
+    newest, current = parse_version(version), parse_version(__version__)
+    if not newest or not current:
+        return False
+    return newest >= current if local_test_api() else newest > current
+
+
 def status() -> dict[str, Any] | None:
     """O aviso a mostrar no topo das páginas, ou None (desligado, em dia ou dispensado)."""
     if not enabled():
         return None
     info = latest()
-    newest, current = parse_version(info.get("version")), parse_version(__version__)
-    if not newest or not current or newest <= current or info.get("version") == get_setting(KEY_DISMISSED):
+    if not is_newer(info.get("version")) or info.get("version") == get_setting(KEY_DISMISSED):
         return None
     return {**info, "current": __version__, "frozen": getattr(sys, "frozen", False)}
 

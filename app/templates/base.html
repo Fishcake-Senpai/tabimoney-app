@@ -99,9 +99,15 @@
           <div class="update-text">
             <b>Tabimoney {{ update.version }} disponível</b>
             <small>Você está na {{ update.current }}.
-              {% if update.frozen %}Baixe, substitua o app antigo pelo novo e abra de novo: seus dados ficam.{% else %}Atualize o código com <code>git pull</code> e abra de novo.{% endif %}</small>
+              {% if update.frozen and update.auto %}O app baixa, faz backup dos seus dados e reinicia sozinho.{% elif update.frozen %}Baixe, substitua o app antigo pelo novo e abra de novo: seus dados ficam.{% if update.motivo %} <span class="update-why">{{ update.motivo }}</span>{% endif %}{% else %}Atualize o código com <code>git pull</code> e abra de novo.{% endif %}</small>
             <div class="update-actions">
-              {% if update.frozen and update.download_url %}<a class="btn btn-primary btn-sm" href="{{ update.download_url }}" target="_blank" rel="noreferrer">Baixar</a>{% endif %}
+              {% if update.frozen and update.auto %}
+              <form method="post" action="/atualizacao/instalar" data-confirm="{{ update.confirm }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="back" value="{{ request.url.path }}">
+                <button class="btn btn-primary btn-sm" type="submit">Atualizar agora</button>
+              </form>
+              {% elif update.frozen and update.download_url %}<a class="btn btn-primary btn-sm" href="{{ update.download_url }}" target="_blank" rel="noreferrer">Baixar</a>{% endif %}
               <a class="btn btn-sm" href="{{ update.url }}" target="_blank" rel="noreferrer">Novidades</a>
               <form method="post" action="/atualizacao/dispensar">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -110,6 +116,7 @@
                 <button class="btn btn-ghost btn-sm" type="submit" title="Não avisar mais sobre esta versão">Dispensar</button>
               </form>
             </div>
+            {% if update.frozen and update.auto and update.download_url %}<a class="update-manual" href="{{ update.download_url }}" target="_blank" rel="noreferrer">ou baixe manualmente</a>{% endif %}
           </div>
         </div>
         {% endif %}

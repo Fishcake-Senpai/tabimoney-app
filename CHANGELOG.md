@@ -11,6 +11,13 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Adicionado
+- Atualização com um clique no Windows: o aviso de versão nova ganha o botão **Atualizar agora**. O app baixa a
+  versão nova, confere o arquivo, faz backup dos seus dados, troca o Tabimoney.exe no mesmo lugar e reabre sozinho,
+  mostrando o progresso numa página. Se a versão nova não abrir, ele volta para a anterior e restaura a base. A
+  primeira atualização para esta versão ainda é manual; no Mac, por enquanto, continua o botão Baixar.
+- Cada Release publica um `SHA256SUMS.txt` com o hash de cada zip.
+
 ## [0.16.0] - 2026-10-06
 
 ### Adicionado
