@@ -25,14 +25,26 @@ def _porta_aberta() -> bool:
 
 
 @pytest.fixture(scope="session")
-def base_url(tmp_path_factory):
+def pasta_e2e(tmp_path_factory) -> Path:
+    """A pasta que o servidor de teste usa como casa (a pasta de dados fica dentro dela)."""
+    return tmp_path_factory.mktemp("e2e")
+
+
+@pytest.fixture
+def dados_do_servidor(base_url, pasta_e2e) -> Path:
+    """A pasta de dados do servidor de teste (a da base), para testes que simulam arquivos do app."""
+    return next(pasta_e2e.rglob("financas.sqlite3")).parent
+
+
+@pytest.fixture(scope="session")
+def base_url(pasta_e2e):
     """Sobe o servidor de teste uma vez para a sessão; o Playwright resolve page.goto("/contas") a partir daqui."""
     if _porta_aberta():
         # No CI é erro; na máquina de quem desenvolve, o Tabimoney aberto só adia estes testes.
         (pytest.fail if os.environ.get("CI") else pytest.skip)(
             f"A porta {PORTA} está em uso (um servidor de teste que ficou aberto?)."
         )
-    pasta = tmp_path_factory.mktemp("e2e")
+    pasta = pasta_e2e
     log = (pasta / "servidor.log").open("w", encoding="utf-8")
     processo = subprocess.Popen(
         [sys.executable, str(Path(__file__).with_name("servidor.py")), str(pasta)], stdout=log, stderr=subprocess.STDOUT,

@@ -503,6 +503,19 @@
             <button class="btn btn-sm" type="submit">Verificar agora</button>
           </div>
         </form>
+        {% if update and update.auto %}
+        <form class="set-row" method="post" action="/atualizacao/instalar" data-confirm="{{ update.confirm }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="back" value="/configuracoes#atualizacoes">
+          <div class="set-label"><b>Atualizar para a {{ update.version }}</b><small>Baixa a versão nova, faz backup dos seus dados e reinicia sozinho.</small></div>
+          <div class="set-actions"><button class="btn btn-primary btn-sm" type="submit">Atualizar agora</button></div>
+        </form>
+        {% endif %}
+        {% if update_info.last_attempt %}
+        <div class="set-row">
+          <div class="set-label"><b>Última atualização</b><small>{{ update_info.last_attempt }}</small></div>
+        </div>
+        {% endif %}
         <form class="set-row" method="post" action="/configuracoes">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="secao" value="atualizacoes">

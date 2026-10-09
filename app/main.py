@@ -21,7 +21,8 @@ from app.mcp_server import instalar as mcp_instalar
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
 from app.services import (
-    analytics, budgets, fundamentals, household, investor_profile, pension, recommendations, spending, targets, updates,
+    analytics, atualizador, budgets, fundamentals, household, investor_profile, pension, recommendations, spending,
+    targets, updates,
 )
 from app.services.categories import CATEGORY_ICON_CHOICES, INCOME_CATEGORIES, INTERNAL_CATEGORIES, category_icon
 from app.services.markdown import render as render_markdown
@@ -54,10 +55,11 @@ class LocalOnlyMiddleware(BaseHTTPMiddleware):
             # Browser Fetch Metadata can report loopback/embedded form posts as cross-site.
             # Every state-changing route also validates a session-bound CSRF token.
         response = await call_next(request)
-        response.headers["Content-Security-Policy"] = (
+        # setdefault: a página de progresso da atualização libera connect-src para consultar o estado
+        response.headers.setdefault("Content-Security-Policy", (
             "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; "
             "form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
-        )
+        ))
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -73,12 +75,15 @@ async def lifespan(_: FastAPI):
     worker.start()
     checker = threading.Thread(target=updates.scheduler, args=(stop_event,), daemon=True)
     checker.start()
+    janitor = threading.Thread(target=atualizador.janitor, args=(stop_event,), daemon=True)
+    janitor.start()
     try:
         yield
     finally:
         stop_event.set()
         worker.join(timeout=2)
         checker.join(timeout=2)
+        janitor.join(timeout=2)
 
 
 class DemoMiddleware(BaseHTTPMiddleware):
@@ -199,9 +204,26 @@ def _flash(request: Request, kind: str, message: str) -> None:
 
 def _update_notice():
     try:
-        return updates.status()
+        notice = updates.status()
+        if notice and notice["frozen"]:
+            notice.update(atualizador.availability(notice))
+            size = f" ({max(1, round(notice['size'] / 1_000_000))} MB)" if notice.get("size") else ""
+            notice["confirm"] = (f"Atualizar para o Tabimoney {notice['version']}? O app baixa a versão nova{size}, "
+                                 "faz um backup dos seus dados e reinicia. Leva cerca de um minuto.")
+        return notice
     except Exception:  # noqa: BLE001 - o aviso de versão nunca pode derrubar uma página
         return None
+
+
+def _update_result(request: Request) -> list[dict[str, str]]:
+    """Resultado da atualização com um clique ("atualizado" ou "revertido"), mostrado uma vez."""
+    if request.session.get("demo"):
+        return []
+    try:
+        notice = atualizador.pending_notice()
+    except Exception:  # noqa: BLE001
+        return []
+    return [{"kind": notice[0], "text": notice[1]}] if notice else []
 
 
 UI_THEMES = ("escuro", "claro", "sistema")
@@ -214,7 +236,7 @@ def _ui_prefs() -> dict[str, object]:
 
 
 def _render(request: Request, template: str, **context):
-    messages = request.session.pop("flash_messages", [])
+    messages = _update_result(request) + request.session.pop("flash_messages", [])
     context.setdefault("update", None if request.session.get("demo") else _update_notice())
     context.setdefault("demo_mode", bool(request.session.get("demo")))
     context.setdefault("ui", _ui_prefs())
@@ -1047,7 +1069,7 @@ def settings_page(request: Request):
         ),
         daily_quotes_enabled=db.get_setting("daily_quotes_enabled", "1") == "1",
         display_name=db.get_setting("display_name"),
-        update_info=updates.summary(),
+        update_info={**updates.summary(), "last_attempt": atualizador.summary()},
         ia=_ia_context(request),
         rules=spending.rules(), category_overview=spending.categories_overview(analytics.cash_transactions()),
         deleted_categories=spending.deleted_categories(), category_options=spending.known_categories(),
@@ -1150,6 +1172,45 @@ def check_update(request: Request, csrf_token: str = Form(...)):
     else:
         _flash(request, "success", f"Você está na versão mais recente ({summary['current']}).")
     return _redirect(request, "/configuracoes#atualizacoes")
+
+
+@app.post("/atualizacao/instalar")
+def install_update(request: Request, csrf_token: str = Form(...), back: str = Form("/")):
+    _check_csrf(request, csrf_token)
+    if blocked := _demo_blocked(request, "atualizar o app", "/configuracoes#atualizacoes"):
+        return blocked
+    server = getattr(request.app.state, "server", None)
+    try:
+        if server is None:
+            raise atualizador.UpdateError("Este Tabimoney foi aberto pelo terminal: atualize pelo git pull.")
+        atualizador.start(lambda: setattr(server, "should_exit", True))
+    except atualizador.UpdateError as exc:
+        _flash(request, "warning", f"Não deu para atualizar: {exc}")
+        return _redirect(request, _local_path(back, "/"))
+    return _redirect(request, "/atualizacao")
+
+
+@app.get("/atualizacao", response_class=HTMLResponse)
+def update_progress(request: Request):
+    """Página de progresso. Fica de pé sozinha (sem menu): o servidor que a serviu reinicia no meio."""
+    response = templates.TemplateResponse(request=request, name="atualizacao.html",
+                                          context={"state": atualizador.current(), "current": __version__,
+                                                   "ui": _ui_prefs()})
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
+        "form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+    )
+    return response
+
+
+@app.get("/atualizacao/estado")
+def update_state():
+    """Consultada pela página de progresso. Faz parte do contrato entre versões: quem responde depois do
+    reinício é a versão nova (ou a antiga, se houve reversão), lendo o mesmo atualizacao.json."""
+    state = atualizador.current()
+    return {"estado": state.get("estado"), "de": state.get("de"), "para": state.get("para"),
+            "progresso": state.get("progresso"), "baixado": state.get("baixado"), "total": state.get("total"),
+            "motivo": state.get("motivo"), "versao_em_uso": __version__}
 
 
 @app.post("/atualizacao/dispensar")

@@ -1,3 +1,4 @@
 # Para desenvolver e rodar os testes (pytest). O app não precisa disto para rodar.
 -r requirements.txt
 pytest>=8,<9
+pytest-cov>=6,<8  # cobertura: pytest --cov=app

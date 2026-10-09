@@ -574,3 +574,54 @@ def test_periodo_diario_respeita_fim_de_mes_e_fuso(browser, base_url, last, boun
             expect(page.locator('.chart-tip')).to_contain_text(label)
     finally:
         context.close()
+
+
+# ---------------------------------------------------------------- atualização com um clique
+
+def _marcador(pasta, **estado) -> None:
+    """Escreve o atualizacao.json como o servidor antigo e o vigia escreveriam (app/services/atualizador.py)."""
+    import json
+    from datetime import datetime
+
+    estado.setdefault("atualizado_em", datetime.now().astimezone().isoformat(timespec="seconds"))
+    (pasta / "atualizacao.json").write_text(json.dumps(estado), encoding="utf-8")
+
+
+def test_progresso_da_atualizacao_acompanha_o_estado(page: Page, dados_do_servidor, erros_js):
+    _marcador(dados_do_servidor, estado="baixando", de="0.1.0", para="9.9.9", progresso=0.5, baixado=5_000_000,
+              total=10_000_000)
+    try:
+        page.goto("/atualizacao")
+        expect(page.locator("h1")).to_have_text("Atualizando para a 9.9.9")
+        expect(page.locator('[data-step="baixando"]')).to_have_class(re.compile("is-current"))
+        expect(page.locator("[data-update-bytes]")).to_have_text("5,0 MB de 10,0 MB")
+
+        # o servidor reinicia: a consulta falha e a página espera
+        page.route("**/atualizacao/estado", lambda route: route.abort())
+        expect(page.locator("[data-update-sub]")).to_contain_text("Reiniciando")
+        expect(page.locator('[data-step="reiniciando"]')).to_have_class(re.compile("is-current"))
+        page.unroute("**/atualizacao/estado")
+
+        _marcador(dados_do_servidor, estado="falhou", de="0.1.0", para="9.9.9",
+                  motivo="O arquivo baixado não confere com o SHA256SUMS.txt do Release.")
+        expect(page.locator("h1")).to_have_text("Não deu para atualizar")
+        expect(page.locator("[data-update-sub]")).to_contain_text("SHA256SUMS")
+        expect(page.get_by_role("link", name="Voltar ao Tabimoney")).to_be_visible()
+    finally:
+        (dados_do_servidor / "atualizacao.json").unlink(missing_ok=True)
+    # a consulta que falhou de propósito (o reinício) aparece no console; é esperado
+    erros_js[:] = [e for e in erros_js if "Failed to load resource" not in e and "ERR_FAILED" not in e]
+
+
+def test_atualizacao_concluida_volta_ao_app_com_o_aviso(page: Page, base_url, dados_do_servidor):
+    from app import __version__
+
+    _marcador(dados_do_servidor, estado="reiniciando", de="0.1.0", para=__version__)
+    try:
+        page.goto("/atualizacao")
+        expect(page.locator("h1")).to_have_text(f"Atualizando para a {__version__}")
+        _marcador(dados_do_servidor, estado="concluida", de="0.1.0", para=__version__)
+        expect(page).to_have_url(base_url + "/")
+        expect(_aviso(page)).to_contain_text(f"Tabimoney atualizado para a {__version__}")
+    finally:
+        (dados_do_servidor / "atualizacao.json").unlink(missing_ok=True)

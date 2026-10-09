@@ -135,6 +135,19 @@ jobs:
           asyncio.run(conversa())
           EOF
 
+      - name: Teste da atualização com um clique (Windows)
+        # Release falso nesta máquina com o próprio executável. Dois cenários: a troca dá certo (clica em "Atualizar
+        # agora" e confere) e a versão nova não sobe (confere a reversão). Cada um numa cópia própria do executável.
+        if: runner.os == 'Windows'
+        run: |
+          mkdir -p antigo antigo-reversao release-falso
+          cp dist/Tabimoney.exe antigo/
+          cp dist/Tabimoney.exe antigo-reversao/
+          NOME="Tabimoney-${{ steps.v.outputs.versao }}-windows.zip"
+          pwsh -NoProfile -Command "Compress-Archive -Force -Path dist/Tabimoney.exe -DestinationPath release-falso/$NOME"
+          python packaging/teste_atualizacao.py antigo/Tabimoney.exe release-falso "$NOME" "${{ steps.v.outputs.versao }}"
+          python packaging/teste_atualizacao.py --reverter antigo-reversao/Tabimoney.exe release-falso "$NOME" "${{ steps.v.outputs.versao }}"
+
       - name: Manual de conexões
         run: python packaging/manual/gerar.py dist/Manual-de-conexoes.html
 
@@ -171,12 +184,17 @@ jobs:
         with:
           path: pacotes
           merge-multiple: true
+      - name: SHA256SUMS.txt
+        # o app confere o zip baixado por este arquivo antes de atualizar com um clique (app/services/atualizador.py)
+        run: cd pacotes && sha256sum *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.versao.outputs.versao }}
           target_commitish: ${{ github.sha }}
           name: Tabimoney ${{ needs.versao.outputs.versao }}
-          files: pacotes/*.zip
+          files: |
+            pacotes/*.zip
+            pacotes/SHA256SUMS.txt
           body: |
             ## Qual arquivo baixar
             | Seu computador | Arquivo |
