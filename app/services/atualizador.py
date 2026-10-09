@@ -159,10 +159,11 @@ def swap(target: Path, new: Path, previous: Path) -> None:
 
 
 def _is_temporary(path: Path) -> bool:
-    """Pasta temporária (rodando de dentro do zip, por exemplo) ou app translocado pelo macOS."""
-    text = str(path).lower().replace("\\", "/")
-    temp = str(Path(tempfile.gettempdir()).resolve()).lower().replace("\\", "/")
-    return text.startswith(temp) or "/apptranslocation/" in text or "/temp/" in text
+    """Pasta temporária (rodando de dentro do zip, por exemplo) ou app translocado pelo macOS. Compara os caminhos
+    resolvidos: no Mac, /var é um link para /private/var, e a pasta temporária aparece pelos dois nomes."""
+    text = str(Path(path).resolve()).lower().replace("\\", "/")
+    temp = str(Path(tempfile.gettempdir()).resolve()).lower().replace("\\", "/").rstrip("/") + "/"
+    return text.startswith(temp) or "/apptranslocation/" in text
 
 
 def _writable(folder: Path) -> bool:

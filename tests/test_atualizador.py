@@ -267,6 +267,22 @@ def test_caminho_temporario():
     assert atualizador._is_temporary(atualizador.Path("/private/var/AppTranslocation/X/d/Tabimoney.app"))
 
 
+def test_pasta_temporaria_e_comparada_pelo_caminho_real(tmp_path, monkeypatch):
+    """No Mac, /var é um link para /private/var: a pasta temporária aparece pelos dois nomes. E uma pasta chamada
+    'temp' fora da temporária não conta."""
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    try:
+        link.symlink_to(real, target_is_directory=True)
+    except OSError:
+        pytest.skip("sem permissão para criar link simbólico nesta máquina")
+    monkeypatch.setattr(atualizador.tempfile, "gettempdir", lambda: str(link))
+    assert atualizador._is_temporary(link / "x" / "Tabimoney.exe")
+    assert atualizador._is_temporary(real / "x" / "Tabimoney.exe")
+    assert not atualizador._is_temporary(tmp_path / "Projetos" / "temp" / "Tabimoney.exe")
+
+
 # ---------------------------------------------------------------- o servidor antigo
 
 def test_atualizacao_completa_ate_o_vigia(app_congelado, github, processos):
