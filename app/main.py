@@ -849,7 +849,7 @@ def transactions_page(request: Request, todos: str = ""):
     transactions = analytics.cash_transactions(member=_member(request))
     return _page(
         request, "transactions.html", transactions=transactions[:3000 if todos else 150], total=len(transactions),
-        category_options=spending.known_categories(), all_shown=bool(todos),
+        category_groups=spending.category_groups(), all_shown=bool(todos),
     )
 
 
@@ -879,7 +879,7 @@ def category_page(request: Request, category: str):
         request, "category.html", detail=detail,
         budgets=[b for b in budget["items"] if category in b["categories"] or b.get("is_total")],
         other_categories=[c["category"] for c in trends["categories"]],
-        category_options=spending.known_categories(),
+        category_groups=spending.category_groups(),
     )
 
 

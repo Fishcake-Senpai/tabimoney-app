@@ -11,6 +11,11 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Corrigido
+- Categorias em ordem alfabética nas listas suspensas: uma categoria criada entra no lugar dela, não no fim da
+  lista. Na troca de categoria de um lançamento, a lista vem em grupos (Gastos, com Outros no fim; Receitas;
+  Movimentações internas) (#8).
+
 ## [0.17.0] - 2026-10-16
 
 ### Adicionado

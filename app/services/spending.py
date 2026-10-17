@@ -43,16 +43,26 @@ def clean_category(value: str) -> str:
     return text[:1].upper() + text[1:]
 
 
-def known_categories() -> list[str]:
+def category_groups() -> list[tuple[str, list[str]]]:
+    """Categorias para as listas suspensas: gastos em ordem alfabética (Outros no fim), receitas e movimentações
+    internas. Uma categoria criada entra no lugar dela no alfabeto, não no fim da lista."""
     used = [r[0] for r in rows(
         "SELECT DISTINCT COALESCE(user_category, category) FROM cash_transaction WHERE COALESCE(user_category, category) IS NOT NULL"
     )]
     used += [r[0] for r in rows("SELECT DISTINCT category FROM category_rule")]
     used += [r[0] for r in rows("SELECT name FROM category WHERE deleted_at IS NULL")]
     seen: dict[str, str] = {}
-    for category in BASE_CATEGORIES + sorted(used, key=normalize):
+    for category in BASE_CATEGORIES + used:
         seen.setdefault(normalize(category), category)
-    return list(seen.values())
+    names = sorted(seen.values(), key=normalize)
+    internal = [c for c in names if c in INTERNAL_CATEGORIES]
+    income = [c for c in names if c in INCOME_CATEGORIES and c not in ("Outros", "Pix e transferências")]
+    spend = [c for c in names if c not in internal and c not in income and c != "Outros"] + ["Outros"]
+    return [("Gastos", spend), ("Receitas", income), ("Movimentações internas", internal)]
+
+
+def known_categories() -> list[str]:
+    return [c for _, names in category_groups() for c in names]
 
 
 # ---------------------------------------------------------------- categorias próprias

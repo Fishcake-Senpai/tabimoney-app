@@ -29,6 +29,6 @@
   {% if total > transactions|length %}<div class="card-foot"><a class="link" href="/contas/lancamentos?todos=1">Ver os mais antigos ({{ total - transactions|length }}) {{ icon("chevron-down") }}</a></div>{% endif %}
 </section>
 
-{{ tx_drawer(category_options, '/contas/lancamentos') }}
+{{ tx_drawer(category_groups, '/contas/lancamentos') }}
 {% endif %}
 {% endblock %}

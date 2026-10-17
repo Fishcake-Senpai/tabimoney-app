@@ -1,5 +1,5 @@
 {#- Lista de lançamentos por dia + o painel lateral (um só, preenchido pelo app.js). Usado em Gastos › Lançamentos
-    e na página de cada categoria. Espera: transactions, category_options, csrf_token; tx_back (para onde voltar). -#}
+    e na página de cada categoria. Espera: transactions, category_groups, csrf_token; tx_back (para onde voltar). -#}
 {% from "_ui.html" import icon, cat_icon, drawer %}
 {% macro tx_rows(transactions) -%}
     {% for day, items in transactions|groupby("transaction_date")|reverse %}
@@ -22,7 +22,7 @@
     {% endfor %}
 {%- endmacro %}
 
-{% macro tx_drawer(category_options, tx_back) -%}
+{% macro tx_drawer(category_groups, tx_back) -%}
 {% call drawer("tx", "Lançamento") %}
 <div class="drawer-hero">
   <span class="row-icon" data-tx-icon>{{ icon("circle-dashed") }}</span>
@@ -42,7 +42,7 @@
   <label class="field">Trocar a categoria
     <select name="category" data-tx-select>
       <option value="" data-auto-option>Automática</option>
-      {% for c in category_options %}<option>{{ c }}</option>{% endfor %}
+      {% for label, names in category_groups %}<optgroup label="{{ label }}">{% for c in names %}<option>{{ c }}</option>{% endfor %}</optgroup>{% endfor %}
     </select>
   </label>
   <label class="check"><input type="checkbox" name="create_rule"> <span>Usar sempre para <b data-tx-rule></b></span></label>
