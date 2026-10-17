@@ -25,6 +25,7 @@ Antes de começar, chame `roteiro` com o nome indicado e siga os passos.
 | "onde aportar este mês", "o que mudar na carteira", "sugere carteiras" | `recomendacoes` (depois das análises) |
 
 Pergunta simples ("quanto gastei com mercado em agosto?") não precisa de roteiro: responda com a ferramenta certa.
+"Me manda o relatório de agosto" também não: chame `relatorio_exportar` e diga onde o arquivo ficou.
 
 As análises de investimento são de **longo prazo** (5, 10, 20 anos), inspiradas no método de Raul Sena (Investidor
 Sardinha): qualidade primeiro, aportes constantes e venda só quando a tese quebra. Elas começam pelo perfil do
@@ -42,6 +43,8 @@ investidor (`perfil_investidor`); sem ele, pergunte o horizonte e o objetivo ao 
   previdência). **Comece por aqui** em qualquer tarefa de investimentos.
 - Gastos: `gastos_resumo`, `gastos_listar`, `gastos_categorias`, `gastos_recategorizar`, `gastos_criar_regra`,
   `gastos_regras`.
+- Relatório do mês, trimestre ou ano num HTML que abre sozinho: `relatorio_exportar`. Ele mascara números de conta
+  e nomes em Pix por padrão; só desligue (`mascarar: false`) se o usuário pedir.
 - Metas de alocação: `metas_mostrar`, `metas_definir`, `metas_regiao`.
 - Perfil do investidor (horizonte e objetivo): `perfil_investidor`, `perfil_definir`.
 - Orçamento (metas de gastos): `orcamento_mostrar`, `orcamento_contexto`, `orcamento_importar_recomendacoes`.

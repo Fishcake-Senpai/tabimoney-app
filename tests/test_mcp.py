@@ -265,6 +265,21 @@ def test_escrita_na_demo_nao_toca_na_base_real(dados_exemplo):
     assert not (db.data_dir() / "backups").exists()
 
 
+def test_relatorio_exportar_pelas_duas_portas(capsys, tmp_path):
+    """MCP e CLI gravam o mesmo relatório; na demo, ele avisa que os dados são fictícios."""
+    async def passos(c):
+        return _dados(await c.call_tool("relatorio_exportar", {"periodo": "trimestre", "arquivo": str(tmp_path / "mcp.html")}))
+
+    pelo_mcp = _rodar(True, passos)
+    pela_cli = _cli(capsys, "--demo", "relatorio", "exportar", "--periodo", "trimestre", "--arquivo", str(tmp_path))
+    assert Path(pela_cli["arquivo"]).name == f"Tabimoney-{pelo_mcp['periodo']}.html"
+    assert {k: v for k, v in pelo_mcp.items() if k != "arquivo"} == {k: v for k, v in pela_cli.items() if k != "arquivo"}
+    for arquivo in (pelo_mcp["arquivo"], pela_cli["arquivo"]):
+        html = Path(arquivo).read_text(encoding="utf-8")
+        assert "Demonstração · dados fictícios" in html and pelo_mcp["titulo"] in html
+    assert pelo_mcp["mascarado"] and pelo_mcp["com_extrato"] and pelo_mcp["resumo"]
+
+
 # ---------------------------------------------------------------- tarefas longas
 
 def test_atualizar_devolve_tarefa_e_termina_depois(monkeypatch):

@@ -231,6 +231,28 @@ def test_busca_da_lista_filtra_sem_recarregar(page: Page):
     expect(page.locator("[data-count-for=tx]")).not_to_contain_text("150")
 
 
+def test_exportar_relatorio_abre_em_outra_aba(page: Page):
+    erros: list[str] = []
+    page.context.on("page", lambda nova: (nova.on("pageerror", lambda exc: erros.append(str(exc))),
+                                          nova.on("console", lambda m: erros.append(m.text) if m.type == "error" else None)))
+    page.goto("/contas")
+    page.get_by_role("button", name="Relatório").click()
+    dialogo = page.locator("#dlg-relatorio")
+    dialogo.get_by_label("Período").select_option("trimestre")
+    with page.expect_popup() as aba:
+        dialogo.get_by_role("button", name="Abrir").click()
+    relatorio = aba.value
+    expect(relatorio.locator("h1")).to_contain_text("trimestre")
+    expect(relatorio.locator(".chip", has_text="mascarados")).to_be_visible()
+    relatorio.get_by_role("button", name="Esconder os valores").click()
+    expect(relatorio.locator("html")).to_have_class(re.compile("discreto"))
+    relatorio.get_by_label("Buscar no extrato").fill("ifood")
+    expect(relatorio.locator("details[data-group][open]").first).to_contain_text("iFood")
+    assert not erros, erros  # CSP com nonce: estilo e script embutidos rodam sem violação
+    baixado = page.request.get("/contas/relatorio?periodo=mes&enviado=1&mascarar=1&baixar=1")
+    assert baixado.headers["content-disposition"].startswith('attachment; filename="Tabimoney-')
+
+
 def test_nova_meta_de_gasto_pelo_dialogo(aceitar_confirmacoes: Page):
     page = aceitar_confirmacoes
     page.goto("/contas/orcamento")

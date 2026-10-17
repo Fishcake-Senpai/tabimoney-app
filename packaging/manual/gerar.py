@@ -6,7 +6,6 @@ As capturas vêm de packaging/manual/imagens, já com os dados pessoais cobertos
 """
 from __future__ import annotations
 
-import base64
 import re
 import sys
 from pathlib import Path
@@ -14,11 +13,9 @@ from pathlib import Path
 HERE = Path(__file__).parent
 ROOT = HERE.parent.parent
 SOURCES = [HERE / "imagens", ROOT / "app" / "static" / "brand"]
-MIME = {".png": "image/png", ".jpg": "image/jpeg", ".woff2": "font/woff2"}
+sys.path.insert(0, str(ROOT))
 
-
-def _data_uri(path: Path) -> str:
-    return f"data:{MIME[path.suffix]};base64,{base64.b64encode(path.read_bytes()).decode()}"
+from app.services.embutir import data_uri as _data_uri  # noqa: E402  (o mesmo do relatório exportado)
 
 
 def _image(name: str) -> str:

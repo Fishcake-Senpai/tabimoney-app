@@ -12,6 +12,7 @@
     financas recomendacoes importar recs.json   grava as recomendações trimestrais
     financas orcamento contexto                 metas de gastos × gastos, para a análise orçamentária
     financas orcamento importar-recomendacoes orc.json   grava as sugestões de orçamento do agente
+    financas relatorio exportar --referencia 2026-08     relatório do mês num HTML que abre sozinho
     financas titulares                          titulares, conexões Pluggy e contas de cada um
     financas --titular Ana carteira contexto    qualquer comando só com as contas de um titular
     financas --demo carteira contexto           qualquer comando na demonstração (dados fictícios)
@@ -220,6 +221,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("arquivo")
     p.add_argument("--autor", default="agente")
 
+    r = groups.add_parser("relatorio", help="relatório do período em HTML").add_subparsers(dest="acao", required=True)
+    p = cmd(r, "exportar", lambda a: op.relatorio_exportar(a.periodo, a.referencia, a.arquivo, not a.sem_mascara,
+                                                           not a.sem_extrato, member=_MEMBER),
+            help="grava o relatório do mês, trimestre ou ano num HTML que abre sozinho")
+    p.add_argument("--periodo", choices=["mes", "trimestre", "ano"], default="mes")
+    p.add_argument("--referencia", help="AAAA-MM, AAAA-T1..T4 ou AAAA (padrão: o período atual)")
+    p.add_argument("--arquivo", help="caminho do .html (padrão: pasta Relatorios dos dados do app)")
+    p.add_argument("--sem-mascara", action="store_true", help="mostra números de conta e nomes em Pix")
+    p.add_argument("--sem-extrato", action="store_true", help="sem a lista de lançamentos no fim")
     cmd(groups, "titulares", lambda a: op.titulares(), help="titulares, conexões Pluggy e contas de cada um")
     cmd(groups, "backup", lambda a: op.backup(), help="cópia da base antes de mudanças em massa")
     cmd(groups, "atualizar", lambda a: op.atualizar(), help="backup + Open Finance + cotações/CDI + balanços da CVM")

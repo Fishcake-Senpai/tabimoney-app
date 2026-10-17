@@ -21,8 +21,8 @@ from app.mcp_server import instalar as mcp_instalar
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
 from app.services import (
-    analytics, atualizador, budgets, fundamentals, household, investor_profile, pension, recommendations, spending,
-    targets, updates,
+    analytics, atualizador, budgets, fundamentals, household, investor_profile, pension, recommendations, relatorio,
+    spending, targets, updates,
 )
 from app.services.categories import CATEGORY_ICON_CHOICES, INCOME_CATEGORIES, INTERNAL_CATEGORIES, category_icon
 from app.services.markdown import render as render_markdown
@@ -841,6 +841,24 @@ def accounts_page(request: Request, mes: str = ""):
         trends=spending.category_trends(transactions), chart_flow=[r for r in flow if r["m"] <= month],
         has_data=bool(transactions or book.accounts()),
     )
+
+
+@app.get("/contas/relatorio", response_class=HTMLResponse)
+def export_report(request: Request, periodo: str = "mes", ref: str = "", enviado: str = "", mascarar: str = "",
+                  extrato: str = "", baixar: str = ""):
+    """Relatório do período num HTML só. Sem o formulário (enviado), mascara e traz o extrato, como o padrão."""
+    try:
+        data = relatorio.montar(periodo, ref or None, _member(request),
+                                mascarar=mascarar == "1" if enviado else True, extrato=extrato == "1" if enviado else True)
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+        return _redirect(request, "/contas")
+    nonce = secrets.token_urlsafe(16)
+    response = HTMLResponse(relatorio.renderizar(data, nonce))
+    response.headers["Content-Security-Policy"] = relatorio.csp(nonce)
+    if baixar == "1":
+        response.headers["Content-Disposition"] = f'attachment; filename="{relatorio.nome_arquivo(data["periodo"])}"'
+    return response
 
 
 @app.get("/contas/lancamentos", response_class=HTMLResponse)

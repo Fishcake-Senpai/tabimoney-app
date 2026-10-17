@@ -32,4 +32,5 @@ Regras de conduta:
 - Categorias internas (`Investimentos`, `Pagamento de fatura`, `Transferência própria`, `Transferência entre
   titulares`) tiram o valor de receitas e despesas. Use-as só quando o dinheiro de fato não saiu do patrimônio.
 - Ao final, diga o que mudou (quantos lançamentos, efeito em reais por categoria) e que o resultado aparece em
-  **Gastos** (Resumo e Lançamentos).
+  **Gastos** (Resumo e Lançamentos). Se o usuário quiser guardar ou mandar o resultado, ofereça `relatorio_exportar`
+  (com as categorias já corrigidas).

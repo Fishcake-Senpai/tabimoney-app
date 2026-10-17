@@ -11,6 +11,17 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Adicionado
+- **Relatório do período em HTML**: em Gastos, o botão **Relatório** gera o relatório do mês, do trimestre ou do
+  ano num arquivo só, que abre em qualquer navegador sem internet (dá para imprimir ou salvar em PDF). Traz os
+  números do período contra a média dos anteriores, um resumo em poucas frases, gasto por categoria, orçamento,
+  ritmo do mês, maiores gastos e estabelecimentos, contas e assinaturas que se repetem, parcelas a vencer,
+  receitas, aplicações, patrimônio e o extrato completo com busca. Tema claro e escuro e o olho que esconde os
+  valores.
+- Por padrão, o relatório mascara números de conta e nomes de pessoas em Pix; dá para desligar na hora de exportar.
+- Agentes de IA exportam o relatório com a ferramenta `relatorio_exportar` (CLI: `financas relatorio exportar`).
+- Demonstração com compras parceladas em andamento.
+
 ### Corrigido
 - Categorias em ordem alfabética nas listas suspensas: uma categoria criada entra no lugar dela, não no fim da
   lista. Na troca de categoria de um lançamento, a lista vem em grupos (Gastos, com Outros no fim; Receitas;

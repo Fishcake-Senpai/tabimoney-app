@@ -63,6 +63,7 @@ reversível*, **sensível** (`destructiveHint`; só com pedido explícito do usu
 | `gastos_criar_categoria` | escrita reversível | `financas gastos criar-categoria` |
 | `gastos_excluir_categoria` | **sensível** | `financas gastos excluir-categoria` |
 | `gastos_restaurar_categoria` | escrita reversível | `financas gastos restaurar-categoria` |
+| `relatorio_exportar` | escrita (grava um arquivo) | `financas relatorio exportar` |
 | `orcamento_mostrar` | leitura | `financas orcamento mostrar` |
 | `orcamento_contexto` | leitura | `financas orcamento contexto` |
 | `orcamento_definir` | **sensível** | `financas orcamento definir` |
@@ -179,6 +180,7 @@ Toda recomendação de carteira precisa respeitar essas metas ou dizer explicita
 | `financas analise listar [--ticker X] [--tipo ativo\|renda_fixa\|previdencia\|carteira]` | Relatórios guardados (sem o corpo) |
 | `financas analise mostrar ID` | Relatório completo, para comparar com o trimestre anterior |
 | `financas alertas listar` / `financas alertas resolver ID` | Avisos |
+| `financas relatorio exportar [--periodo mes\|trimestre\|ano] [--referencia AAAA-MM] [--arquivo X]` | Relatório do período num HTML que abre sozinho; mascara contas e nomes em Pix (`--sem-mascara` mostra) e traz o extrato (`--sem-extrato` tira) |
 | `financas backup` | Cópia da base antes de mudanças em massa |
 | `financas atualizar` | Backup + Open Finance + cotações/CDI + balanços da CVM, com o resultado de cada etapa |
 
