@@ -80,3 +80,27 @@ def test_recriar_categoria_excluida_nao_ressuscita_os_itens(delivery):
     spending.create_category("Delivery")
     assert spending.restore_category("Delivery")["restaurada"] is False
     assert all(_categoria(i) == "Outros" for i in delivery)
+
+
+def test_categorias_em_ordem_alfabetica_com_as_novas_no_lugar():
+    """Issue #8: categoria criada pelo usuário entrava no fim da lista suspensa, depois das transferências."""
+    spending.create_category("Pet")
+    spending.create_category("Estética")
+    grupos = spending.category_groups()
+    assert [g for g, _ in grupos] == ["Gastos", "Receitas", "Movimentações internas"]
+    gastos = grupos[0][1]
+    assert gastos[-1] == "Outros"
+    assert gastos[:-1] == sorted(gastos[:-1], key=spending.normalize)
+    assert {"Pet", "Estética", "Pix e transferências"} <= set(gastos)
+    assert gastos.index("Educação") < gastos.index("Estética") < gastos.index("Lazer") < gastos.index("Pet")
+    assert grupos[1][1] == ["Proventos", "Rendimentos", "Salário"]
+    assert grupos[2][1] == ["Investimentos", "Pagamento de fatura", "Transferência entre titulares", "Transferência própria"]
+    assert spending.known_categories() == [c for _, nomes in grupos for c in nomes]
+
+
+def test_seletor_do_lancamento_agrupa_as_categorias(client, dados_exemplo):
+    spending.create_category("Pet")
+    html = client.get("/contas/lancamentos").text
+    gastos = html.split('<optgroup label="Gastos">')[1].split("</optgroup>")[0]
+    assert gastos.index("<option>Educação</option>") < gastos.index("<option>Pet</option>")
+    assert '<optgroup label="Movimentações internas">' in html

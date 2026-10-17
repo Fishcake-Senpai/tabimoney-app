@@ -11,6 +11,24 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.18.0] - 2026-10-16
+
+### Adicionado
+- **Relatório do período em HTML**: em Gastos, o botão **Relatório** gera o relatório do mês, do trimestre ou do
+  ano num arquivo só, que abre em qualquer navegador sem internet (dá para imprimir ou salvar em PDF). Traz os
+  números do período contra a média dos anteriores, um resumo em poucas frases, gasto por categoria, orçamento,
+  ritmo do mês, maiores gastos e estabelecimentos, contas e assinaturas que se repetem, parcelas a vencer,
+  receitas, aplicações, patrimônio e o extrato completo com busca. Tema claro e escuro e o olho que esconde os
+  valores.
+- Por padrão, o relatório mascara números de conta e nomes de pessoas em Pix; dá para desligar na hora de exportar.
+- Agentes de IA exportam o relatório com a ferramenta `relatorio_exportar` (CLI: `financas relatorio exportar`).
+- Demonstração com compras parceladas em andamento.
+
+### Corrigido
+- Categorias em ordem alfabética nas listas suspensas: uma categoria criada entra no lugar dela, não no fim da
+  lista. Na troca de categoria de um lançamento, a lista vem em grupos (Gastos, com Outros no fim; Receitas;
+  Movimentações internas) (#8).
+
 ## [0.17.0] - 2026-10-16
 
 ### Adicionado
@@ -368,7 +386,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.17.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.13.0...v0.15.0

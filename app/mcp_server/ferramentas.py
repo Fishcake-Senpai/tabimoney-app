@@ -48,7 +48,7 @@ EQUIVALENTE_CLI: dict[str, str] = {
     "gastos_regras": "gastos regras", "gastos_recategorizar": "gastos recategorizar",
     "gastos_criar_regra": "gastos regra", "gastos_remover_regra": "gastos remover-regra ID",
     "gastos_criar_categoria": "gastos criar-categoria", "gastos_excluir_categoria": "gastos excluir-categoria",
-    "gastos_restaurar_categoria": "gastos restaurar-categoria",
+    "gastos_restaurar_categoria": "gastos restaurar-categoria", "relatorio_exportar": "relatorio exportar",
     "orcamento_mostrar": "orcamento mostrar", "orcamento_contexto": "orcamento contexto",
     "orcamento_definir": "orcamento definir", "orcamento_remover": "orcamento remover",
     "orcamento_importar_recomendacoes": "orcamento importar-recomendacoes ARQUIVO",
@@ -322,6 +322,23 @@ def registrar(server: MCPServer, sessao: Sessao) -> None:  # noqa: C901 - uma li
     def gastos_criar_categoria(nome: str, ctx: Context) -> CallToolResult:
         """Cria uma categoria. Idempotente: se já existe em qualquer grafia, devolve a existente com criada: false."""
         return sessao.rodar(ctx, ESCRITA, lambda: op.gastos_criar_categoria(nome, sessao.autor(ctx)))
+
+    @tool(ESCRITA, "Exportar relatório")
+    def relatorio_exportar(
+        ctx: Context,
+        periodo: Annotated[Literal["mes", "trimestre", "ano"], Field(description="Tamanho do período.")] = "mes",
+        referencia: Annotated[str | None, Field(description="AAAA-MM (mês), AAAA-T1..T4 (trimestre) ou AAAA (ano); "
+                                                            "um mês também serve para trimestre e ano. Sem ela, o atual.")] = None,
+        arquivo: Annotated[str | None, Field(description="Caminho do .html. Sem ele, a pasta Relatorios dos dados do app.")] = None,
+        mascarar: Annotated[bool, Field(description="Mascara números de conta e nomes de pessoas em Pix.")] = True,
+        extrato: Annotated[bool, Field(description="Inclui todos os lançamentos do período no fim.")] = True,
+        titular: Titular = None,
+    ) -> CallToolResult:
+        """Grava o relatório do período num arquivo HTML que abre sozinho, offline: resumo, categorias contra a média,
+        orçamento, ritmo, maiores gastos, contas fixas, parcelas a vencer, receitas, patrimônio e extrato. Devolve o
+        caminho e os números principais; não manda o arquivo a lugar nenhum."""
+        return sessao.rodar(ctx, ESCRITA, lambda m: op.relatorio_exportar(periodo, referencia, arquivo, mascarar, extrato,
+                                                                          member=m), titular, True)
 
     @tool(SENSIVEL, "Excluir categoria")
     def gastos_excluir_categoria(

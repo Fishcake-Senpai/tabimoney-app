@@ -51,6 +51,11 @@ pública sobre empresas e títulos (CVM, relações com investidores, Tesouro, n
   `app/mcp_server/ferramentas.py` (com tipo, descrição e `EQUIVALENTE_CLI`) e o comando em `app/cli.py`. Mudou o
   que o agente deve fazer? Atualize o roteiro em `app/agente/roteiros/`. `tests/test_mcp.py` confere catálogo,
   anotações, paridade com a CLI e se os roteiros só citam ferramentas que existem.
+- **Testes automatizados e de regressão (obrigatório):** toda mudança de comportamento (recurso novo, regra
+  alterada) vem com testes automatizados no mesmo commit, e a suíte inteira precisa continuar passando, para
+  que os testes de regressão protejam o que já funcionava. **Achou um bug? Escreva primeiro o teste que o
+  reproduz (ele deve falhar), depois corrija e confirme que passa.** Nenhum bug é corrigido sem um teste que o
+  cubra, e esse teste fica na suíte para sempre.
 - **Testes:** rode `pytest` (Windows: `.venv\Scripts\python.exe -m pytest`; Mac: `.venv/bin/python -m pytest`)
   antes de commitar. Tudo roda isolado: base temporária, cofre falso e sem rede (`tests/conftest.py`), então não
   mexe nos dados do usuário. Página nova já é coberta por `tests/test_paginas.py`. Mudou uma regra ou corrigiu um

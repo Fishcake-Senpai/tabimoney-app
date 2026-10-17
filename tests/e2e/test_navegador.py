@@ -7,6 +7,7 @@ O servidor é compartilhado pela sessão, então quem grava algo usa um nome só
 from __future__ import annotations
 
 import re
+from datetime import date
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -229,6 +230,39 @@ def test_busca_da_lista_filtra_sem_recarregar(page: Page):
     expect(visiveis.first).to_contain_text("Anthropic")
     assert all("Anthropic" in t for t in visiveis.all_inner_texts())
     expect(page.locator("[data-count-for=tx]")).not_to_contain_text("150")
+
+
+def test_exportar_relatorio_abre_em_outra_aba(page: Page):
+    erros: list[str] = []
+    page.context.on("page", lambda nova: (nova.on("pageerror", lambda exc: erros.append(str(exc))),
+                                          nova.on("console", lambda m: erros.append(m.text) if m.type == "error" else None)))
+    page.goto("/contas")
+    page.get_by_role("button", name="Relatório").click()
+    dialogo = page.locator("#dlg-relatorio")
+    dialogo.get_by_label("Período").select_option("trimestre")
+    with page.expect_popup() as aba:
+        dialogo.get_by_role("button", name="Abrir").click()
+    relatorio = aba.value
+    expect(relatorio.locator("h1")).to_contain_text("trimestre")
+    expect(relatorio.locator(".chip", has_text="mascarados")).to_be_visible()
+    relatorio.get_by_role("button", name="Esconder os valores").click()
+    expect(relatorio.locator("html")).to_have_class(re.compile("discreto"))
+    relatorio.get_by_label("Buscar no extrato").fill("ifood")
+    expect(relatorio.locator("details[data-group][open]").first).to_contain_text("iFood")
+    assert not erros, erros  # CSP com nonce: estilo e script embutidos rodam sem violação
+    baixado = page.request.get("/contas/relatorio?periodo=mes&enviado=1&mascarar=1&baixar=1")
+    assert baixado.headers["content-disposition"].startswith('attachment; filename="Tabimoney-')
+
+
+@pytest.mark.parametrize("periodo", ["mes", "trimestre", "ano"])
+def test_relatorio_cabe_na_tela_do_celular(page: Page, periodo: str):
+    """Seis meses de parcelas a vencer empurravam o relatório para além dos 390 px."""
+    hoje = date.today()
+    anterior = f"{hoje.year - (hoje.month == 1):04d}-{(hoje.month - 2) % 12 + 1:02d}"  # o mês com mais parcelas na demo
+    page.set_viewport_size({"width": 390, "height": 800})
+    page.goto(f"/contas/relatorio?periodo={periodo}&ref={anterior}")
+    expect(page.locator("h1")).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth") <= 390
 
 
 def test_nova_meta_de_gasto_pelo_dialogo(aceitar_confirmacoes: Page):

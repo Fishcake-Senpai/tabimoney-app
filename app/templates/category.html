@@ -101,7 +101,7 @@
 <section class="card card-flush">
   <div class="rows" id="cat-tx" data-rows>{{ tx_rows(d.transactions) }}</div>
 </section>
-{{ tx_drawer(category_options, "/contas/gastos/" ~ d.category|urlencode) }}
+{{ tx_drawer(category_groups, "/contas/gastos/" ~ d.category|urlencode) }}
 
 <script type="application/json" id="data-category">{{ {"months": d.months, "avg": d.avg12, "current": d.current, "pace": d.pace_series, "weekday": d.weekday}|tojson }}</script>
 {% endblock %}

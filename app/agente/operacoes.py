@@ -7,10 +7,12 @@ serviços), com a mensagem pronta para o usuário. Nada aqui apaga lançamentos.
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from typing import Any, Callable
 
 from app import db
-from app.services import analytics, budgets, fundamentals, household, investor_profile, recommendations, spending, targets
+from app.services import (analytics, budgets, fundamentals, household, investor_profile, recommendations, relatorio, spending,
+                          targets)
 from app.services.pension import parse_amount
 
 # erros que viram {"erro": ...} na CLI e mensagem de erro no MCP
@@ -115,6 +117,26 @@ def categoria_em_uso(exc: spending.CategoryInUse, dica: str) -> dict[str, Any]:
 
 def gastos_restaurar_categoria(nome: str) -> dict[str, Any]:
     return spending.restore_category(nome)
+
+
+def relatorio_exportar(periodo: str = "mes", referencia: str | None = None, arquivo: str | None = None,
+                       mascarar: bool = True, extrato: bool = True, member: int | None = None) -> dict[str, Any]:
+    """Grava o relatório do período (mês, trimestre ou ano) num HTML que abre sozinho. Sem `arquivo`, vai para a
+    pasta Relatórios dos dados do app."""
+    d = relatorio.montar(periodo, referencia, member, mascarar=mascarar, extrato=extrato)
+    destino = Path(arquivo) if arquivo else db.data_dir() / "Relatorios" / relatorio.nome_arquivo(d["periodo"])
+    if destino.is_dir() or not destino.suffix:  # uma pasta: o arquivo ganha o nome padrão dentro dela
+        destino = destino / relatorio.nome_arquivo(d["periodo"])
+    elif destino.suffix.lower() != ".html":
+        destino = destino.with_suffix(".html")
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(relatorio.renderizar(d), encoding="utf-8")
+    return {
+        "arquivo": str(destino), "periodo": d["periodo"].ref, "titulo": d["periodo"].titulo,
+        "em_andamento": d["em_andamento"], "receitas": _money(d["receitas"]), "gastos": _money(d["gastos"]),
+        "sobra": _money(d["sobra"]), "investido": _money(d["investido"]), "resumo": d["resumo"],
+        "mascarado": mascarar, "com_extrato": extrato,
+    }
 
 
 def gastos_recategorizar(ids: list[int], categoria: str | None = None, automatica: bool = False) -> dict[str, Any]:

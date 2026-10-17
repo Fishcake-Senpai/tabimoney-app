@@ -21,8 +21,8 @@ from app.mcp_server import instalar as mcp_instalar
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
 from app.services import (
-    analytics, atualizador, budgets, fundamentals, household, investor_profile, pension, recommendations, spending,
-    targets, updates,
+    analytics, atualizador, budgets, fundamentals, household, investor_profile, pension, recommendations, relatorio,
+    spending, targets, updates,
 )
 from app.services.categories import CATEGORY_ICON_CHOICES, INCOME_CATEGORIES, INTERNAL_CATEGORIES, category_icon
 from app.services.markdown import render as render_markdown
@@ -843,13 +843,31 @@ def accounts_page(request: Request, mes: str = ""):
     )
 
 
+@app.get("/contas/relatorio", response_class=HTMLResponse)
+def export_report(request: Request, periodo: str = "mes", ref: str = "", enviado: str = "", mascarar: str = "",
+                  extrato: str = "", baixar: str = ""):
+    """Relatório do período num HTML só. Sem o formulário (enviado), mascara e traz o extrato, como o padrão."""
+    try:
+        data = relatorio.montar(periodo, ref or None, _member(request),
+                                mascarar=mascarar == "1" if enviado else True, extrato=extrato == "1" if enviado else True)
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+        return _redirect(request, "/contas")
+    nonce = secrets.token_urlsafe(16)
+    response = HTMLResponse(relatorio.renderizar(data, nonce))
+    response.headers["Content-Security-Policy"] = relatorio.csp(nonce)
+    if baixar == "1":
+        response.headers["Content-Disposition"] = f'attachment; filename="{relatorio.nome_arquivo(data["periodo"])}"'
+    return response
+
+
 @app.get("/contas/lancamentos", response_class=HTMLResponse)
 def transactions_page(request: Request, todos: str = ""):
     """Gastos › Lançamentos: lista por dia; clicar abre o painel para trocar a categoria (e criar a regra ali)."""
     transactions = analytics.cash_transactions(member=_member(request))
     return _page(
         request, "transactions.html", transactions=transactions[:3000 if todos else 150], total=len(transactions),
-        category_options=spending.known_categories(), all_shown=bool(todos),
+        category_groups=spending.category_groups(), all_shown=bool(todos),
     )
 
 
@@ -879,7 +897,7 @@ def category_page(request: Request, category: str):
         request, "category.html", detail=detail,
         budgets=[b for b in budget["items"] if category in b["categories"] or b.get("is_total")],
         other_categories=[c["category"] for c in trends["categories"]],
-        category_options=spending.known_categories(),
+        category_groups=spending.category_groups(),
     )
 
 

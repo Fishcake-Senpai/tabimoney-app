@@ -396,6 +396,13 @@ class _Seeder:
                 self.tx(con, 4, _month_day(today, m, 8), "Enel Distribuição Energia", -r.randint(18000, 26000), "Casa")
                 self.tx(con, 4, _month_day(today, m, 9), "Vivo Fibra Internet", -12990, "Casa")
                 self.tx(con, 4, _month_day(today, m, 12), "TED para XP Investimentos", -200000, "Investimentos")
+            # compras parceladas em andamento (o relatório projeta as parcelas que faltam)
+            for numero in range(1, 6):
+                buy(2, 5 - numero, 15, f"Fast Shop Notebook {numero}/10", 45990, 45990, "Compras")
+            for numero in range(1, 4):
+                buy(2, 3 - numero, 19, f"Azul Linhas Aéreas {numero}/5", 41356, 41356, "Viagem")
+            for numero in range(1, 3):
+                buy(5, 2 - numero, 11, f"Decathlon Bicicleta {numero}/3", 38900, 38900, "Compras")
             # viagem, estorno, transferência sem o outro lado e compras que ainda não fecharam
             buy(2, 4, 11, "Latam Airlines", 168000, 168000, "Viagem")
             buy(2, 4, 13, "Airbnb", 92000, 92000, "Viagem")
