@@ -7,6 +7,7 @@ O servidor é compartilhado pela sessão, então quem grava algo usa um nome só
 from __future__ import annotations
 
 import re
+from datetime import date
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -251,6 +252,17 @@ def test_exportar_relatorio_abre_em_outra_aba(page: Page):
     assert not erros, erros  # CSP com nonce: estilo e script embutidos rodam sem violação
     baixado = page.request.get("/contas/relatorio?periodo=mes&enviado=1&mascarar=1&baixar=1")
     assert baixado.headers["content-disposition"].startswith('attachment; filename="Tabimoney-')
+
+
+@pytest.mark.parametrize("periodo", ["mes", "trimestre", "ano"])
+def test_relatorio_cabe_na_tela_do_celular(page: Page, periodo: str):
+    """Seis meses de parcelas a vencer empurravam o relatório para além dos 390 px."""
+    hoje = date.today()
+    anterior = f"{hoje.year - (hoje.month == 1):04d}-{(hoje.month - 2) % 12 + 1:02d}"  # o mês com mais parcelas na demo
+    page.set_viewport_size({"width": 390, "height": 800})
+    page.goto(f"/contas/relatorio?periodo={periodo}&ref={anterior}")
+    expect(page.locator("h1")).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth") <= 390
 
 
 def test_nova_meta_de_gasto_pelo_dialogo(aceitar_confirmacoes: Page):

@@ -198,7 +198,8 @@ h3 { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: 
 .badge { font-size: 11px; font-weight: 650; padding: 1px 7px; border-radius: 99px; background: var(--neutral-soft); color: var(--text-2); margin-left: 6px; }
 
 /* parcelas */
-.proj { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(48px, 1fr); gap: 8px; align-items: end; height: 170px; margin-bottom: 18px; }
+.proj { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); gap: 8px; align-items: end; height: 170px; margin-bottom: 18px;
+  overflow-x: auto; scrollbar-width: thin; }
 .proj .col { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; justify-items: center; gap: 6px; height: 100%; }
 .proj .colbar { display: block; width: 100%; max-width: 46px; height: 100%; fill: var(--bar); }
 .proj .col:first-child .colbar { fill: var(--brand); }
@@ -272,6 +273,7 @@ footer .wrap { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; j
   section { padding-top: 26px; }
   .sec-head, h3 { break-after: avoid; }
   .kpi, .budget, .summary, .cat, .row, tr, .chart, .proj, .stack { break-inside: avoid; }
+  .proj { overflow: visible; grid-auto-columns: minmax(0, 1fr); }
   details.grp > :not(summary) { display: block; }
   .discreto .money, .discreto .chart text { filter: none; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
