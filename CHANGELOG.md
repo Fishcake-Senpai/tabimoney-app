@@ -11,6 +11,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.17.0] - 2026-10-16
+
 ### Adicionado
 - Atualização com um clique no Windows: o aviso de versão nova ganha o botão **Atualizar agora**. O app baixa a
   versão nova, confere o arquivo, faz backup dos seus dados, troca o Tabimoney.exe no mesmo lugar e reabre sozinho,
@@ -366,7 +368,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.16.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.13.0...v0.15.0
 [0.13.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.12.0...v0.13.0
