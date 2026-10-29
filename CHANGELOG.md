@@ -11,6 +11,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.19.0] - 2026-10-28
+
 ### Adicionado
 - **Imposto de renda**, item novo do menu, com quatro abas e as regras de 2025 e de 2026 (Lei 15.270: isenção até
   R$ 5 mil, redutor anual, retenção de dividendos e tributação mínima acima de R$ 600 mil):
@@ -51,6 +53,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ### Corrigido
 - Botão Copiar quando o navegador não libera a área de transferência: o valor agora é copiado mesmo assim.
+- Relatório do período: o gráfico de parcelas a vencer não estoura mais a largura da tela do celular; rola dentro
+  do próprio cartão.
 
 ## [0.18.0] - 2026-10-16
 
@@ -427,7 +431,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.18.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.15.0...v0.16.0
