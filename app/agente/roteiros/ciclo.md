@@ -53,6 +53,13 @@ Siga o roteiro `orcamento` para o mês corrente, ou para o mês anterior se esti
 `metas_sugeridas_pela_media`. Categorias claramente erradas entram só como sugestão; a correção é o roteiro
 `gastos`, com o usuário.
 
+## 6b. Imposto de renda (só leitura)
+
+Chame `ir_contexto`. Avise se houver `aviso_regras` (regras do IR desatualizadas: atualizar o app), DARF da bolsa
+vencendo (`bolsa.darfs`) e pendências da bolsa. De outubro a dezembro, diga quanto falta de PGBL e a economia
+(`estimativa.previdencia`). De março a maio, ofereça o roteiro `imposto-renda` para a declaração. Gravar fontes,
+deduções e aportes é com o usuário, pelo roteiro `imposto-renda`.
+
 ## 7. Resumo ao usuário
 
 Uma mensagem curta, nesta ordem:
@@ -64,4 +71,5 @@ Uma mensagem curta, nesta ordem:
 4. **Recomendações do trimestre:** 3 a 5 bullets.
 5. **Próximo aporte:** para onde vai, segundo as metas.
 6. **Orçamento:** gasto × metas no mês, as 3 principais sugestões e a economia estimada.
-7. **Onde ver:** Sugestões, página de cada ativo, Investimentos › Metas e Gastos › Orçamento.
+7. **IR:** DARF a pagar, PGBL que falta (no fim do ano) ou a declaração (março a maio), se houver.
+8. **Onde ver:** Sugestões, página de cada ativo, Investimentos › Metas e Gastos › Orçamento.

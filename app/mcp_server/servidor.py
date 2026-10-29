@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent  # no executável, a pasta 
 INSTRUCOES = """Tabimoney: finanças pessoais locais do usuário (gastos, orçamento, carteira, metas de alocação, \
 análises fundamentalistas e recomendações). Valores em reais; percentuais como fração (0.15 = 15%).
 Antes de uma tarefa com mais de um passo, chame `roteiro` com o nome da tarefa (ciclo, gastos, orcamento, metas, \
-analise-ativo, analise-trimestral, recomendacoes; ou visao-geral para escolher) e siga os passos. Em investimentos, \
+analise-ativo, analise-trimestral, recomendacoes, imposto-renda; ou visao-geral para escolher) e siga os passos. Em investimentos, \
 comece por `carteira_contexto`; as análises são de longo prazo e começam pelo horizonte (`perfil_investidor`). Pergunta simples se responde direto com a ferramenta certa.
 Ferramentas destrutivas (metas_definir, orcamento_definir, orcamento_remover, gastos_excluir_categoria, \
 gastos_remover_regra) só com pedido explícito do usuário. Nada apaga lançamentos, e o servidor faz backup antes \
@@ -50,6 +50,7 @@ PROMPTS = {
     "analise_ativo": ("analise-ativo", "Análise completa de um ativo (longo prazo)", {"ticker": "Ticker do ativo (ou nome do título de renda fixa)", "titular": "Nome do titular (opcional)"}),
     "analise_trimestral": ("analise-trimestral", "Acompanhamento trimestral das teses", {"tickers": "Tickers separados por vírgula (opcional; padrão: todos)", "titular": "Nome do titular (opcional)"}),
     "recomendacoes": ("recomendacoes", "Recomendações trimestrais da carteira", {"aporte": "Valor do aporte em reais (opcional)", "titular": "Nome do titular (opcional)"}),
+    "imposto_renda": ("imposto-renda", "Imposto de renda: estimativa, deduções, PGBL e declaração", {"ano": "Ano-calendário (opcional)", "titular": "Nome do titular (opcional)"}),
 }
 
 

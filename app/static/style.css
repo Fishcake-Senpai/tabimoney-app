@@ -979,3 +979,28 @@ html[data-discreto] .money:hover { filter: blur(7px); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ---------------------------------------------------------------- imposto de renda */
+.card-foot-form { padding: 14px 22px 18px; border-top: 1px solid var(--hairline); }
+.toolbar .field { min-width: 180px; }
+.toolbar:has(.field) { align-items: flex-end; margin-top: 12px; }
+table.data tr.is-best td { background: var(--up-soft); }
+table.data td.wrap { white-space: normal; }
+.ir-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.ir-field { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--hairline); font-size: 13.5px; }
+.ir-field:last-child { border-bottom: 0; }
+.ir-field > span:first-child { color: var(--muted); }
+.ir-field b { font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ir-item + .ir-item { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.ir-item h3 { font-size: 14px; margin: 0 0 6px; }
+.ir-item .ir-warn { color: var(--warn); font-size: 12.5px; margin: 4px 0 0; }
+.checklist { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.checklist li { display: flex; gap: 8px; align-items: center; font-size: 13.5px; }
+.checklist li.done { color: var(--muted); }
+.checklist li .i { flex: none; }
+.ir-faltas { margin: 4px 0 0; padding-left: 18px; color: var(--warn); font-size: 12.5px; white-space: normal; }
+@media (max-width: 720px) {
+  .ir-field { grid-template-columns: minmax(0, 1fr) auto; }
+  .ir-field > span:first-child { grid-column: 1 / -1; }
+}
+.copy-temp { position: fixed; left: -9999px; top: 0; opacity: 0; }

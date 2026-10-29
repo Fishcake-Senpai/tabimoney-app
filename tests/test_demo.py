@@ -279,3 +279,11 @@ def test_demo_exercita_historico_acima_de_tres_anos(base_demo):
     flow = analytics.cash_flow(analytics.cash_transactions(), months=None)
     assert len(flow) > 36
     assert book.series(full_history=True)[0]['d'] < book.series()[0]['d']
+
+
+def test_demo_mostra_custodia_sem_historico_so_na_bonificacao_da_taesa(base_demo):
+    # A bonificação que a corretora mostra e as movimentações não trazem (REPORTED_EXTRA) é o exemplo da pendência
+    from app.services.ir import renda_variavel
+    sem_historico = {m["name"]: [p["ticker"] for p in renda_variavel.apurar(m["id"], date.today().year)["pendencias"]
+                                 if p["tipo"] == "posicao_sem_historico"] for m in household.members()}
+    assert sem_historico == {"Lucas": [], "Marina": ["TAEE11"]}

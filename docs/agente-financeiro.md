@@ -79,6 +79,17 @@ reversível*, **sensível** (`destructiveHint`; só com pedido explícito do usu
 | `alertas_resolver` | escrita reversível | `financas alertas resolver ID` |
 | `backup` | escrita reversível | `financas backup` |
 | `atualizar_dados` | longa (tarefa) | `financas atualizar` |
+| `ir_contexto` | leitura | `financas ir contexto` |
+| `ir_acoes` | leitura | `financas ir acoes` |
+| `ir_estimativa` | leitura | `financas ir estimativa` |
+| `ir_declaracao` | leitura | `financas ir declaracao` |
+| `ir_fonte_salvar` | escrita reversível | `financas ir fonte` |
+| `ir_dependente_salvar` | escrita reversível | `financas ir dependente` |
+| `ir_previdencia_oficial` | escrita reversível | `financas ir previdencia-oficial` |
+| `ir_deducao_marcar` | escrita reversível | `financas ir deducao` |
+| `ir_deducao_adicionar` | escrita reversível | `financas ir deducao-manual` |
+| `ir_pendencia_resolver` | escrita reversível | `financas ir pendencia TIPO` |
+| `previdencia_aporte_registrar` | escrita reversível | `financas previdencia aporte PLANO DATA VALOR` |
 
 **Diferenças em relação à CLI:**
 
@@ -101,7 +112,7 @@ reversível*, **sensível** (`destructiveHint`; só com pedido explícito do usu
 - **Saída:** JSON compacto, numa linha.
 
 **Prompts** (no Claude Code, `/mcp__tabimoney__NOME`): `ciclo`, `revisar_gastos`, `orcamento`, `onde_aportar`,
-`analise_ativo`, `analise_trimestral` e `recomendacoes`, cada um com o roteiro e os parâmetros do pedido.
+`analise_ativo`, `analise_trimestral`, `recomendacoes` e `imposto_renda`, cada um com o roteiro e os parâmetros do pedido.
 
 ## 0. Titulares (gestão a dois)
 
@@ -322,3 +333,29 @@ Formato de `importar-recomendacoes`:
   `ajustar`, `remover`) ganham botão "Aplicar"; `economizar` é orientação sem mudar meta.
 - Valores em reais. `suggested_limit` é obrigatório em `criar` e `ajustar`; `categories` é obrigatório em `criar`.
 - Um conjunto por mês e autor: reimportar substitui. Um item inválido recusa o lote inteiro.
+
+## 7. Imposto de renda
+
+O IR é por pessoa: as ferramentas `ir_*` usam o `titular` informado ou, sem ele, o titular principal. Valores em
+reais. Regras, fontes e o memorial de cálculo: `docs/superpowers/specs/2026-10-19-imposto-de-renda.md`.
+
+- **Parâmetros por ano** (`app/services/ir/parametros.py`): tabelas mensal e anual, redutor da Lei 15.270,
+  desconto simplificado, dependente, educação, INSS, retenção de dividendos e IRPFM, cada ano com a fonte e o que
+  falta confirmar. A partir de abril de um ano, se a declaração daquele ano ainda não foi conferida
+  (`EXERCICIO_CONFIRMADO`), `ir_contexto` traz `aviso_regras` e o app mostra o aviso no sino até uma versão nova
+  revisar os parâmetros.
+- **Bolsa** (`ir_acoes`): preço médio por titular, juntando as corretoras; grupos comum (15%), day trade (20%) e
+  FII/Fiagro (20%); isenção das ações e units com vendas de ações até R$ 20 mil no mês (day trade conta no limite);
+  prejuízo compensado sem prazo; IRRF de 0,005% (acima de R$ 1) e 1% no day trade; DARF 6015 com mínimo de R$ 10.
+  `pendencias` com `bloqueia: true` deixam o resultado sem conferência.
+- **Estimativa** (`ir_estimativa`): `modelos.completo` e `modelos.simplificado` (deduções, base, imposto, redução,
+  doações, devido), `melhor`, `saldo` (negativo = restituição), `previdencia` (limite de 12%, participante, empresa,
+  `falta`, `economia_completar` contra o melhor modelo, `ajuda`), `dividendos` e `irpfm` (sem o redutor do art. 16-B).
+- **Deduções:** categoria com tipo (`ir_deducao_marcar` com `categoria`) conta todos os lançamentos dela, exceto
+  farmácia, academia, curso livre e material escolar; a marcação do lançamento manda na categoria (`nenhuma` tira).
+  `beneficiario` é `titular` ou `dep:<id>` (ids de `perfil.dependentes`). O CPF/CNPJ do prestador fica só na base
+  local.
+- **Previdência:** só o aporte do `participante` em PGBL deduz; `empresa` e VGBL não.
+- **Declaração** (`ir_declaracao`): `secoes` na ordem do programa da Receita, cada uma com `ficha` e `itens`
+  (`campos` com `rotulo`, `valor` no formato do programa e `copiar`), e o `checklist` de documentos. Não há
+  arquivo para importar no programa.

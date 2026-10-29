@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, stat, chip, badge, modal, hint, empty %}
+{% block title %}Imposto de renda{% endblock %}
+{% set model_name = {"completo": "Completo", "simplificado": "Simplificado"} %}
+{% set months = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"] %}
+
+{% macro source_form(s=None) -%}
+<form method="post" action="/imposto-de-renda/fonte" class="form-grid" data-source-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="ano" value="{{ ano }}">
+  {% if s %}<input type="hidden" name="source_id" value="{{ s.id }}">{% endif %}
+  <div class="form-row">
+    <label class="field">Tipo
+      <select name="kind">{% for k, label in source_kinds.items() %}<option value="{{ k }}" {% if s and s.kind == k %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    </label>
+    <label class="field">Quem paga<input name="payer" maxlength="120" required value="{{ s.payer if s else '' }}" placeholder="Empregador ou sua empresa"></label>
+  </div>
+  <div class="form-row">
+    <label class="field">Bruto por mês (R$)<input name="gross" inputmode="decimal" required value="{{ (s.gross_monthly_cents|brl)[3:] if s else '' }}" placeholder="Do holerite, antes dos descontos"></label>
+    <label class="field">CNPJ (opcional)<input name="payer_doc" inputmode="numeric" value="{{ s.payer_doc or '' if s else '' }}"></label>
+  </div>
+  <div class="form-row">
+    <label class="field">De<select name="first_month">{% for m in months %}<option value="{{ loop.index }}" {% if (s.first_month if s else 1) == loop.index %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></label>
+    <label class="field">Até<select name="last_month">{% for m in months %}<option value="{{ loop.index }}" {% if (s.last_month if s else 12) == loop.index %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></label>
+    <label class="field">Férias (CLT)<select name="vacation_month"><option value="">—</option>{% for m in months %}<option value="{{ loop.index }}" {% if s and s.vacation_month == loop.index %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></label>
+  </div>
+  <label class="check"><input type="checkbox" name="thirteenth" {% if not s or s.thirteenth %}checked{% endif %}> Recebe 13º (CLT)</label>
+  <details class="fold">
+    <summary>Do holerite ou do informe (opcional)</summary>
+    <div class="fold-body form-grid">
+      <div class="form-row">
+        <label class="field">INSS por mês<input name="inss" inputmode="decimal" value="{{ (s.inss_monthly_cents|brl)[3:] if s and s.inss_monthly_cents is not none else '' }}" placeholder="Sem ele, calcula"></label>
+        <label class="field">IRRF do ano (informe)<input name="irrf" inputmode="decimal" value="{{ (s.irrf_year_cents|brl)[3:] if s and s.irrf_year_cents is not none else '' }}" placeholder="Sem ele, calcula"></label>
+        <label class="field">Pensão judicial em folha<input name="payroll" inputmode="decimal" value="{{ (s.payroll_deductions_monthly_cents|brl)[3:] if s and s.payroll_deductions_monthly_cents else '' }}"></label>
+      </div>
+    </div>
+  </details>
+  <details class="fold"{% if s and s.kind == 'pro_labore' %} open{% endif %}>
+    <summary>Sua empresa (PJ)</summary>
+    <div class="fold-body form-grid">
+      <div class="form-row">
+        <label class="field">Faturamento por mês<input name="revenue" inputmode="decimal" value="{{ (s.pj_revenue_monthly_cents|brl)[3:] if s and s.pj_revenue_monthly_cents else '' }}"></label>
+        <label class="field">Regime<select name="regime"><option value="">—</option>{% for k, label in regimes.items() %}<option value="{{ k }}" {% if s and s.pj_regime == k %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+        <label class="field">Lucro distribuído por mês<input name="profit" inputmode="decimal" value="{{ (s.pj_profit_monthly_cents|brl)[3:] if s and s.pj_profit_monthly_cents else '' }}"></label>
+      </div>
+      <p class="modal-note">Na PJ, só o pró-labore entra no imposto da pessoa física (e no limite do PGBL). Lucro é isento até R$ 50 mil por mês de cada empresa.</p>
+    </div>
+  </details>
+  <div class="modal-actions"><button class="btn btn-primary" type="submit">{{ "Salvar" if s else "Incluir renda" }}</button></div>
+</form>
+{%- endmacro %}
+
+{% block content %}
+{% include "_ir_head.html" %}
+
+{% if not est.tem_fontes %}
+<section class="card empty">
+  <h2>Quanto você ganha?</h2>
+  <p>Cadastre o salário bruto (CLT), o pró-labore (PJ) ou outra renda tributável. O app calcula o INSS, o imposto retido mês a mês e o ajuste do ano nos dois modelos, com as regras de {{ ir_params.ano }}.</p>
+  <div class="actions">
+    <button class="btn btn-primary" type="button" data-dialog="dlg-nova-fonte">{{ icon("plus") }}Cadastrar renda</button>
+    {% if previous_sources %}
+    <form method="post" action="/imposto-de-renda/copiar"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+      <button class="btn" type="submit">Copiar de {{ ano - 1 }}</button></form>
+    {% endif %}
+  </div>
+</section>
+{% else %}
+{% set best = est.modelos[est.melhor] %}
+<div class="hero-row">
+  <div class="hero">
+    <div class="hero-label">Imposto do ano · modelo {{ model_name[est.melhor]|lower }}
+      {% call hint("ir-modelo", "Como o modelo é escolhido") %}<p>O app calcula o completo (deduções legais) e o simplificado (20% dos rendimentos, até {{ ir_params.simplificado_limite|brl }}) e mostra o de menor imposto, como o programa da Receita faz.</p>{% endcall %}</div>
+    <div class="hero-value money">{{ est.devido|brl_hero }}</div>
+    <div class="hero-meta">
+      {% if est.resultado == "restituir" %}{{ chip("Restituição de " ~ (-est.saldo)|brl, "up", "arrow-down-right") }}
+      {% elif est.resultado == "pagar" %}{{ chip("A pagar em abril: " ~ est.saldo|brl, "down", "arrow-up-right") }}
+      {% else %}{{ chip("Nada a pagar nem a restituir") }}{% endif %}
+      <span>· já retido {{ (est.irrf + est.carne_leao)|brl }}</span>
+    </div>
+  </div>
+</div>
+
+<section class="stats">
+  {% call stat("Rendimentos tributáveis", est.rendimentos_tributaveis|brl_compact, icon_name="briefcase") %}Sem o 13º, que é tributado à parte{% endcall %}
+  {% call stat("INSS", est.inss|brl_compact, icon_name="shield-check") %}Deduz no modelo completo{% endcall %}
+  {% call stat("Alíquota efetiva", best.aliquota_efetiva|pct(1, False), icon_name="percent") %}Imposto ÷ rendimentos{% endcall %}
+  {% call stat("Declarar", "Obrigatório" if est.obriga_declarar else "Opcional", icon_name="file-text") %}{% if est.obriga_declarar %}Pela renda ou pela bolsa{% else %}Pelas regras do ano{% endif %}{% endcall %}
+</section>
+
+<section class="grid">
+  <article class="card span-7">
+    <div class="card-head"><h2 class="card-title">Completo ou simplificado</h2></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th></th>{% for k in ("completo", "simplificado") %}<th class="num">{{ model_name[k] }}{% if est.melhor == k %} {{ badge("ok", "melhor") }}{% endif %}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for key, label in (("deducoes", "Deduções"), ("base", "Base de cálculo"), ("imposto", "Imposto pela tabela"), ("reducao", "Redução (Lei 15.270)"), ("doacoes", "Doações incentivadas"), ("devido", "Imposto devido")) %}
+          <tr><td>{{ label }}</td>{% for k in ("completo", "simplificado") %}<td class="num money">{{ ("− " if key in ("reducao", "doacoes") and est.modelos[k][key] else "") ~ est.modelos[k][key]|brl }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="card-note">Retido na fonte e carnê-leão: {{ (est.irrf + est.carne_leao)|brl }}{% if est.dividendos.devolvida_no_ajuste %} · retenção de dividendos que volta: {{ est.dividendos.devolvida_no_ajuste|brl }}{% endif %}.</p>
+  </article>
+  <article class="card card-flush span-5">
+    <div class="card-head"><h2 class="card-title">Deduções do completo</h2><a class="btn btn-sm" href="/imposto-de-renda/deducoes?ano={{ ano }}">Revisar</a></div>
+    <div class="rows">
+      {% for key, label, ico in (("inss", "Previdência oficial (INSS)", "shield-check"), ("dependentes", "Dependentes", "users-round"), ("saude", "Saúde", "heart-pulse"), ("educacao", "Educação", "graduation-cap"), ("pensao", "Pensão alimentícia", "scale"), ("previdencia", "PGBL", "piggy-bank"), ("doacoes", "Doações (abatem do imposto)", "gift")) %}
+      <div class="row"><span class="row-icon">{{ icon(ico) }}</span><span class="row-main"><span class="row-title">{{ label }}</span>{% if key == "educacao" and est.deducoes.educacao_informada > est.deducoes.educacao %}<span class="row-sub">{{ est.deducoes.educacao_informada|brl }} pagos; limite de {{ ir_params.educacao_limite|brl }} por pessoa</span>{% endif %}</span><span class="row-end"><b class="money">{{ est.deducoes[key]|brl }}</b></span></div>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="card" id="previdencia">
+  <div class="card-head"><h2 class="card-title">{{ icon("piggy-bank") }}PGBL: quanto ainda cabe</h2><a class="btn btn-sm" href="/previdencia">Registrar aporte</a></div>
+  {% set pv = est.previdencia %}
+  {% if not pv.contribui_previdencia_oficial %}
+  <div class="notice tone-warn"><span class="row-icon">{{ icon("info") }}</span><div><b>O PGBL não deduz para você agora.</b><p>A dedução exige contribuir para o INSS ou regime próprio, ou ser aposentado por eles.</p></div></div>
+  {% endif %}
+  <section class="stats">
+    {% call stat("Limite do ano (12%)", pv.limite|brl_compact, icon_name="target") %}12% de {{ est.rendimentos_tributaveis|brl_compact }}{% endcall %}
+    {% call stat("Você aportou", pv.participante|brl_compact, icon_name="hand-coins") %}Conta para o limite{% endcall %}
+    {% call stat("A empresa aportou", pv.empresa|brl_compact, icon_name="building-2") %}Não deduz, mas soma no plano{% endcall %}
+    {% call stat("Falta para o limite", pv.falta|brl_compact, icon_name="hourglass", value_tone="up" if pv.ajuda else "") %}{% if pv.ajuda %}Economia de {{ pv.economia_completar|brl }} ({{ pv.economia_por_real|pct(1, False) }} do aporte){% elif pv.falta %}Não reduz o imposto este ano{% else %}Limite atingido{% endif %}{% endcall %}
+  </section>
+  {% if pv.falta and not pv.ajuda %}<p class="card-note">Com o limite completo, o modelo completo ainda não fica melhor que o simplificado: aportar no PGBL não reduz o IR deste ano. O VGBL não deduz, mas também não tributa os aportes no resgate.</p>{% endif %}
+  {% if pv.vgbl %}<p class="card-note">Aportes em VGBL no ano: {{ pv.vgbl|brl }} (não deduzem).</p>{% endif %}
+  <p class="card-note">O aporte precisa ser pago até 31/12. O PGBL adia o imposto: no resgate, tudo (aportes e rendimentos) é tributado.</p>
+  <form method="get" action="/imposto-de-renda" class="toolbar">
+    <input type="hidden" name="ano" value="{{ ano }}">
+    <label class="field">Simular aporte extra (R$)<input name="pgbl_extra" inputmode="decimal" value="{{ (pgbl_extra|brl)[3:] if pgbl_extra else '' }}" placeholder="Ex.: 5.000"></label>
+    <button class="btn btn-sm" type="submit">Simular</button>
+    {% if pgbl_extra %}<a class="btn btn-sm" href="/imposto-de-renda?ano={{ ano }}">Limpar</a>{% endif %}
+  </form>
+  <form method="post" action="/imposto-de-renda/previdencia-oficial" class="toolbar">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+    <label class="field">Contribui para a previdência oficial?
+      <select name="value">
+        <option value="auto" {% if profile.contribui_previdencia_oficial is none %}selected{% endif %}>Pelas fontes de renda</option>
+        <option value="sim" {% if profile.contribui_previdencia_oficial == 1 %}selected{% endif %}>Sim (INSS, regime próprio ou aposentado)</option>
+        <option value="nao" {% if profile.contribui_previdencia_oficial == 0 %}selected{% endif %}>Não</option>
+      </select></label>
+    <button class="btn btn-sm" type="submit">Salvar</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="grid">
+  <article class="card card-flush span-7" id="fontes">
+    <div class="card-head"><h2 class="card-title">Fontes de renda</h2><button class="btn btn-sm" type="button" data-dialog="dlg-nova-fonte">{{ icon("plus") }}Incluir</button></div>
+    <div class="rows">
+      {% for f in est.fontes %}
+      <div class="row">
+        <span class="row-icon">{{ icon("briefcase" if f.tipo == "clt" else "building-2" if f.tipo == "pro_labore" else "banknote") }}</span>
+        <span class="row-main"><span class="row-title">{{ f.pagador }}</span><span class="row-sub">{{ f.tipo_nome }} · {{ f.bruto_mensal|brl }}/mês · {{ f.meses|plural("mês", "meses") }} · INSS {{ f.inss|brl }} · {{ "carnê-leão " ~ f.carne_leao|brl if f.tipo == "outro" else "IRRF " ~ f.irrf|brl }}{% if f.irrf_informado %} (informe){% endif %}</span>
+          {% if f.simples and not f.simples.fora_do_simples %}<span class="row-sub">Simples, Anexo {{ f.simples.anexo }}: DAS de {{ f.simples.das_mensal|brl }}/mês ({{ f.simples.aliquota_efetiva|pct(1, False) }}) · fator R {{ f.simples.fator_r|pct(1, False) }}{% if f.simples.pro_labore_minimo_fator_r %} · pró-labore mínimo para o Anexo III: {{ f.simples.pro_labore_minimo_fator_r|brl }}{% endif %} · sobra antes de outras despesas {{ f.simples.sobra_antes_de_despesas|brl }}/mês</span>{% endif %}
+        </span>
+        <span class="row-end">
+          <button class="icon-btn icon-btn-sm" type="button" data-dialog="dlg-fonte-{{ f.id }}" aria-label="Editar {{ f.pagador }}">{{ icon("pencil", "i-sm") }}</button>
+          <form method="post" action="/imposto-de-renda/fonte/excluir" data-confirm="Excluir a renda de {{ f.pagador }}?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="source_id" value="{{ f.id }}"><input type="hidden" name="ano" value="{{ ano }}">
+            <button class="icon-btn icon-btn-sm" type="submit" aria-label="Excluir {{ f.pagador }}">{{ icon("trash-2", "i-sm") }}</button></form>
+        </span>
+      </div>
+      {% else %}
+      <div class="row"><span class="row-main"><span class="row-sub">Nenhuma renda cadastrada em {{ ano }}.</span></span></div>
+      {% endfor %}
+    </div>
+    {% if est.decimo_terceiro %}
+    <div class="card-head sub-head"><h3 class="card-title">13º salário (tributado à parte)</h3></div>
+    <div class="rows">{% for d in est.decimo_terceiro %}<div class="row"><span class="row-main"><span class="row-title">{{ d.fonte }}</span><span class="row-sub">INSS {{ d.inss|brl }} · IRRF {{ d.irrf|brl }}</span></span><span class="row-end"><b class="money">{{ d.bruto|brl }}</b></span></div>{% endfor %}</div>
+    {% endif %}
+  </article>
+  <article class="card card-flush span-5" id="dependentes">
+    <div class="card-head"><h2 class="card-title">Dependentes</h2></div>
+    <div class="rows">
+      {% for d in dependents %}
+      <div class="row"><span class="row-icon">{{ icon("user-round") }}</span><span class="row-main"><span class="row-title">{{ d.name }}</span><span class="row-sub">{{ d.kinship }}{% if d.birth_year %} · nascido em {{ d.birth_year }}{% endif %} · deduz {{ ir_params.dependente_anual|brl }}</span></span>
+        <form method="post" action="/imposto-de-renda/dependente" data-confirm="Remover {{ d.name }}?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}"><input type="hidden" name="remove_id" value="{{ d.id }}">
+          <button class="icon-btn icon-btn-sm" type="submit" aria-label="Remover {{ d.name }}">{{ icon("trash-2", "i-sm") }}</button></form></div>
+      {% endfor %}
+    </div>
+    <form method="post" action="/imposto-de-renda/dependente" class="form-grid card-foot-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+      <div class="form-row">
+        <label class="field">Nome<input name="name" maxlength="80" required></label>
+        <label class="field">Parentesco<select name="kinship">{% for k in kinships %}<option>{{ k }}</option>{% endfor %}</select></label>
+        <label class="field">Nascimento<input name="birth_year" inputmode="numeric" maxlength="4" placeholder="Ano"></label>
+      </div>
+      <div class="modal-actions"><button class="btn btn-sm" type="submit">Incluir dependente</button></div>
+    </form>
+  </article>
+</section>
+
+{% if est.tem_fontes and (est.dividendos.lucros_pj or est.dividendos.dividendos_acoes or est.irpfm) %}
+<section class="card">
+  <div class="card-head"><h2 class="card-title">{{ icon("coins") }}Lucros, dividendos e tributação mínima</h2></div>
+  <section class="stats">
+    {% call stat("Lucros da sua empresa", est.dividendos.lucros_pj|brl_compact) %}Isentos até R$ 50 mil por mês{% endcall %}
+    {% call stat("Dividendos de ações", est.dividendos.dividendos_acoes|brl_compact) %}Da apuração da bolsa{% endcall %}
+    {% call stat("Retido (10%)", est.dividendos.retencao|brl_compact) %}Acima de R$ 50 mil no mês, da mesma empresa{% endcall %}
+    {% if est.irpfm %}{% call stat("Tributação mínima (teto)", est.irpfm.a_pagar|brl_compact, value_tone="down" if est.irpfm.a_pagar > 0 else "") %}Renda de {{ est.irpfm.renda_total|brl_compact }}: alíquota {{ est.irpfm.aliquota|pct(1, False) }}{% endcall %}{% endif %}
+  </section>
+  <p class="card-note">Desde 2026 (Lei 15.270), quem recebe mais de R$ 600 mil por ano paga um mínimo de até 10%, descontado o IR já pago. O app não calcula o redutor do art. 16-B (que depende do imposto da empresa): o valor é um teto.</p>
+</section>
+{% endif %}
+
+{% if est.conciliacao %}
+<details class="fold">
+  <summary>Salário no extrato × esperado <small>{% set off = est.conciliacao|selectattr("aviso")|list %}{{ off|length|plural("mês fora", "meses fora") if off else "tudo bate" }}</small></summary>
+  <div class="fold-body table-wrap">
+    <table class="data"><thead><tr><th>Mês</th><th class="num">Líquido esperado</th><th class="num">Recebido</th><th class="num">Diferença</th></tr></thead>
+      <tbody>{% for c in est.conciliacao %}<tr><td>{{ c.mes|month_label }}{% if c.aviso %} {{ badge("warn", "confira") }}{% endif %}</td><td class="num money">{{ c.esperado|brl }}</td><td class="num money">{{ c.recebido|brl }}</td><td class="num money {{ c.diferenca|tone }}">{{ c.diferenca|brl_signed }}</td></tr>{% endfor %}</tbody></table>
+    <p class="card-note">Esperado = bruto − INSS − IRRF − descontos. Diferença grande sugere bruto ou descontos errados (ou salário em outra categoria).</p>
+  </div>
+</details>
+{% endif %}
+
+<p class="card-note">Estimativa de apoio, não substitui o programa da Receita. Regras de {{ ir_params.ano }}: {{ ir_params.fonte }}.{% if ir_params.a_confirmar %} A confirmar no texto oficial: {{ ir_params.a_confirmar|join("; ") }}.{% endif %}</p>
+
+{% call modal("nova-fonte", "Incluir renda") %}{{ source_form() }}{% endcall %}
+{% for s in sources %}{% call modal("fonte-" ~ s.id, "Editar " ~ s.payer) %}{{ source_form(s) }}{% endcall %}{% endfor %}
+{% endblock %}

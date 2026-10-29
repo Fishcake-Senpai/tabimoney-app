@@ -498,3 +498,212 @@ def ultimas_atualizacoes() -> dict[str, Any]:
         "FROM sync_run r GROUP BY source ORDER BY source"
     )
     return {r["source"]: {"quando": r["quando"], "situacao": r["status"]} for r in found}
+
+
+# ---------------------------------------------------------------- imposto de renda
+# O IR é por pessoa: sem titular, vale o principal. Os serviços trabalham em centavos; aqui tudo vira reais.
+
+_NAO_DINHEIRO = {"ano", "titular", "id", "instrumento", "ref_id", "exercicio", "member_id", "year", "first_month",
+                 "last_month", "vacation_month", "thirteenth", "birth_year", "pendencias_bolsa", "payroll",
+                 "transaction_id", "aportes", "meses", "n", "conferidos_ate_a_declaracao",
+                 "lancamentos"}
+
+
+def _reais(obj: Any, chave: str = "") -> Any:
+    """Centavos → reais em todo o JSON; quantidades (milionésimos) → unidades. Chaves *_cents perdem o sufixo."""
+    if isinstance(obj, dict):
+        return {k.removesuffix("_cents"): _reais(v, k) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_reais(v, chave) for v in obj]
+    if isinstance(obj, bool) or not isinstance(obj, int):
+        return obj
+    if chave in {"quantidade", "quantity_micros", "quantidade_sem_historico"}:
+        return obj / 1_000_000
+    if chave in _NAO_DINHEIRO:
+        return obj
+    return obj / 100
+
+
+def _cents(valor: str | float | None, campo: str, obrigatorio: bool = True) -> int | None:
+    if valor is None or valor == "":
+        if obrigatorio:
+            raise ValueError(f"Informe {campo}.")
+        return None
+    if isinstance(valor, (int, float)):
+        if valor < 0:
+            raise ValueError(f"Informe {campo} sem sinal negativo.")
+        return int(round(valor * 100))
+    return parse_amount(str(valor), campo, required=obrigatorio)
+
+
+def _ir_membro(member: int | None) -> int:
+    return member if member is not None else household.PRIMARY_ID
+
+
+def _ano(ano: int | None) -> int:
+    return int(ano or date.today().year)
+
+
+def ir_contexto(ano: int | None = None, member: int | None = None) -> dict[str, Any]:
+    """Tudo do IR do ano num JSON: perfil, estimativa, bolsa, deduções, previdência, pendências e o aviso de regras."""
+    from app.services.ir import estimador, parametros, renda_variavel
+
+    ano, m = _ano(ano), _ir_membro(member)
+    est = estimador.estimar(m, ano)
+    rv = renda_variavel.apurar(m, ano)
+    ded = estimador.deducoes(m, ano)
+    p = parametros.para(ano)
+    return _reais({
+        "ano": ano, "titular": _member_names().get(m), "aviso_regras": parametros.alerta_calendario(),
+        "parametros": {"fonte": p.fonte, "a_confirmar": list(p.a_confirmar), "projetados": parametros.projetado(ano),
+                       "conferidos_ate_a_declaracao": parametros.EXERCICIO_CONFIRMADO},
+        "perfil": {"fontes": estimador.fontes(m, ano), "dependentes": estimador.dependentes(m, ano),
+                   "contribui_previdencia_oficial": est["previdencia"]["contribui_previdencia_oficial"]},
+        "estimativa": {k: est[k] for k in ("rendimentos_tributaveis", "inss", "irrf", "carne_leao", "deducoes", "modelos",
+                                           "melhor", "devido", "saldo", "resultado", "previdencia", "dividendos", "irpfm",
+                                           "decimo_terceiro", "obriga_declarar", "conciliacao")},
+        "bolsa": {k: rv[k] for k in ("imposto_ano", "darf_total", "darfs", "pendencias", "bloqueado", "prejuizo_inicio",
+                                     "prejuizo_fim", "isentos_linha_20", "irrf_sobra", "este_mes", "obriga_declarar")},
+        "deducoes": {"itens": ded["itens"], "categorias_sugeridas_sem_tipo": ded["sugestoes"],
+                     "categorias_com_tipo": ded["categorias"]},
+        "previdencia": {"planos": estimador.planos(), "aportes": estimador.aportes(m, ano),
+                        "sugestoes_de_aporte": estimador.sugestoes_aporte(m, ano)},
+    })
+
+
+def ir_acoes(ano: int | None = None, member: int | None = None) -> dict[str, Any]:
+    from app.services.ir import renda_variavel
+
+    return _reais(renda_variavel.apurar(_ir_membro(member), _ano(ano)))
+
+
+def ir_estimativa(ano: int | None = None, pgbl_extra: str | float | None = None, member: int | None = None) -> dict[str, Any]:
+    from app.services.ir import estimador
+
+    return _reais(estimador.estimar(_ir_membro(member), _ano(ano), _cents(pgbl_extra, "o aporte extra", False) or 0))
+
+
+def ir_declaracao(ano: int | None = None, member: int | None = None) -> dict[str, Any]:
+    """Passo a passo da declaração do ano-calendário (padrão: o ano passado, que é o que se declara agora)."""
+    from app.services.ir import declaracao
+
+    return _reais(declaracao.montar(_ir_membro(member), int(ano) if ano else date.today().year - 1))
+
+
+def ir_fonte(ano: int | None, tipo: str, pagador: str, bruto_mensal: str | float | None = None, cnpj: str | None = None,
+             mes_inicio: int = 1, mes_fim: int = 12, decimo_terceiro: bool | None = None, mes_ferias: int | None = None,
+             inss_mensal: str | float | None = None, irrf_ano: str | float | None = None,
+             pensao_em_folha: str | float | None = None, faturamento_mensal: str | float | None = None,
+             regime: str | None = None, lucro_mensal: str | float | None = None, fonte_id: int | None = None,
+             remover: bool = False, member: int | None = None, autor: str = "agente") -> dict[str, Any]:
+    """Cria, corrige ou remove uma fonte de renda (salário CLT, pró-labore ou outro rendimento tributável)."""
+    from app.services.ir import estimador
+
+    ano, m = _ano(ano), _ir_membro(member)
+    if remover:
+        if not fonte_id:
+            raise ValueError("Informe fonte_id para remover.")
+        estimador.remover_fonte(m, fonte_id)
+        return _reais({"removida": fonte_id, "fontes": estimador.fontes(m, ano)})
+    estimador.salvar_fonte(m, ano, {
+        "kind": tipo, "payer": pagador, "payer_doc": cnpj, "gross_monthly_cents": _cents(bruto_mensal, "o bruto mensal"),
+        "first_month": mes_inicio, "last_month": mes_fim,
+        "thirteenth": (tipo == "clt") if decimo_terceiro is None else decimo_terceiro, "vacation_month": mes_ferias,
+        "inss_monthly_cents": _cents(inss_mensal, "o INSS", False), "irrf_year_cents": _cents(irrf_ano, "o IRRF", False),
+        "payroll_deductions_monthly_cents": _cents(pensao_em_folha, "a pensão", False) or 0,
+        "pj_revenue_monthly_cents": _cents(faturamento_mensal, "o faturamento", False), "pj_regime": regime,
+        "pj_profit_monthly_cents": _cents(lucro_mensal, "o lucro", False),
+    }, fonte_id, autor)
+    return _reais({"fontes": estimador.fontes(m, ano)})
+
+
+def ir_dependente(ano: int | None, nome: str | None = None, parentesco: str = "filho", nascimento: int | None = None,
+                  remover_id: int | None = None, member: int | None = None) -> dict[str, Any]:
+    from app.services.ir import estimador
+
+    ano, m = _ano(ano), _ir_membro(member)
+    if remover_id:
+        estimador.remover_dependente(m, remover_id)
+    elif nome:
+        estimador.salvar_dependente(m, ano, nome, parentesco, nascimento)
+    else:
+        raise ValueError("Informe o nome do dependente ou remover_id.")
+    return {"dependentes": estimador.dependentes(m, ano)}
+
+
+def ir_previdencia_oficial(ano: int | None, contribui: bool | None, member: int | None = None) -> dict[str, Any]:
+    """Se o titular contribui para o INSS ou regime próprio (ou é aposentado por eles): condição do PGBL."""
+    from app.services.ir import estimador
+
+    return estimador.definir_perfil(_ir_membro(member), _ano(ano), contribui)
+
+
+def ir_deducao_marcar(ids: list[int] | None = None, tipo: str | None = None, categoria: str | None = None,
+                      beneficiario: str = "titular", prestador: str | None = None, documento: str | None = None,
+                      subtipo: str | None = None, reembolso: str | float | None = None, pela_categoria: bool = False,
+                      autor: str = "agente") -> dict[str, Any]:
+    """Marca lançamentos (ids) ou uma categoria inteira como dedutível. tipo 'nenhuma' tira o lançamento; com
+    pela_categoria o lançamento volta a seguir a categoria; categoria sem tipo tira o tipo da categoria."""
+    from app.services.ir import estimador
+
+    if categoria and not ids:
+        return estimador.definir_categoria(categoria, tipo, autor)
+    if not ids:
+        raise ValueError("Informe ids de lançamentos ou uma categoria.")
+    if pela_categoria:
+        return estimador.desmarcar_lancamentos(ids)
+    if not tipo:
+        raise ValueError("Informe o tipo: saude, educacao, pensao, doacao ou nenhuma.")
+    return estimador.marcar_lancamentos(ids, tipo, beneficiario, prestador, documento, subtipo,
+                                        _cents(reembolso, "o reembolso", False) or 0, autor)
+
+
+def ir_deducao_adicionar(data: str | None = None, tipo: str | None = None, valor: str | float | None = None,
+                         prestador: str | None = None, documento: str | None = None, beneficiario: str = "titular",
+                         subtipo: str | None = None, reembolso: str | float | None = None, nota: str | None = None,
+                         remover_id: int | None = None, member: int | None = None, autor: str = "agente") -> dict[str, Any]:
+    """Despesa dedutível paga fora das contas do app (dinheiro, conta de outra pessoa)."""
+    from app.services.ir import estimador
+
+    m = _ir_membro(member)
+    if remover_id:
+        estimador.remover_manual(m, remover_id)
+        return {"removida": remover_id}
+    return estimador.adicionar_manual(m, {
+        "paid_on": data, "kind": tipo, "amount_cents": _cents(valor, "o valor"), "provider_name": prestador,
+        "provider_doc": documento, "beneficiary": beneficiario, "subkind": subtipo,
+        "reimbursed_cents": _cents(reembolso, "o reembolso", False) or 0, "note": nota}, autor)
+
+
+def ir_pendencia_resolver(tipo: str, ticker: str | None = None, classe: str | None = None, valor: str | float | None = None,
+                          periodo: str | None = None, grupo: str | None = None, conta: str | None = None,
+                          ref_id: int | None = None, pago_em: str | None = None, member: int | None = None,
+                          autor: str = "agente") -> dict[str, Any]:
+    """Resolve uma pendência da apuração da bolsa: classe do ativo, custo de bonificação, prejuízo anterior, IRRF da
+    nota, taxas do mês ou DARF pago."""
+    from app.services.ir import renda_variavel
+
+    m = _ir_membro(member)
+    if tipo == "classe":
+        if not ticker:
+            raise ValueError("Informe o ticker.")
+        return renda_variavel.definir_classe(ticker, classe)
+    if tipo not in {"custo_bonificacao", "prejuizo_anterior", "irrf", "taxa", "darf_pago"}:
+        raise ValueError(f"Tipo desconhecido: {tipo}. Use classe, custo_bonificacao, prejuizo_anterior, irrf, taxa ou darf_pago.")
+    cents = _cents(valor, "o valor", tipo != "prejuizo_anterior") or 0
+    return renda_variavel.informar(m, tipo, cents, period=periodo or "", grupo=grupo or "", conta=conta or "",
+                                   ref_id=ref_id or 0, pago_em=pago_em, autor=autor)
+
+
+def previdencia_aporte(plano: str, data: str, valor: str | float, pagador: str = "participante", folha: bool = False,
+                       repetir_ate_dezembro: bool = False, autor: str = "agente") -> dict[str, Any]:
+    """Registra um aporte de previdência, dizendo quem pagou (só o do participante deduz no PGBL)."""
+    from app.services.ir import estimador
+
+    alvo = spending.normalize(plano)
+    found = next((p for p in estimador.planos() if p["product_key"] == plano or spending.normalize(p["name"]) == alvo), None)
+    if not found:
+        nomes = ", ".join(p["name"] for p in estimador.planos()) or "nenhum"
+        raise ValueError(f"Plano não encontrado: {plano}. Planos: {nomes}.")
+    return estimador.registrar_aporte(found["product_key"], data, _cents(valor, "o valor"), pagador, folha,
+                                      repetir_ate_dezembro=repetir_ate_dezembro, autor=autor)

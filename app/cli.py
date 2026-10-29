@@ -13,6 +13,8 @@
     financas orcamento contexto                 metas de gastos × gastos, para a análise orçamentária
     financas orcamento importar-recomendacoes orc.json   grava as sugestões de orçamento do agente
     financas relatorio exportar --referencia 2026-08     relatório do mês num HTML que abre sozinho
+    financas ir contexto --ano 2026             imposto do ano: estimativa, bolsa, deduções e PGBL que falta
+    financas ir declaracao --ano 2025           o que preencher em cada ficha da declaração
     financas titulares                          titulares, conexões Pluggy e contas de cada um
     financas --titular Ana carteira contexto    qualquer comando só com as contas de um titular
     financas --demo carteira contexto           qualquer comando na demonstração (dados fictícios)
@@ -230,6 +232,104 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--arquivo", help="caminho do .html (padrão: pasta Relatorios dos dados do app)")
     p.add_argument("--sem-mascara", action="store_true", help="mostra números de conta e nomes em Pix")
     p.add_argument("--sem-extrato", action="store_true", help="sem a lista de lançamentos no fim")
+    g = groups.add_parser("ir", help="imposto de renda: estimativa, bolsa, deduções e declaração").add_subparsers(
+        dest="acao", required=True)
+    for nome, func, texto in (("contexto", lambda a: op.ir_contexto(a.ano, member=_MEMBER), "tudo do IR do ano num JSON"),
+                              ("acoes", lambda a: op.ir_acoes(a.ano, member=_MEMBER), "apuração da bolsa mês a mês e DARFs"),
+                              ("declaracao", lambda a: op.ir_declaracao(a.ano, member=_MEMBER),
+                               "passo a passo por ficha (padrão: o ano passado)")):
+        p = cmd(g, nome, func, help=texto)
+        p.add_argument("--ano", type=int)
+    p = cmd(g, "estimativa", lambda a: op.ir_estimativa(a.ano, a.pgbl_extra, member=_MEMBER),
+            help="imposto do ano nos dois modelos e o PGBL que falta")
+    p.add_argument("--ano", type=int)
+    p.add_argument("--pgbl-extra", help="simula um aporte extra no PGBL, em reais")
+    p = cmd(g, "fonte", lambda a: op.ir_fonte(
+        a.ano, a.tipo, a.pagador, a.bruto_mensal, a.cnpj, a.mes_inicio, a.mes_fim,
+        None if a.decimo_terceiro is None else a.decimo_terceiro == "sim", a.mes_ferias, a.inss_mensal, a.irrf_ano,
+        a.pensao_em_folha, a.faturamento_mensal, a.regime, a.lucro_mensal, a.id, a.remover, member=_MEMBER, autor=a.autor),
+        help="cria, corrige (--id) ou remove (--id --remover) uma fonte de renda")
+    p.add_argument("--ano", type=int)
+    p.add_argument("--tipo", choices=["clt", "pro_labore", "outro"], default="clt")
+    p.add_argument("--pagador", default="")
+    p.add_argument("--bruto-mensal", help="salário ou pró-labore bruto do mês, em reais")
+    p.add_argument("--cnpj")
+    p.add_argument("--mes-inicio", type=int, default=1)
+    p.add_argument("--mes-fim", type=int, default=12)
+    p.add_argument("--decimo-terceiro", choices=["sim", "nao"])
+    p.add_argument("--mes-ferias", type=int)
+    p.add_argument("--inss-mensal")
+    p.add_argument("--irrf-ano")
+    p.add_argument("--pensao-em-folha")
+    p.add_argument("--faturamento-mensal", help="PJ: faturamento médio da empresa")
+    p.add_argument("--regime", choices=["simples_fator_r", "simples_iii", "simples_v", "outro"])
+    p.add_argument("--lucro-mensal", help="PJ: lucro distribuído por mês")
+    p.add_argument("--id", type=int)
+    p.add_argument("--remover", action="store_true")
+    p.add_argument("--autor", default="agente")
+    p = cmd(g, "dependente", lambda a: op.ir_dependente(a.ano, a.nome, a.parentesco, a.nascimento, a.remover, member=_MEMBER),
+            help="inclui (--nome) ou remove (--remover ID) um dependente")
+    p.add_argument("--ano", type=int)
+    p.add_argument("--nome")
+    p.add_argument("--parentesco", default="filho")
+    p.add_argument("--nascimento", type=int)
+    p.add_argument("--remover", type=int)
+    p = cmd(g, "previdencia-oficial", lambda a: op.ir_previdencia_oficial(
+        a.ano, None if a.contribui == "auto" else a.contribui == "sim", member=_MEMBER),
+        help="contribui para INSS/regime próprio ou é aposentado (condição do PGBL)")
+    p.add_argument("contribui", choices=["sim", "nao", "auto"])
+    p.add_argument("--ano", type=int)
+    p = cmd(g, "deducao", lambda a: op.ir_deducao_marcar(a.id, a.tipo, a.categoria, a.beneficiario, a.prestador, a.documento,
+                                                       a.subtipo, a.reembolso, a.pela_categoria, a.autor),
+            help="marca lançamentos (--id) ou uma categoria como dedutível")
+    p.add_argument("--id", type=int, nargs="+")
+    p.add_argument("--tipo", choices=["saude", "educacao", "pensao", "doacao", "nenhuma"])
+    p.add_argument("--categoria")
+    p.add_argument("--beneficiario", default="titular")
+    p.add_argument("--prestador")
+    p.add_argument("--documento", help="CPF ou CNPJ do prestador")
+    p.add_argument("--subtipo")
+    p.add_argument("--reembolso")
+    p.add_argument("--pela-categoria", action="store_true")
+    p.add_argument("--autor", default="agente")
+    p = cmd(g, "deducao-manual", lambda a: op.ir_deducao_adicionar(
+        a.data, a.tipo, a.valor, a.prestador, a.documento, a.beneficiario, a.subtipo, a.reembolso, a.nota, a.remover,
+        member=_MEMBER, autor=a.autor), help="despesa dedutível paga fora das contas do app")
+    p.add_argument("--data")
+    p.add_argument("--tipo", choices=["saude", "educacao", "pensao", "doacao"])
+    p.add_argument("--valor")
+    p.add_argument("--prestador")
+    p.add_argument("--documento")
+    p.add_argument("--beneficiario", default="titular")
+    p.add_argument("--subtipo")
+    p.add_argument("--reembolso")
+    p.add_argument("--nota")
+    p.add_argument("--remover", type=int)
+    p.add_argument("--autor", default="agente")
+    p = cmd(g, "pendencia", lambda a: op.ir_pendencia_resolver(
+        a.tipo, a.ticker, a.classe, a.valor, a.periodo, a.grupo, a.conta, a.ref, a.pago_em, member=_MEMBER, autor=a.autor),
+        help="resolve pendência da bolsa (classe, custo de bonificação, prejuízo anterior, IRRF, taxa, DARF pago)")
+    p.add_argument("tipo", choices=["classe", "custo_bonificacao", "prejuizo_anterior", "irrf", "taxa", "darf_pago"])
+    p.add_argument("--ticker")
+    p.add_argument("--classe", choices=["acao", "unit", "bdr", "etf", "etf_rf", "fii", "fiagro", "outro"])
+    p.add_argument("--valor")
+    p.add_argument("--periodo", help="AAAA ou AAAA-MM")
+    p.add_argument("--grupo", choices=["comum", "day_trade", "fii"])
+    p.add_argument("--conta")
+    p.add_argument("--ref", type=int, help="evento da bonificação")
+    p.add_argument("--pago-em")
+    p.add_argument("--autor", default="agente")
+
+    g = groups.add_parser("previdencia", help="aportes de previdência").add_subparsers(dest="acao", required=True)
+    p = cmd(g, "aporte", lambda a: op.previdencia_aporte(a.plano, a.data, a.valor, a.pagador, a.folha, a.repetir, a.autor),
+            help="registra aporte dizendo quem pagou (participante ou empresa)")
+    p.add_argument("plano")
+    p.add_argument("data")
+    p.add_argument("valor")
+    p.add_argument("--pagador", choices=["participante", "empresa"], default="participante")
+    p.add_argument("--folha", action="store_true", help="descontado em folha")
+    p.add_argument("--repetir", action="store_true", help="mesmo valor todo mês até dezembro")
+    p.add_argument("--autor", default="agente")
     cmd(groups, "titulares", lambda a: op.titulares(), help="titulares, conexões Pluggy e contas de cada um")
     cmd(groups, "backup", lambda a: op.backup(), help="cópia da base antes de mudanças em massa")
     cmd(groups, "atualizar", lambda a: op.atualizar(), help="backup + Open Finance + cotações/CDI + balanços da CVM")

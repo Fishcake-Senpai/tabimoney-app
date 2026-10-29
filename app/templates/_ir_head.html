@@ -1,0 +1,29 @@
+{#- Cabeçalho das telas de Imposto de renda: ano, abas e avisos. Espera ir_tab, ano, anos, ir_alert, ir_projected. -#}
+{% from "_ui.html" import icon, ir_tabs %}
+<div class="page-head">
+  <div><h1>Imposto de renda</h1>{% if ir_member_name %}<p class="muted">{{ ir_member_name }} · ano-calendário {{ ano }}, declaração {{ ano + 1 }}</p>{% endif %}</div>
+  <div class="actions">
+    <nav class="seg" aria-label="Ano">
+      {% for y in anos %}<a href="?ano={{ y }}"{% if y == ano %} aria-current="page"{% endif %}>{{ y }}</a>{% endfor %}
+    </nav>
+  </div>
+</div>
+{{ ir_tabs(ir_tab, ano) }}
+{% if ir_alert %}
+<div class="notice tone-warn" id="aviso-regras">
+  <span class="row-icon">{{ icon("triangle-alert") }}</span>
+  <div><b>{{ ir_alert.titulo }}</b><p>{{ ir_alert.texto }}</p></div>
+</div>
+{% endif %}
+{% if ir_house_view %}
+<div class="notice">
+  <span class="row-icon">{{ icon("users-round") }}</span>
+  <div><b>O imposto de renda é por pessoa.</b><p>Mostrando {{ ir_member_name }}. Para ver outra pessoa, escolha o titular no seletor do topo.</p></div>
+</div>
+{% endif %}
+{% if ir_projected %}
+<div class="notice tone-warn">
+  <span class="row-icon">{{ icon("info") }}</span>
+  <div><b>Sem as tabelas de {{ ano }}.</b><p>Os números usam as regras de {{ ir_params.ano }}. Atualize o Tabimoney quando a Receita publicar as regras do ano.</p></div>
+</div>
+{% endif %}

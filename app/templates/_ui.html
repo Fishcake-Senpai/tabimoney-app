@@ -141,3 +141,9 @@
 {{ tabs([("/contas", "Resumo", "resumo"), ("/contas/lancamentos", "Lançamentos", "lancamentos"), ("/contas/orcamento", "Orçamento", "orcamento")],
         current, "Gastos") }}
 {%- endmacro %}
+
+{% macro ir_tabs(current, ano) -%}
+{{ tabs([("/imposto-de-renda?ano=" ~ ano, "Estimativa", "estimativa"), ("/imposto-de-renda/acoes?ano=" ~ ano, "Ações e fundos", "acoes"),
+         ("/imposto-de-renda/deducoes?ano=" ~ ano, "Deduções", "deducoes"), ("/imposto-de-renda/declaracao?ano=" ~ ano, "Declaração", "declaracao")],
+        current, "Imposto de renda") }}
+{%- endmacro %}

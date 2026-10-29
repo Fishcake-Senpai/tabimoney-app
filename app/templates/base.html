@@ -26,10 +26,12 @@
    else "gastos" if path.startswith("/contas")
    else "investimentos" if path.startswith(("/investimentos", "/carteira", "/ativo", "/renda-fixa", "/previdencia", "/rendimentos", "/metas"))
    else "sugestoes" if path.startswith(("/recomendacoes", "/analises"))
+   else "impostos" if path.startswith("/imposto-de-renda")
    else "configuracoes" if path.startswith("/configuracoes")
    else "" %}
 {% set menu = [("inicio", "/", "Início", "house"), ("gastos", "/contas", "Gastos", "wallet"),
-               ("investimentos", "/investimentos", "Investimentos", "trending-up"), ("sugestoes", "/recomendacoes", "Sugestões", "sparkles")] %}
+               ("investimentos", "/investimentos", "Investimentos", "trending-up"), ("sugestoes", "/recomendacoes", "Sugestões", "sparkles"),
+               ("impostos", "/imposto-de-renda", "Imposto de renda", "landmark")] %}
 <div class="shell">
   <aside class="sidebar">
     <a class="brand" href="/" aria-label="Tabimoney — início">
@@ -158,7 +160,7 @@
   </div>
 
   <nav class="tabbar" aria-label="Principal no celular">
-    {% for key, href, label, ico in menu %}
+    {% for key, href, label, ico in menu if key != "impostos" %}
     <a href="{{ href }}"{% if section == key %} aria-current="page"{% endif %}>{{ icon(ico) }}{{ label }}</a>
     {% endfor %}
     <button type="button" popovertarget="pop-more" aria-label="Mais opções">{{ icon("more-horizontal") }}Mais{% if inbox_count %}<span class="dot-badge"></span>{% endif %}</button>
@@ -166,6 +168,7 @@
   <div class="pop" popover id="pop-more" data-align="end">
     <div class="inbox">
       <a class="inbox-item" href="/importar"><span class="avatar">{{ icon("upload", "i-sm") }}</span><span><b>Importar</b><small>Extratos, faturas e planilhas da B3</small></span></a>
+      <a class="inbox-item" href="/imposto-de-renda"><span class="avatar">{{ icon("landmark", "i-sm") }}</span><span><b>Imposto de renda</b><small>Estimativa, bolsa, deduções e declaração</small></span></a>
       <a class="inbox-item" href="/conciliacao"><span class="avatar">{{ icon("inbox", "i-sm") }}</span><span><b>Pendências{% if inbox_count %} · {{ inbox_count }}{% endif %}</b><small>Conciliação, avisos e sugestões</small></span></a>
       <a class="inbox-item" href="/configuracoes"><span class="avatar">{{ icon("settings", "i-sm") }}</span><span><b>Configurações</b><small>Open Finance, titulares, IA, aparência</small></span></a>
     </div>

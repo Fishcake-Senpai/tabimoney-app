@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, stat, chip, badge, modal, hint %}
+{% block title %}IR · Ações e fundos{% endblock %}
+{% block content %}
+{% include "_ir_head.html" %}
+
+{% if rv.este_mes %}
+<div class="notice">
+  <span class="row-icon">{{ icon("calculator") }}</span>
+  <div><b>Este mês você vendeu {{ rv.este_mes.vendas_acoes|brl }} em ações.</b>
+    <p>{% if rv.este_mes.isencao_restante %}Ainda dá para vender <b class="strong">{{ rv.este_mes.isencao_restante|brl }}</b> em ações e units sem imposto sobre o lucro delas (ETF, BDR e FII não têm isenção).{% else %}Passou de R$ 20 mil: o lucro das ações deste mês é tributável.{% endif %}</p></div>
+</div>
+{% endif %}
+
+<div class="hero-row">
+  <div class="hero">
+    <div class="hero-label">Imposto da bolsa em {{ ano }}
+      {% call hint("ir-bolsa", "Como é calculado") %}<p>Preço médio de cada ativo juntando todas as suas corretoras. Mês a mês, em três grupos que não se misturam: operações comuns (15%), day trade (20%) e FII/Fiagro (20%). Ações e units ficam isentas no mês em que as vendas de ações não passam de R$ 20 mil. Prejuízo compensa lucro dos meses seguintes, sem prazo.</p>{% endcall %}</div>
+    <div class="hero-value money">{{ rv.imposto_ano|brl_hero }}</div>
+    <div class="hero-meta">
+      {% if rv.darfs %}<span>{{ rv.darfs|length|plural("DARF", "DARFs") }} · {{ rv.darf_total|brl }}</span>{% else %}<span>Nenhum DARF no ano</span>{% endif %}
+      {% if rv.bloqueado %}{{ chip("Pendências mudam o cálculo", "warn", "triangle-alert") }}{% elif rv.meses %}{{ chip("Sem pendências", "up", "circle-check") }}{% endif %}
+    </div>
+  </div>
+</div>
+
+<section class="stats">
+  {% call stat("Lucro isento (linha 20)", rv.isentos_linha_20|brl_compact, icon_name="circle-check") %}Ações com vendas até R$ 20 mil no mês{% endcall %}
+  {% call stat("Prejuízo a compensar", rv.prejuizo_fim.comum|brl_compact, icon_name="trending-down") %}Comum · day trade {{ rv.prejuizo_fim.day_trade|brl_compact }}{% endcall %}
+  {% call stat("Prejuízo em FII", rv.prejuizo_fim.fii|brl_compact, icon_name="building-2") %}Só compensa com FII{% endcall %}
+  {% call stat("Vendas no ano", rv.vendas_ano|brl_compact, icon_name="arrow-left-right") %}{% if rv.obriga_declarar %}Obriga a declarar{% else %}Até R$ 40 mil e sem imposto: não obriga{% endif %}{% endcall %}
+</section>
+
+{% if rv.pendencias %}
+<section class="card" id="pendencias">
+  <div class="card-head"><h2 class="card-title">{{ icon("triangle-alert") }}Pendências</h2><span class="card-note">Resolva antes de confiar no resultado</span></div>
+  {% for p in rv.pendencias %}
+  <div class="ir-item">
+    <h3>{% if p.ticker %}{{ p.ticker }} · {% endif %}{{ {"classe": "Classe do ativo", "bonificacao": "Bonificação sem custo", "estoque_negativo": "Venda maior que a posição", "venda_sem_custo": "Venda sem preço médio", "venda_sem_valor": "Venda sem valor", "fora_do_calculo": "Fora do cálculo", "prejuizo_anterior": "Prejuízo de anos anteriores", "posicao_sem_historico": "Posição de antes do histórico"}.get(p.tipo, p.tipo) }} {% if p.bloqueia %}{{ badge("warn", "muda o imposto") }}{% else %}{{ badge("neutral", "pergunta") }}{% endif %}</h3>
+    <p class="card-note">{{ p.texto }}</p>
+    {% if p.tipo == "classe" %}
+    <form method="post" action="/imposto-de-renda/pendencia" class="toolbar">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+      <input type="hidden" name="kind" value="classe"><input type="hidden" name="ticker" value="{{ p.ticker }}">
+      <label class="field">Classe<select name="tax_class">{% for k in ("fii", "etf", "unit", "fiagro", "acao", "bdr", "etf_rf", "outro") %}<option value="{{ k }}">{{ classes[k] }}</option>{% endfor %}</select></label>
+      <button class="btn btn-sm" type="submit">Salvar</button>
+    </form>
+    {% elif p.tipo == "bonificacao" %}
+    <form method="post" action="/imposto-de-renda/pendencia" class="toolbar">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+      <input type="hidden" name="kind" value="custo_bonificacao"><input type="hidden" name="ref_id" value="{{ p.ref }}">
+      <label class="field">Custo por ação (R$)<input name="amount" inputmode="decimal" required placeholder="Do aviso aos acionistas"></label>
+      <button class="btn btn-sm" type="submit">Salvar</button>
+    </form>
+    {% elif p.tipo == "prejuizo_anterior" %}
+    <form method="post" action="/imposto-de-renda/pendencia" class="toolbar">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+      <input type="hidden" name="kind" value="prejuizo_anterior"><input type="hidden" name="period" value="{{ p.ref }}">
+      {% for g, label in groups.items() %}<label class="field">{{ label }} (R$)<input name="loss_{{ g }}" inputmode="decimal" placeholder="0"></label>{% endfor %}
+      <button class="btn btn-sm" type="submit">Salvar (em branco = não tenho)</button>
+    </form>
+    {% elif p.tipo in ("estoque_negativo", "venda_sem_custo", "venda_sem_valor", "posicao_sem_historico") %}
+    <a class="btn btn-sm" href="/importar">Importar histórico ou posição inicial</a>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="card card-flush">
+  <div class="card-head"><h2 class="card-title">Mês a mês</h2><span class="card-note">DARF código {{ rv.regras.darf_codigo }} · até o último dia útil do mês seguinte · abaixo de {{ rv.regras.darf_minimo|brl }} acumula</span></div>
+  {% if rv.meses %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Mês</th><th class="num">Vendas de ações</th><th class="num">Comum</th><th class="num">Day trade</th><th class="num">FII</th><th class="num">Isento</th><th class="num">Imposto</th><th class="num">IRRF</th><th class="num">DARF</th><th>Situação</th></tr></thead>
+      <tbody>
+        {% for m in rv.meses %}
+        <tr>
+          <td><b>{{ m.mes|month_label }}</b>{% if m.pendente %} {{ badge("warn", "pendente") }}{% endif %}</td>
+          <td class="num money">{{ m.vendas_acoes|brl }}</td>
+          <td class="num money {{ m.resultado.comum|tone }}">{{ m.resultado.comum|brl_signed }}</td>
+          <td class="num money {{ m.resultado.day_trade|tone }}">{{ m.resultado.day_trade|brl_signed }}</td>
+          <td class="num money {{ m.resultado.fii|tone }}">{{ m.resultado.fii|brl_signed }}</td>
+          <td class="num money">{{ m.isento|brl }}</td>
+          <td class="num money">{{ (m.imposto.comum + m.imposto.day_trade + m.imposto.fii)|brl }}</td>
+          <td class="num money">{{ m.irrf_usado|brl }}{% if not (m.irrf_informado.comum or m.irrf_informado.day_trade or m.irrf_informado.fii) and m.irrf_usado %} <small class="muted">est.</small>{% endif %}</td>
+          <td class="num money"><b>{{ m.darf|brl }}</b>{% if m.acumulado %}<br><small class="muted">{{ m.acumulado|brl }} acumula</small>{% endif %}</td>
+          <td>
+            {% if not m.darf %}<span class="muted">—</span>
+            {% elif m.pago is not none %}{{ badge("ok", "pago " ~ (m.pago_em|date_br if m.pago_em else "")) }}
+            {% else %}
+              {{ badge("err" if m.atrasado else "warn", ("venceu " if m.atrasado else "vence ") ~ m.vencimento|date_br) }}
+              <br><button class="btn btn-sm" type="button" data-dialog="dlg-pago-{{ m.mes }}">Marcar pago</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% for m in rv.meses %}
+  <details class="fold">
+    <summary>{{ m.mes|month_long }} · {{ m.vendas|length|plural("venda", "vendas") }}{% if m.compensado.comum or m.compensado.day_trade or m.compensado.fii %} <small>compensou {{ (m.compensado.comum + m.compensado.day_trade + m.compensado.fii)|brl }} de prejuízo</small>{% endif %}</summary>
+    <div class="fold-body table-wrap">
+      <table class="data"><thead><tr><th>Dia</th><th>Ativo</th><th>Conta</th><th class="num">Qtd.</th><th class="num">Venda</th><th class="num">Preço médio</th><th class="num">Custo</th><th class="num">Resultado</th></tr></thead>
+        <tbody>{% for v in m.vendas %}<tr><td>{{ v.data|date_br }}</td><td><b>{{ v.ticker }}</b> <small class="muted">{{ classes.get(v.classe, "sem classe") }}{% if v.day_trade %} · day trade{% endif %}</small></td><td>{{ v.conta }}</td><td class="num">{{ v.quantidade|quantity }}</td><td class="num money">{{ v.valor|brl }}</td><td class="num money">{{ v.preco_medio|brl }}</td><td class="num money">{{ v.custo|brl }}</td><td class="num money {{ v.resultado|tone }}">{{ v.resultado|brl_signed }}</td></tr>{% endfor %}</tbody></table>
+      <p class="card-note">Prejuízo que sobra: comum {{ m.prejuizo_fim.comum|brl }} · day trade {{ m.prejuizo_fim.day_trade|brl }} · FII {{ m.prejuizo_fim.fii|brl }}.</p>
+    </div>
+  </details>
+  {% call modal("pago-" ~ m.mes, "DARF de " ~ m.mes|month_long) %}
+  <form method="post" action="/imposto-de-renda/pendencia" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+    <input type="hidden" name="kind" value="darf_pago"><input type="hidden" name="period" value="{{ m.mes }}">
+    <div class="form-row">
+      <label class="field">Valor pago<input name="amount" inputmode="decimal" value="{{ (m.darf|brl)[3:] }}" required></label>
+      <label class="field">Data<input name="paid_on" type="date" value="{{ m.vencimento }}"></label>
+    </div>
+    <p class="modal-note">Código {{ rv.regras.darf_codigo }}, período de apuração {{ m.mes|month_label }}. O DARF oficial sai no Sicalc da Receita (ou no ReVar, se você autorizou).</p>
+    <div class="modal-actions"><button class="btn btn-primary" type="submit">Marcar como pago</button></div>
+  </form>
+  {% endcall %}
+  {% endfor %}
+  {% else %}
+  <div class="empty-inline"><span class="row-icon">{{ icon("receipt") }}</span><p>Sem vendas em bolsa em {{ ano }}. Importe a planilha de Negociação da B3 (Área do Investidor) para o app apurar as vendas.</p><a class="btn btn-sm" href="/importar">Importar</a></div>
+  {% endif %}
+</section>
+
+<section class="grid">
+  <article class="card card-flush span-7">
+    <div class="card-head"><h2 class="card-title">Bens e direitos em 31/12</h2><span class="card-note">Pelo custo, nunca pelo valor de mercado</span></div>
+    {% if rv.bens %}
+    <div class="table-wrap"><table class="data"><thead><tr><th>Ativo</th><th>Código</th><th class="num">31/12/{{ ano - 1 }}</th><th class="num">31/12/{{ ano }}</th></tr></thead>
+      <tbody>{% for b in rv.bens %}<tr><td><b>{{ b.ticker }}</b> <small class="muted">{{ b.quantidade|quantity }}{% if b.dispensado %} · dispensado{% endif %}</small></td><td>{{ b.grupo }} – {{ b.codigo }}</td><td class="num money">{{ b.anterior|brl }}</td><td class="num money">{{ b.atual|brl }}</td></tr>{% endfor %}</tbody></table></div>
+    {% else %}<div class="empty-inline"><span class="row-icon">{{ icon("layers") }}</span><p>Sem posições na bolsa no ano.</p></div>{% endif %}
+  </article>
+  <article class="card card-flush span-5">
+    <div class="card-head"><h2 class="card-title">Proventos do ano</h2></div>
+    {% if rv.proventos %}
+    <div class="rows">{% for p in rv.proventos %}<div class="row"><span class="row-icon">{{ p.ticker[:4] }}</span><span class="row-main"><span class="row-title">{{ p.ticker }}</span><span class="row-sub">{% if p.dividendos %}dividendos {{ p.dividendos|brl }} (isentos) {% endif %}{% if p.jcp %}JCP {{ p.jcp|brl }} (exclusivo) {% endif %}{% if p.rendimentos_fii %}rendimentos {{ p.rendimentos_fii|brl }} (isentos){% endif %}</span></span></div>{% endfor %}</div>
+    {% else %}<div class="empty-inline"><span class="row-icon">{{ icon("coins") }}</span><p>Sem proventos registrados no ano.</p></div>{% endif %}
+  </article>
+</section>
+
+<details class="fold">
+  <summary>Taxas, IRRF da nota e o que você informou <small>{{ info|length|plural("informação", "informações") }}</small></summary>
+  <div class="fold-body">
+    <p class="card-note">A planilha da B3 não traz corretagem, emolumentos nem o IRRF retido. Sem eles, o app usa taxa zero e estima o IRRF (0,005% das vendas, só acima de R$ 1; 1% do lucro no day trade). Informe pela nota de corretagem ou pelo informe da corretora para o valor exato.</p>
+    <form method="post" action="/imposto-de-renda/pendencia" class="toolbar">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+      <label class="field">O quê<select name="kind"><option value="irrf">IRRF do mês</option><option value="taxa">Taxas do mês numa conta</option></select></label>
+      <label class="field">Mês<input name="period" type="month" required></label>
+      <label class="field">Grupo (IRRF)<select name="group">{% for g, label in groups.items() %}<option value="{{ g }}">{{ label }}</option>{% endfor %}</select></label>
+      <label class="field">Conta (taxas)<input name="account" placeholder="Ex.: XP / Investimentos"></label>
+      <label class="field">Valor (R$)<input name="amount" inputmode="decimal" required></label>
+      <button class="btn btn-sm" type="submit">Informar</button>
+    </form>
+    {% if info %}
+    <div class="rows">{% for i in info %}<div class="row"><span class="row-main"><span class="row-title">{{ {"prejuizo_anterior": "Prejuízo anterior", "irrf": "IRRF", "taxa": "Taxas", "darf_pago": "DARF pago", "custo_bonificacao": "Custo da bonificação"}[i.kind] }} · {{ i.period or "—" }}{% if i.grupo %} · {{ groups[i.grupo] }}{% endif %}{% if i.account_name %} · {{ i.account_name }}{% endif %}</span></span><span class="row-end"><b class="money">{{ i.amount_cents|brl }}</b></span>
+      <form method="post" action="/imposto-de-renda/pendencia"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}"><input type="hidden" name="kind" value="remover"><input type="hidden" name="info_id" value="{{ i.id }}"><button class="icon-btn icon-btn-sm" type="submit" aria-label="Remover">{{ icon("trash-2", "i-sm") }}</button></form></div>{% endfor %}</div>
+    {% endif %}
+  </div>
+</details>
+
+<p class="card-note">Estimativa de apoio. Simplificações: vencimento pelo mês do pregão, feriados não contam no "último dia útil" e, sem horário, as compras do dia vêm antes das vendas. Opções, futuros, ativos no exterior e cripto ficam fora. Autorizou o ReVar da Receita? Os dois devem dar o mesmo imposto do mês.</p>
+{% endblock %}

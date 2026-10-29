@@ -16,7 +16,9 @@ Um casal fictício, Lucas (titular principal) e Marina, com:
 - mais de 36 meses de salário, gastos no cartão, contas da casa, Pix entre os dois, compras em dólar e estorno;
 - ações, FIIs e ETF com histórico de cotações, proventos, uma venda com lucro e uma divergência de custódia;
 - CDB, LCI, caixinha, Tesouro e previdência; metas de alocação (da casa e da Marina) e de gastos;
-- balanços trimestrais das empresas, análises, recomendações e sugestões de orçamento do "agente".
+- balanços trimestrais das empresas, análises, recomendações e sugestões de orçamento do "agente";
+- imposto de renda: Lucas CLT com um filho, Marina CLT e com uma PJ no Simples, despesas de saúde e educação (com
+  farmácia, academia e curso livre que não deduzem), aportes de PGBL dele e da empresa, vendas de ETF e FII.
 """
 from __future__ import annotations
 
@@ -232,8 +234,8 @@ TRADES = [
     (3, "ITSA4", [(1140, 400), (150, 400)]),
     (3, "EGIE3", [(300, 200)]),
     (3, "BBAS3", [(250, 300)]),
-    (3, "HGLG11", [(280, 40), (90, 20)]),
-    (3, "IVVB11", [(200, 30), (60, 10)]),
+    (3, "HGLG11", [(280, 40), (90, 20), (30, -20)]),
+    (3, "IVVB11", [(200, 30), (60, 10), (45, -10)]),
     (3, "PETR4", [(380, 200), (120, -200)]),
     (6, "ITSA4", [(320, 300)]),
     (6, "TAEE11", [(240, 200)]),
@@ -542,6 +544,52 @@ class _Seeder:
                 "net": f"{gross * 0.93 / 100:.2f}".replace(".", ","),
             })
 
+    # ------------------------------------------------------------ imposto de renda
+    def taxes(self, partner: int) -> None:
+        """Perfil fiscal dos dois (Lucas CLT com dependente, Marina CLT e PJ), despesas dedutíveis e aportes."""
+        from app.services.ir import estimador
+
+        today, year = self.today, self.today.year
+        estimador.salvar_fonte(1, year, {"kind": "clt", "payer": "ACME Tecnologia Ltda", "payer_doc": "11.444.777/0001-61",
+                                         "gross_monthly_cents": 1_140_000, "thirteenth": True, "vacation_month": 1})
+        theo = estimador.salvar_dependente(1, year, "Theo", "filho", year - 7)
+        estimador.salvar_fonte(partner, year, {"kind": "clt", "payer": "Empresa Beta SA", "gross_monthly_cents": 870_000,
+                                               "thirteenth": True})
+        estimador.salvar_fonte(partner, year, {"kind": "pro_labore", "payer": "Marina Design ME", "gross_monthly_cents": 200_000,
+                                               "pj_revenue_monthly_cents": 900_000, "pj_regime": "simples_fator_r",
+                                               "pj_profit_monthly_cents": 400_000})
+        with db.transaction() as con:
+            for m in range(0, 12):
+                day = _month_day(today, m, 8)
+                if day is None or day.year != year:
+                    continue
+                self.tx(con, 1, day, "UNIMED SEGUROS SAUDE", -68_000, "Saúde")
+                self.tx(con, 1, _month_day(today, m, 10), "COLEGIO HORIZONTE", -145_000, "Educação")
+            self.tx(con, 2, _month_day(today, 3, 14) if (_month_day(today, 3, 14) or today).year == year else today,
+                    "Clínica Sorriso Odontologia", -84_000, "Saúde")
+        estimador.definir_categoria("Saúde", "saude", "demo")
+        estimador.definir_categoria("Educação", "educacao", "demo")
+        found = db.rows("SELECT id, description FROM cash_transaction WHERE description IN "
+                        "('UNIMED SEGUROS SAUDE', 'COLEGIO HORIZONTE', 'Clínica Sorriso Odontologia')")
+        by_name: dict[str, list[int]] = {}
+        for r in found:
+            by_name.setdefault(r["description"], []).append(int(r["id"]))
+        if by_name.get("UNIMED SEGUROS SAUDE"):
+            estimador.marcar_lancamentos(by_name["UNIMED SEGUROS SAUDE"], "saude", prestador="Unimed",
+                                         documento="02.812.468/0001-06", subtipo="Plano de saúde", autor="demo")
+        if by_name.get("COLEGIO HORIZONTE"):
+            estimador.marcar_lancamentos(by_name["COLEGIO HORIZONTE"], "educacao", f"dep:{theo['id']}",
+                                         prestador="Colégio Horizonte", autor="demo")
+        estimador.adicionar_manual(1, {"kind": "saude", "paid_on": date(year, 2, 20).isoformat(), "amount_cents": 180_000,
+                                       "provider_name": "Dra. Helena Costa (psicóloga)", "provider_doc": "529.982.247-25",
+                                       "subkind": "Psicólogo", "note": "Pago por Pix da conta da mãe"}, "demo")
+        pgbl = next((p["product_key"] for p in estimador.planos() if p["name"] == "Itaú Flexprev PGBL"), None)
+        if pgbl:
+            estimador.registrar_aporte(pgbl, date(year, 1, 10).isoformat(), 50_000, "participante",
+                                       repetir_ate_dezembro=True, autor="demo")
+            estimador.registrar_aporte(pgbl, date(year, 1, 10).isoformat(), 50_000, "empresa", folha=True,
+                                       repetir_ate_dezembro=True, autor="demo")
+
     def balances(self) -> None:
         """Saldo de hoje = saldo inicial + tudo o que entrou e saiu; o inicial evita conta no vermelho no passado."""
         with db.transaction() as con:
@@ -818,4 +866,5 @@ def seed(today: date | None = None) -> None:
     seeder.balances()
     quarters = seeder.fundamentals()
     seeder.plans(partner, quarters)
+    seeder.taxes(partner)
     seeder.history()

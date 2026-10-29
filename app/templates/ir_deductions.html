@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, stat, chip, badge, modal, hint %}
+{% block title %}IR · Deduções{% endblock %}
+
+{% macro beneficiary_select(current="titular") -%}
+<select name="beneficiary">
+  <option value="titular" {% if current == "titular" %}selected{% endif %}>Titular</option>
+  {% for d in dependents %}<option value="dep:{{ d.id }}" {% if current == "dep:" ~ d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+</select>
+{%- endmacro %}
+
+{% block content %}
+{% include "_ir_head.html" %}
+
+<section class="stats">
+  {% for k, label in kinds.items() %}
+  {% call stat(label, (totals.get(k, 0))|brl_compact, icon_name={"saude": "heart-pulse", "educacao": "graduation-cap", "pensao": "scale", "doacao": "gift"}[k]) %}
+    {% if k == "educacao" %}Vale até {{ ir_params.educacao_limite|brl }} por pessoa: {{ est.deducoes.educacao|brl }}{% elif k == "doacao" %}Abate até 6% do imposto{% else %}Sem limite{% endif %}
+  {% endcall %}
+  {% endfor %}
+</section>
+
+<div class="notice{% if est.melhor == 'simplificado' and est.tem_fontes %} tone-warn{% endif %}">
+  <span class="row-icon">{{ icon("scale") }}</span>
+  <div>
+    {% if not est.tem_fontes %}<b>Cadastre sua renda para ver quanto as deduções valem.</b><p><a href="/imposto-de-renda?ano={{ ano }}">Imposto de renda › Estimativa</a></p>
+    {% elif est.melhor == "completo" %}<b>Com estas deduções, o modelo completo é o melhor: {{ est.modelos.completo.devido|brl }} contra {{ est.modelos.simplificado.devido|brl }} no simplificado.</b><p>Cada real dedutível reduz o imposto pela sua faixa.</p>
+    {% else %}<b>Por enquanto o simplificado ganha ({{ est.modelos.simplificado.devido|brl }} contra {{ est.modelos.completo.devido|brl }}).</b><p>As deduções só valem no completo, quando passam de {{ est.modelos.simplificado.deducoes|brl }} (o desconto do simplificado). Guarde os comprovantes mesmo assim: no ano em que passar, contam.</p>{% endif %}
+  </div>
+</div>
+
+{% if ded.sugestoes %}
+<section class="card">
+  <div class="card-head"><h2 class="card-title">{{ icon("lightbulb") }}Categorias que podem deduzir</h2></div>
+  {% for s in ded.sugestoes %}
+  <form method="post" action="/imposto-de-renda/categoria" class="toolbar">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+    <input type="hidden" name="category" value="{{ s.categoria }}"><input type="hidden" name="kind" value="{{ s.tipo }}">
+    <span><b>{{ s.categoria }}</b>: {{ s.lancamentos|plural("lançamento", "lançamentos") }}, {{ s.total|brl }} em {{ ano }}. Farmácia, academia e curso livre ficam de fora sozinhos.</span>
+    <button class="btn btn-sm btn-primary" type="submit">Contar como {{ kinds[s.tipo]|lower }}</button>
+  </form>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="card card-flush">
+  <div class="card-head">
+    <h2 class="card-title">Despesas dedutíveis de {{ ano }}</h2>
+    <span class="actions">{% set missing = grouped.grupos|selectattr("faltas")|list|length %}{% if missing %}{{ chip(missing|plural("prestador pede atenção", "prestadores pedem atenção"), "warn", "triangle-alert") }}{% endif %}
+      <button class="btn btn-sm" type="button" data-dialog="dlg-nova-deducao">{{ icon("plus") }}Despesa fora do extrato</button></span>
+  </div>
+  {% if grouped.grupos %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Prestador</th><th>Tipo</th><th>Quem</th><th class="num">Pago</th><th class="num">Conta</th></tr></thead>
+      <tbody>
+        {% for g in grouped.grupos %}
+        <tr>
+          <td class="wrap"><b>{{ g.prestador }}</b>{% if g.documento_fmt %} <small class="muted">{{ g.documento_fmt }}</small>{% endif %}
+            <br><small class="muted">{{ g.itens|length|plural("pagamento", "pagamentos") }}{% if g.subtipo %} · {{ g.subtipo }}{% endif %}</small>
+            {% if g.faltas %}<ul class="ir-faltas">{% for f in g.faltas %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}</td>
+          <td>{{ g.tipo_nome }}</td>
+          <td>{{ g.beneficiario_nome }}</td>
+          <td class="num money">{{ g.valor|brl }}{% if g.reembolso %}<br><small class="muted">− {{ g.reembolso|brl }} reembolso</small>{% endif %}</td>
+          <td class="num money"><b>{{ g.conta|brl }}</b>{% if g.tipo == "educacao" and g.conta > ir_params.educacao_limite %}<br><small class="muted">vale até {{ ir_params.educacao_limite|brl }} por pessoa</small>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% for g in grouped.grupos %}
+  <details class="fold">
+    <summary>{{ g.prestador }} <small>{{ g.itens|length|plural("pagamento", "pagamentos") }} · editar CPF/CNPJ, quem foi atendido ou o tipo</small></summary>
+    <div class="fold-body rows">
+      {% for i in g.itens %}
+      <div class="row"><span class="row-main"><span class="row-title">{{ i.descricao }}</span><span class="row-sub">{{ i.data|date_br }} · {{ {"categoria": "pela categoria", "lancamento": "marcado", "manual": "fora do extrato"}[i.origem] }}</span></span>
+        <span class="row-end"><b class="money">{{ i.valor|brl }}</b></span>
+        <button class="icon-btn icon-btn-sm" type="button" data-dialog="dlg-ded-{{ i.fonte }}-{{ i.id }}" aria-label="Editar {{ i.descricao }} de {{ i.data|date_br }}">{{ icon("pencil", "i-sm") }}</button></div>
+      {% endfor %}
+    </div>
+  </details>
+  {% endfor %}
+  {% endif %}
+  {% if grouped.fora %}
+  <details class="fold">
+    <summary>Ficaram de fora <small>{{ grouped.fora|length|plural("estabelecimento", "estabelecimentos") }} que não deduzem</small></summary>
+    <div class="fold-body rows">
+      {% for g in grouped.fora %}
+      <div class="row"><span class="row-main"><span class="row-title">{{ g.prestador }}</span><span class="row-sub">{{ g.aviso }} {{ g.itens|length|plural("pagamento", "pagamentos") }}.</span></span>
+        <span class="row-end"><b class="money">{{ g.valor|brl }}</b></span>
+        <button class="icon-btn icon-btn-sm" type="button" data-dialog="dlg-ded-{{ g.itens[0].fonte }}-{{ g.itens[0].id }}" aria-label="Revisar {{ g.prestador }}">{{ icon("pencil", "i-sm") }}</button></div>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+  {% if not ded.itens %}
+  <div class="empty-inline"><span class="row-icon">{{ icon("receipt") }}</span><p>Nenhuma despesa dedutível em {{ ano }}. Dê um tipo às categorias de saúde e educação, ou inclua uma despesa paga fora do extrato.</p></div>
+  {% endif %}
+</section>
+
+<section class="grid">
+  <article class="card span-6">
+    <div class="card-head"><h2 class="card-title">Categorias que contam</h2></div>
+    {% if ded.categorias %}
+    <div class="rows">{% for c, k in ded.categorias.items() %}<div class="row"><span class="row-main"><span class="row-title">{{ c }}</span><span class="row-sub">{{ kinds[k] }}</span></span>
+      <form method="post" action="/imposto-de-renda/categoria"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}"><input type="hidden" name="category" value="{{ c }}"><input type="hidden" name="kind" value=""><button class="btn btn-sm" type="submit">Parar de contar</button></form></div>{% endfor %}</div>
+    {% endif %}
+    <form method="post" action="/imposto-de-renda/categoria" class="toolbar">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+      <label class="field">Categoria<select name="category">{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select></label>
+      <label class="field">Conta como<select name="kind">{% for k, label in kinds.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></label>
+      <button class="btn btn-sm" type="submit">Salvar</button>
+    </form>
+  </article>
+  <article class="card span-6">
+    <div class="card-head"><h2 class="card-title">O que deduz e o que não deduz</h2></div>
+    <ul class="checklist">
+      <li>{{ icon("check", "i-sm up") }}<span>Médico, dentista, psicólogo, fisioterapeuta, fonoaudiólogo, terapeuta ocupacional, hospital, exames e plano de saúde, sem limite</span></li>
+      <li>{{ icon("check", "i-sm up") }}<span>Escola, faculdade, pós e curso técnico, até {{ ir_params.educacao_limite|brl }} por pessoa</span></li>
+      <li>{{ icon("check", "i-sm up") }}<span>Pensão alimentícia por decisão judicial ou escritura</span></li>
+      <li>{{ icon("check", "i-sm up") }}<span>PGBL até 12% da renda tributável (aportes em Investimentos › Previdência)</span></li>
+      <li>{{ icon("x", "i-sm down") }}<span>Farmácia (só remédio na conta do hospital), academia, idiomas e cursinho, material e uniforme escolar</span></li>
+      <li>{{ icon("x", "i-sm down") }}<span>Despesas reembolsadas pelo plano, de quem não é seu dependente, e o aporte da empresa na previdência</span></li>
+    </ul>
+    <p class="card-note">Para cada despesa, a ficha Pagamentos Efetuados pede o CPF ou CNPJ de quem prestou o serviço. Guarde notas e recibos por 5 anos; o recibo do Receita Saúde vale.</p>
+  </article>
+</section>
+
+{% call modal("nova-deducao", "Despesa dedutível fora do extrato") %}
+<form method="post" action="/imposto-de-renda/deducao/manual" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+  <div class="form-row">
+    <label class="field">Tipo<select name="kind">{% for k, label in kinds.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></label>
+    <label class="field">Data<input name="paid_on" type="date" value="{{ today if today[:4] == ano|string else ano ~ '-12-31' }}" required></label>
+    <label class="field">Valor (R$)<input name="amount" inputmode="decimal" required></label>
+  </div>
+  <div class="form-row">
+    <label class="field">Prestador<input name="provider" maxlength="120" required></label>
+    <label class="field">CPF ou CNPJ<input name="provider_doc" inputmode="numeric"></label>
+  </div>
+  <div class="form-row">
+    <label class="field">Quem foi atendido{{ beneficiary_select() }}</label>
+    <label class="field">Especialidade (saúde)<select name="subkind"><option value="">—</option>{% for h in health_kinds %}<option>{{ h }}</option>{% endfor %}</select></label>
+    <label class="field">Reembolsado (R$)<input name="reimbursed" inputmode="decimal"></label>
+  </div>
+  <label class="field">Observação<input name="note" maxlength="300"></label>
+  <div class="modal-actions"><button class="btn btn-primary" type="submit">Incluir</button></div>
+</form>
+{% endcall %}
+
+{% for i in ded.itens %}
+{% call modal("ded-" ~ i.fonte ~ "-" ~ i.id, i.prestador) %}
+{% if i.fonte == "lancamento" %}
+<form method="post" action="/imposto-de-renda/deducao" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}">
+  <input type="hidden" name="transaction_id" value="{{ i.id }}">
+  <p class="modal-note">{{ i.descricao }} · {{ i.data|date_br }} · {{ i.valor|brl }}{% if i.categoria %} · categoria {{ i.categoria }}{% endif %}</p>
+  <div class="form-row">
+    <label class="field">Tipo<select name="kind">{% for k, label in kinds.items() %}<option value="{{ k }}" {% if k == i.tipo %}selected{% endif %}>{{ label }}</option>{% endfor %}<option value="nenhuma">Não é dedutível</option>{% if i.origem == "lancamento" %}<option value="categoria">Seguir a categoria</option>{% endif %}</select></label>
+    <label class="field">Quem foi atendido{{ beneficiary_select(i.beneficiario) }}</label>
+  </div>
+  <div class="form-row">
+    <label class="field">Prestador<input name="provider" maxlength="120" value="{{ i.prestador }}"></label>
+    <label class="field">CPF ou CNPJ<input name="provider_doc" inputmode="numeric" value="{{ i.documento_fmt }}"></label>
+  </div>
+  <div class="form-row">
+    <label class="field">Especialidade (saúde)<select name="subkind"><option value="">—</option>{% for h in health_kinds %}<option {% if h == i.subtipo %}selected{% endif %}>{{ h }}</option>{% endfor %}</select></label>
+    <label class="field">Reembolsado (R$)<input name="reimbursed" inputmode="decimal" value="{{ (i.reembolso|brl)[3:] if i.reembolso else '' }}"></label>
+  </div>
+  {% if i.aviso %}<p class="modal-note">{{ i.aviso }} Marque um tipo só se não for o caso (ex.: a farmácia do hospital).</p>{% endif %}
+  <div class="modal-actions"><button class="btn btn-primary" type="submit">Salvar</button></div>
+</form>
+{% else %}
+<p class="modal-note">{{ i.tipo_nome }} · {{ i.data|date_br }} · {{ i.valor|brl }} · {{ i.beneficiario_nome }}{% if i.nota %} · {{ i.nota }}{% endif %}</p>
+<form method="post" action="/imposto-de-renda/deducao/manual/excluir" data-confirm="Excluir esta despesa?">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="ano" value="{{ ano }}"><input type="hidden" name="deduction_id" value="{{ i.id }}">
+  <div class="modal-actions"><button class="btn" type="submit">{{ icon("trash-2") }}Excluir</button></div>
+</form>
+{% endif %}
+{% endcall %}
+{% endfor %}
+{% endblock %}

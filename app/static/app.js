@@ -725,8 +725,15 @@
         try {
           await navigator.clipboard.writeText(text);
         } catch (e) {
-          source.select();
+          // sem permissão da área de transferência: copia por um campo temporário (o valor pode estar num <b>)
+          const temp = document.createElement("textarea");
+          temp.value = text;
+          temp.setAttribute("readonly", "");
+          temp.className = "copy-temp";
+          document.body.appendChild(temp);
+          temp.select();
           document.execCommand("copy");
+          temp.remove();
         }
         const label = btn.dataset.label || btn.textContent;
         btn.dataset.label = label;
