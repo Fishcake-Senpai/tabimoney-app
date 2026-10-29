@@ -50,6 +50,61 @@
 </div>
 {% endif %}
 
+{% if plans %}
+<section class="card card-flush" id="aportes">
+  <div class="card-head">
+    <h2 class="card-title">Aportes de {{ year }}</h2>
+    <span class="actions"><button class="btn btn-sm" type="button" data-dialog="dlg-aporte">{{ icon("plus") }}Registrar aporte</button></span>
+  </div>
+  {% if pgbl_sources %}
+  <div class="notice{% if pgbl.ajuda %} tone-warn{% endif %}">
+    <span class="row-icon">{{ icon("piggy-bank") }}</span>
+    <div>
+      {% if not pgbl.contribui_previdencia_oficial %}<b>O PGBL não deduz para {{ ir_member_name }}:</b><p>a dedução exige contribuir para o INSS ou regime próprio, ou ser aposentado por eles.</p>
+      {% elif pgbl.falta and pgbl.ajuda %}<b>Faltam {{ pgbl.falta|brl }} de PGBL para o limite de {{ pgbl.limite|brl }} (12% da renda tributável).</b><p>Aportar até 31/12 reduz o IR de {{ ir_member_name }} em cerca de {{ pgbl.economia_completar|brl }}. O aporte da empresa ({{ pgbl.empresa|brl }}) não conta.</p>
+      {% elif pgbl.falta %}<b>PGBL: cabem mais {{ pgbl.falta|brl }}, mas não reduzem o IR deste ano.</b><p>O modelo simplificado continua melhor para {{ ir_member_name }}.</p>
+      {% else %}<b>Limite do PGBL atingido ({{ pgbl.limite|brl }}).</b><p>O que passar disso não deduz.</p>{% endif %}
+      <p><a href="/imposto-de-renda#previdencia">Ver a estimativa do IR</a></p>
+    </div>
+  </div>
+  {% else %}
+  <div class="notice"><span class="row-icon">{{ icon("info") }}</span><div><b>Quanto ainda cabe no PGBL?</b><p>Cadastre sua renda em <a href="/imposto-de-renda">Imposto de renda</a> para o app calcular o limite de 12% e quanto falta aportar.</p></div></div>
+  {% endif %}
+  <div class="rows">
+    {% for a in contributions %}
+    <div class="row">
+      <span class="row-icon">{{ icon("building-2" if a.payer == "empresa" else "hand-coins") }}</span>
+      <span class="row-main"><span class="row-title">{{ a.plano }}</span><span class="row-sub">{{ a.paid_on|date_br }} · {{ "empresa (não deduz)" if a.payer == "empresa" else "você" }}{% if a.payroll %} · em folha{% endif %}{% if a.previsto %} · previsto{% endif %}{% if (a.tipo_plano or "")|upper == "VGBL" %} · VGBL não deduz{% endif %}</span></span>
+      <span class="row-end"><b class="money">{{ a.amount_cents|brl }}</b></span>
+      <form method="post" action="/previdencia/aporte/excluir" data-confirm="Excluir o aporte de {{ a.paid_on|date_br }}?">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="aporte_id" value="{{ a.id }}">
+        <button class="icon-btn icon-btn-sm" type="submit" aria-label="Excluir aporte de {{ a.paid_on|date_br }}">{{ icon("trash-2", "i-sm") }}</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="row"><span class="row-main"><span class="row-sub">Nenhum aporte registrado em {{ year }}. Registre quanto você aporta e quanto a empresa aporta.</span></span></div>
+    {% endfor %}
+  </div>
+  {% if suggestions %}
+  <div class="card-head sub-head"><h3 class="card-title">Parecem aportes no extrato</h3></div>
+  <div class="rows">
+    {% for t in suggestions %}
+    <div class="row">
+      <span class="row-main"><span class="row-title">{{ t.descricao }}</span><span class="row-sub">{{ t.data|date_br }}</span></span>
+      <span class="row-end"><b class="money">{{ t.valor|brl }}</b></span>
+      <form method="post" action="/previdencia/aporte" class="toolbar">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="paid_on" value="{{ t.data }}">
+        <input type="hidden" name="amount" value="{{ (t.valor|brl)[3:] }}"><input type="hidden" name="payer" value="participante">
+        <select name="product_key" aria-label="Plano">{% for p in plans %}<option value="{{ p.product_key }}">{{ p.name }}</option>{% endfor %}</select>
+        <button class="btn btn-sm" type="submit">É aporte meu</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
 {% if entries %}
 <details class="fold">
   <summary>Lançamentos <small>{{ entries|length|plural("extrato", "extratos") }}</small></summary>
@@ -101,5 +156,26 @@
   <div class="modal-actions"><button class="btn btn-primary" type="submit">Registrar</button></div>
 </form>
 {% endcall %}
+{% if plans %}
+{% call modal("aporte", "Registrar aporte") %}
+<form method="post" action="/previdencia/aporte" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label class="field">Plano<select name="product_key">{% for p in plans %}<option value="{{ p.product_key }}">{{ p.name }}{% if p.plan_type %} ({{ p.plan_type }}){% endif %}</option>{% endfor %}</select></label>
+  <div class="form-row">
+    <label class="field">Data<input name="paid_on" type="date" value="{{ today }}" required></label>
+    <label class="field">Valor (R$)<input name="amount" inputmode="decimal" autocomplete="off" required></label>
+  </div>
+  <fieldset class="checks-box"><legend>Quem pagou</legend>
+    <div class="checks">
+      <label class="check"><input type="radio" name="payer" value="participante" checked> Eu (deduz no PGBL até 12%)</label>
+      <label class="check"><input type="radio" name="payer" value="empresa"> A empresa (não deduz)</label>
+    </div>
+  </fieldset>
+  <label class="check"><input type="checkbox" name="payroll"> Descontado em folha</label>
+  <label class="check"><input type="checkbox" name="repeat"> Repetir todo mês até dezembro</label>
+  <div class="modal-actions"><button class="btn btn-primary" type="submit">Registrar</button></div>
+</form>
+{% endcall %}
+{% endif %}
 <script type="application/json" id="data-pension">{{ summary.history|tojson }}</script>
 {% endblock %}

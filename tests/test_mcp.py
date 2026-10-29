@@ -116,6 +116,9 @@ def test_toda_leitura_responde_na_demo():
     ("gastos_categorias", {}, ["gastos", "categorias"]),
     ("titulares", {}, ["titulares"]),
     ("gastos_listar", {"limite": 30, "so_gastos": True}, ["gastos", "listar", "--limite", "30", "--so-gastos"]),
+    ("ir_contexto", {"titular": "Marina"}, ["--titular", "Marina", "ir", "contexto"]),
+    ("ir_estimativa", {"pgbl_extra": 1000}, ["ir", "estimativa", "--pgbl-extra", "1000"]),
+    ("ir_acoes", {}, ["ir", "acoes"]),
 ])
 def test_mesma_resposta_da_cli(capsys, ferramenta, argumentos, comando):
     """As duas portas chamam as mesmas operações (app/agente/operacoes.py)."""
@@ -123,6 +126,31 @@ def test_mesma_resposta_da_cli(capsys, ferramenta, argumentos, comando):
         return _dados(await c.call_tool(ferramenta, argumentos))
 
     assert _rodar(True, passos) == _cli(capsys, "--demo", *comando)
+
+
+def test_ir_fonte_e_aporte_pelo_mcp_e_pela_cli(capsys):
+    from datetime import date
+
+    from app.services import pension
+
+    ano = date.today().year
+    pension.save_entry({"name": "Plano PGBL", "institution": "Itaú", "plan_type": "PGBL", "as_of_date": f"{ano}-01-31",
+                        "gross": "1000"})
+
+    async def passos(c):
+        fonte = _dados(await c.call_tool("ir_fonte_salvar", {"tipo": "clt", "pagador": "Empresa", "bruto_mensal": 10000}))
+        aporte = _dados(await c.call_tool("previdencia_aporte_registrar", {"plano": "Plano PGBL", "data": f"{ano}-03-10",
+                                                                            "valor": 1000, "pagador": "empresa"}))
+        estimativa = _dados(await c.call_tool("ir_estimativa", {}))
+        return fonte, aporte, estimativa
+
+    fonte, aporte, estimativa = _rodar(False, passos)
+    assert fonte["fontes"][0]["gross_monthly"] == 10000 and "backup_automatico" in fonte
+    assert aporte["pagador"] == "empresa"
+    assert estimativa["previdencia"]["empresa"] == 1000 and estimativa["previdencia"]["participante"] == 0
+    cli_aporte = _cli(capsys, "previdencia", "aporte", "Plano PGBL", f"{ano}-04-10", "500")
+    assert cli_aporte["pagador"] == "participante"
+    assert _cli(capsys, "ir", "estimativa")["previdencia"]["participante"] == 500
 
 
 def test_lista_de_lancamentos_paginada_e_enxuta():
@@ -336,7 +364,7 @@ def test_tarefa_com_falha_traz_a_mensagem(monkeypatch):
 # ---------------------------------------------------------------- roteiros, prompts e resources
 
 def test_roteiros_so_citam_ferramentas_que_existem():
-    padrao = re.compile(r"`((?:gastos|carteira|metas|perfil|orcamento|analise|recomendacoes|alertas|fundamentos|atualizar|tarefa)_[a-z_]+)`")
+    padrao = re.compile(r"`((?:gastos|carteira|metas|perfil|orcamento|analise|recomendacoes|alertas|fundamentos|atualizar|tarefa|ir|previdencia)_[a-z_]+)`")
     campos = {"tarefa_id", "metas_e_balanco", "metas_sugeridas_pela_media"}  # campos das respostas, não ferramentas
     servidor.criar(False)
     for nome in agente.ROTEIROS:

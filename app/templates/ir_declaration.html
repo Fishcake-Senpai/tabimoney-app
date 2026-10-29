@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, stat, chip, badge %}
+{% block title %}IR · Declaração{% endblock %}
+{% block content %}
+{% include "_ir_head.html" %}
+
+<div class="hero-row">
+  <div class="hero">
+    <div class="hero-label">Declaração {{ dec.exercicio }} · ano-calendário {{ ano }}</div>
+    <div class="hero-value money">{{ dec.resumo.devido|brl_hero }}</div>
+    <div class="hero-meta">
+      <span>Modelo {{ dec.resumo.modelo }}</span>
+      {% if dec.resumo.resultado == "restituir" %}{{ chip("Restituição de " ~ (-dec.resumo.saldo)|brl, "up") }}{% elif dec.resumo.resultado == "pagar" %}{{ chip("A pagar: " ~ dec.resumo.saldo|brl, "down") }}{% endif %}
+      {% if dec.resumo.pendencias_bolsa %}{{ chip(dec.resumo.pendencias_bolsa|plural("pendência na bolsa", "pendências na bolsa"), "warn", "triangle-alert") }}{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="notice">
+  <span class="row-icon">{{ icon("info") }}</span>
+  <div><b>Na ordem do programa da Receita, ficha por ficha.</b><p>Copie cada valor com o botão ao lado. O app não gera o arquivo da declaração: confira tudo com os informes de rendimentos. Usou a declaração pré-preenchida ou o ReVar? Compare com estes números.{% if not dec.resumo.obriga_declarar %} Pelos dados do app, você não é obrigado a declarar; declarar pode valer a pena para restituir.{% endif %}</p></div>
+</div>
+
+<section class="grid">
+  <article class="card span-5">
+    <div class="card-head"><h2 class="card-title">{{ icon("folder-open") }}Antes de começar</h2></div>
+    <ul class="checklist">{% for c in dec.checklist %}<li class="{{ 'done' if c.feito }}">{{ icon("circle-check" if c.feito else "circle-dashed", "i-sm") }}<span>{{ c.texto }}</span></li>{% endfor %}</ul>
+  </article>
+  <article class="card card-flush span-7">
+    <div class="card-head"><h2 class="card-title">Fichas</h2></div>
+    <div class="rows">
+      {% for s in dec.secoes %}<a class="row" href="#{{ s.id }}"><span class="row-main"><span class="row-title">{{ s.ficha }}</span><span class="row-sub">{{ s.itens|length|plural("item", "itens") }}</span></span><span class="row-end">{{ icon("chevron-right") }}</span></a>
+      {% else %}<div class="row"><span class="row-main"><span class="row-sub">Nada para declarar ainda em {{ ano }}: cadastre a renda na Estimativa e importe as operações da bolsa.</span></span></div>{% endfor %}
+    </div>
+  </article>
+</section>
+
+{% set ns = namespace(n=0) %}
+{% for s in dec.secoes %}
+<section class="card" id="{{ s.id }}">
+  <div class="card-head"><h2 class="card-title">{{ s.titulo }}</h2><span class="card-note">Ficha: {{ s.ficha }}</span></div>
+  {% if s.nota %}<p class="card-note">{{ s.nota }}</p>{% endif %}
+  {% for item in s.itens %}
+  <div class="ir-item">
+    <h3>{{ item.titulo }}</h3>
+    <div class="ir-fields">
+      {% for c in item.campos %}
+      {% set ns.n = ns.n + 1 %}<div class="ir-field"><span>{{ c.rotulo }}</span><b id="cp-{{ ns.n }}">{{ c.valor }}</b>
+        {% if c.copiar %}<button class="btn btn-sm" type="button" data-copy="cp-{{ ns.n }}" aria-label="Copiar {{ c.rotulo }}">Copiar</button>{% else %}<span></span>{% endif %}</div>
+      {% endfor %}
+    </div>
+    {% if item.aviso %}<p class="ir-warn">{{ item.aviso }}</p>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endfor %}
+
+<p class="card-note">Estimativa de apoio, não substitui o programa da Receita. Códigos das linhas conferidos nos guias da declaração 2026; quando o programa mostrar outro código para a mesma coisa, vale o do programa.</p>
+{% endblock %}

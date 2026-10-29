@@ -11,7 +11,8 @@ from pathlib import Path
 
 ROTEIROS_DIR = Path(__file__).resolve().parent / "roteiros"
 # ordem de exibição; o nome é o arquivo sem .md
-ROTEIROS = ("visao-geral", "ciclo", "gastos", "orcamento", "metas", "analise-ativo", "analise-trimestral", "recomendacoes")
+ROTEIROS = ("visao-geral", "ciclo", "gastos", "orcamento", "metas", "analise-ativo", "analise-trimestral", "recomendacoes",
+            "imposto-renda")
 
 
 def roteiro(nome: str) -> dict[str, str]:

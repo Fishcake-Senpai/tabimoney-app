@@ -75,6 +75,31 @@ def _pct(numerator: float | None, denominator: float | None) -> float | None:
     return numerator / denominator
 
 
+def chosen_events(member: int | None = None) -> dict[tuple[str, int], list[Any]]:
+    """Eventos de cada (conta, ativo), um só conjunto por tipo: a mesma compra vinda da B3 e da Pluggy conta uma
+    vez (vale a fonte de maior prioridade em cada grupo: operações, eventos corporativos, proventos). Em ordem de
+    data. Usado pela carteira e pela apuração do IR."""
+    scope, params = member_scope(member)
+    events = rows(
+        "SELECT a.account_name, e.instrument_id, e.event_date, e.event_type, e.quantity_micros, "
+        "e.amount_cents, e.unit_price_cents, e.source, e.id, e.account_id FROM investment_event e "
+        "JOIN financial_account a ON a.id = e.account_id" + scope + " ORDER BY e.event_date, e.id", params,
+    )
+    best_source: dict[tuple[str, int, str], int] = {}
+    for e in events:
+        group_key = (e["account_name"], int(e["instrument_id"]), _group(e["event_type"]))
+        rank = SOURCE_PRIORITY.get(e["source"], 9)
+        best_source[group_key] = min(best_source.get(group_key, 99), rank)
+    chosen: dict[tuple[str, int], list[Any]] = defaultdict(list)
+    for e in events:
+        group = _group(e["event_type"])
+        k = (e["account_name"], int(e["instrument_id"]))
+        if group != "opening" and SOURCE_PRIORITY.get(e["source"], 9) != best_source[(k[0], k[1], group)]:
+            continue
+        chosen[k].append(e)
+    return chosen
+
+
 @dataclass
 class PositionKey:
     account: str
@@ -183,25 +208,7 @@ class Book:
                 pk.snap_dates.append(day)
                 pk.snap_qty.append(by_day[day][1])
 
-        events = rows(
-            "SELECT a.account_name, e.instrument_id, e.event_date, e.event_type, e.quantity_micros, "
-            "e.amount_cents, e.source, e.id FROM investment_event e JOIN financial_account a ON a.id = e.account_id"
-            + scope + " ORDER BY e.event_date, e.id", params,
-        )
-        best_source: dict[tuple[str, int, str], int] = {}
-        for e in events:
-            group_key = (e["account_name"], int(e["instrument_id"]), _group(e["event_type"]))
-            rank = SOURCE_PRIORITY.get(e["source"], 9)
-            best_source[group_key] = min(best_source.get(group_key, 99), rank)
-        chosen_events: dict[tuple[str, int], list[Any]] = defaultdict(list)
-        for e in events:
-            group = _group(e["event_type"])
-            k = (e["account_name"], int(e["instrument_id"]))
-            if group != "opening" and SOURCE_PRIORITY.get(e["source"], 9) != best_source[(k[0], k[1], group)]:
-                continue
-            chosen_events[k].append(e)
-
-        for k, evs in chosen_events.items():
+        for k, evs in chosen_events(self.member).items():
             pk = key_for(*k)
             openings = [e for e in evs if e["event_type"] == "OPENING"]
             opening_day = openings[-1]["event_date"] if openings else None

@@ -244,12 +244,15 @@ def test_pendencias_reune_conciliacao_e_avisos(client):
     assert "<h1>Pendências</h1>" in pagina and 'id="avisos"' in pagina and "Transferências sem par" in pagina
 
 
-def test_menu_tem_quatro_destinos(client, dados_exemplo):
+def test_menu_tem_cinco_destinos_e_o_celular_quatro(client, dados_exemplo):
     pagina = client.get("/").text
     principal = pagina.split('aria-label="Principal"', 1)[1].split("</nav>", 1)[0]
-    assert [rotulo for rotulo in ("Início", "Gastos", "Investimentos", "Sugestões") if rotulo in principal] == [
-        "Início", "Gastos", "Investimentos", "Sugestões"]
-    assert principal.count("<a ") == 4
+    rotulos = ("Início", "Gastos", "Investimentos", "Sugestões", "Imposto de renda")
+    assert [rotulo for rotulo in rotulos if rotulo in principal] == list(rotulos)
+    assert principal.count("<a ") == 5
+    celular = pagina.split('aria-label="Principal no celular"', 1)[1].split("</nav>", 1)[0]
+    assert celular.count("<a ") == 4 and "Imposto de renda" not in celular
+    assert 'href="/imposto-de-renda"' in pagina.split('id="pop-more"', 1)[1]  # no celular, fica em "Mais"
 
 
 def test_nenhuma_pagina_usa_style_inline(client, dados_exemplo):

@@ -31,6 +31,8 @@ from app.services.formatting import (
     metric_value, month_label, month_long, multiple, pct, plural, quantity, tone, tx_title,
 )
 from app.services.importers import import_ofx, import_positions_csv, import_quotes_csv, normalize_ticker
+from app.services.ir import declaracao as ir_declaracao, estimador as ir_estimador, parametros as ir_parametros
+from app.services.ir import renda_variavel as ir_renda_variavel
 from app.services.smart_import import import_file
 from app.services.sync import SyncError, quote_scheduler, sync_daily_quotes, sync_pluggy
 
@@ -307,6 +309,11 @@ def _inbox() -> dict[str, object]:
         items.append({"icon": "triangle-alert", "tone": "warn", "href": "/conciliacao#avisos",
                       "title": plural(len(warnings), "aviso", "avisos") + " nos seus ativos",
                       "sub": ", ".join(tickers[:4]) + (" e outros" if len(tickers) > 4 else "")})
+    rules = ir_parametros.alerta_calendario()
+    if rules:
+        count += 1
+        items.append({"icon": "landmark", "tone": "warn", "href": "/imposto-de-renda", "title": rules["titulo"],
+                      "sub": "Atualize o Tabimoney: os números do IR podem ser do ano passado"})
     advice = budgets.latest_advice()
     open_advice = [i for i in advice["items"] if i["applicable"]] if advice else []
     if open_advice:
@@ -435,11 +442,39 @@ def _attention(budget: dict, kpis: dict) -> list[dict[str, str]]:
         items.append({"icon": "wallet", "tone": "warn", "href": "/contas/orcamento",
                       "title": plural(budget["at_risk"], "meta de gasto", "metas de gasto") + " em risco",
                       "sub": "O ritmo do mês passa do limite"})
+    items.extend(_ir_attention())
     stale = (kpis["stale_quotes"] or 0) + (kpis["missing_quotes"] or 0)
     if stale:
         items.append({"icon": "clock", "tone": "warn", "href": "/carteira",
                       "title": plural(stale, "ativo", "ativos") + " com cotação antiga",
                       "sub": "Sincronize para atualizar o mercado"})
+    return items
+
+
+def _ir_attention() -> list[dict[str, str]]:
+    """Imposto de renda no Início: DARF da bolsa do mês passado, PGBL no fim do ano e a época da declaração."""
+    today = analytics.date.today()
+    items: list[dict[str, str]] = []
+    try:
+        for member in household.members():
+            rv = ir_renda_variavel.apurar(member["id"], today.year if today.month > 1 else today.year - 1, today)
+            for darf in rv["darfs"]:
+                if darf["pago"] is None and darf["vencimento"] and darf["vencimento"] >= today.isoformat():
+                    items.append({"icon": "receipt", "tone": "warn", "href": f"/imposto-de-renda/acoes?ano={darf['mes'][:4]}",
+                                  "title": f"DARF de {brl(darf['darf'])} vence em {date_br(darf['vencimento'])}",
+                                  "sub": f"Bolsa, {month_long(darf['mes'])}" + (f" · {member['name']}" if household.is_shared() else "")})
+        if today.month >= 10:
+            est = ir_estimador.estimar(household.PRIMARY_ID, today.year, hoje=today)
+            prev = est["previdencia"]
+            if est["tem_fontes"] and prev["ajuda"] and prev["falta"]:
+                items.append({"icon": "piggy-bank", "tone": "up", "href": "/imposto-de-renda#previdencia",
+                              "title": f"Faltam {brl(prev['falta'])} de PGBL para o limite",
+                              "sub": f"Aportar até 31/12 reduz o IR em cerca de {brl(prev['economia_completar'])}"})
+        if 3 <= today.month <= 5:
+            items.append({"icon": "file-text", "tone": "", "href": "/imposto-de-renda/declaracao",
+                          "title": f"Declaração {today.year} aberta", "sub": "Veja o passo a passo ficha por ficha"})
+    except Exception:  # noqa: BLE001 - o IR nunca pode derrubar o Início
+        return []
     return items
 
 
@@ -777,10 +812,17 @@ async def save_income_config(request: Request):
 
 @app.get("/previdencia", response_class=HTMLResponse)
 def pension_page(request: Request):
-    book = analytics.Book(_member(request))
+    member = _member(request)
+    book = analytics.Book(member)
+    year = analytics.date.today().year
+    ir_member = member if member is not None else household.PRIMARY_ID
+    estimate = ir_estimador.estimar(ir_member, year)
     return _page(
         request, "pension.html", summary=book.pension(), entries=pension.entries(), plans=pension.plans(),
         plan_types=pension.PLAN_TYPES, regimes=pension.TAX_REGIMES, today=analytics.date.today().isoformat(),
+        contributions=ir_estimador.aportes(member, year), suggestions=ir_estimador.sugestoes_aporte(member, year),
+        pgbl=estimate["previdencia"], pgbl_sources=estimate["tem_fontes"], year=year,
+        ir_member_name=next((m["name"] for m in household.members() if m["id"] == ir_member), ""),
     )
 
 
@@ -802,6 +844,278 @@ def delete_pension(request: Request, csrf_token: str = Form(...), entry_id: int 
     pension.delete_entry(entry_id)
     _flash(request, "success", "Lançamento excluído.")
     return _redirect(request, "/previdencia")
+
+
+@app.post("/previdencia/aporte")
+async def save_pension_contribution(request: Request):
+    form = await request.form()
+    _check_csrf(request, str(form.get("csrf_token", "")))
+    try:
+        result = ir_estimador.registrar_aporte(
+            str(form.get("product_key") or ""), str(form.get("paid_on") or ""),
+            pension.parse_amount(str(form.get("amount") or ""), "o valor do aporte") or 0,
+            str(form.get("payer") or "participante"), bool(form.get("payroll")),
+            repetir_ate_dezembro=bool(form.get("repeat")))
+        quem = "da empresa" if result["pagador"] == "empresa" else "seu"
+        _flash(request, "success", f"{plural(result['aportes'], 'aporte', 'aportes')} {quem} em {result['plano']} registrado(s).")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, _local_path(str(form.get("back") or ""), "/previdencia"))
+
+
+@app.post("/previdencia/aporte/excluir")
+def delete_pension_contribution(request: Request, csrf_token: str = Form(...), aporte_id: int = Form(...),
+                                back: str = Form("/previdencia")):
+    _check_csrf(request, csrf_token)
+    ir_estimador.remover_aporte(aporte_id)
+    _flash(request, "success", "Aporte excluído.")
+    return _redirect(request, _local_path(back, "/previdencia"))
+
+
+# ---------------------------------------------------------------- imposto de renda
+
+def _ir_member(request: Request) -> int:
+    """O IR é por pessoa: na visão da casa, vale o titular principal."""
+    member = _member(request)
+    return member if member is not None else household.PRIMARY_ID
+
+
+def _ir_year(raw: str, default: int | None = None) -> int:
+    today = analytics.date.today()
+    try:
+        year = int(raw)
+    except (TypeError, ValueError):
+        return default or today.year
+    return year if 2020 <= year <= today.year + 1 else (default or today.year)
+
+
+def _ir_common(request: Request, ano: int, tab: str) -> dict[str, object]:
+    member = _ir_member(request)
+    years = sorted(set(ir_parametros.anos()) | {ano, analytics.date.today().year})
+    return {
+        "ir_tab": tab, "ano": ano, "anos": years, "ir_member": member,
+        "ir_member_name": next((m["name"] for m in household.members() if m["id"] == member), ""),
+        "ir_house_view": household.is_shared() and _member(request) is None,
+        "ir_alert": ir_parametros.alerta_calendario(), "ir_params": ir_parametros.para(ano),
+        "ir_projected": ir_parametros.projetado(ano),
+    }
+
+
+def _cents_field(form, key: str, label: str, required: bool = False) -> int | None:
+    return pension.parse_amount(str(form.get(key) or ""), label, required=required)
+
+
+@app.get("/imposto-de-renda", response_class=HTMLResponse)
+def ir_estimate_page(request: Request, ano: str = "", pgbl_extra: str = ""):
+    common = _ir_common(request, _ir_year(ano), "estimativa")
+    member, year = common["ir_member"], common["ano"]
+    try:
+        extra = pension.parse_amount(pgbl_extra, "o aporte simulado", required=False) or 0
+    except ValueError:
+        extra = 0
+    estimate = ir_estimador.estimar(member, year, extra)
+    return _page(
+        request, "ir_estimate.html", **common, est=estimate, sources=ir_estimador.fontes(member, year),
+        dependents=ir_estimador.dependentes(member, year), profile=ir_estimador.perfil(member, year),
+        source_kinds=ir_estimador.TIPOS_FONTE, regimes=ir_estimador.REGIMES_PJ, kinships=ir_estimador.PARENTESCOS,
+        previous_sources=bool(ir_estimador.fontes(member, year - 1)), pgbl_extra=extra,
+    )
+
+
+@app.get("/imposto-de-renda/acoes", response_class=HTMLResponse)
+def ir_stocks_page(request: Request, ano: str = ""):
+    common = _ir_common(request, _ir_year(ano), "acoes")
+    result = ir_renda_variavel.apurar(common["ir_member"], common["ano"])
+    return _page(request, "ir_stocks.html", **common, rv=result, classes=ir_renda_variavel.CLASSES,
+                 groups=ir_renda_variavel.GRUPO_NOMES, info=ir_renda_variavel.informacoes(common["ir_member"]))
+
+
+@app.get("/imposto-de-renda/deducoes", response_class=HTMLResponse)
+def ir_deductions_page(request: Request, ano: str = ""):
+    common = _ir_common(request, _ir_year(ano), "deducoes")
+    member, year = common["ir_member"], common["ano"]
+    deductions = ir_estimador.deducoes(member, year)
+    estimate = ir_estimador.estimar(member, year)
+    totals: dict[str, int] = {}
+    for item in deductions["itens"]:
+        totals[item["tipo"]] = totals.get(item["tipo"], 0) + item["conta"]
+    return _page(
+        request, "ir_deductions.html", **common, ded=deductions, est=estimate, totals=totals,
+        kinds=ir_estimador.TIPOS_DEDUCAO, health_kinds=ir_estimador.SUBTIPOS_SAUDE,
+        dependents=ir_estimador.dependentes(member, year), categories=_spend_categories(),
+        grouped=ir_estimador.por_prestador(deductions["itens"]),
+        today=analytics.date.today().isoformat(),
+    )
+
+
+@app.get("/imposto-de-renda/declaracao", response_class=HTMLResponse)
+def ir_declaration_page(request: Request, ano: str = ""):
+    common = _ir_common(request, _ir_year(ano, analytics.date.today().year - 1), "declaracao")
+    return _page(request, "ir_declaration.html", **common,
+                 dec=ir_declaracao.montar(common["ir_member"], common["ano"]))
+
+
+def _ir_back(request: Request, form, default: str = "/imposto-de-renda") -> RedirectResponse:
+    return _redirect(request, _local_path(str(form.get("back") or ""), default))
+
+
+@app.post("/imposto-de-renda/fonte")
+async def ir_save_source(request: Request):
+    form = await request.form()
+    _check_csrf(request, str(form.get("csrf_token", "")))
+    year = _ir_year(str(form.get("ano") or ""))
+    try:
+        kind = str(form.get("kind") or "clt")
+        source_id = int(form.get("source_id") or 0) or None
+        ir_estimador.salvar_fonte(_ir_member(request), year, {
+            "kind": kind, "payer": form.get("payer"), "payer_doc": form.get("payer_doc"),
+            "gross_monthly_cents": _cents_field(form, "gross", "o valor bruto mensal", True),
+            "first_month": form.get("first_month") or 1, "last_month": form.get("last_month") or 12,
+            "thirteenth": bool(form.get("thirteenth")), "vacation_month": form.get("vacation_month") or None,
+            "inss_monthly_cents": _cents_field(form, "inss", "o INSS"), "irrf_year_cents": _cents_field(form, "irrf", "o IRRF"),
+            "payroll_deductions_monthly_cents": _cents_field(form, "payroll", "a pensão em folha") or 0,
+            "pj_revenue_monthly_cents": _cents_field(form, "revenue", "o faturamento"), "pj_regime": form.get("regime") or None,
+            "pj_profit_monthly_cents": _cents_field(form, "profit", "o lucro distribuído"),
+        }, source_id)
+        _flash(request, "success", "Fonte de renda salva.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _ir_back(request, form, f"/imposto-de-renda?ano={year}")
+
+
+@app.post("/imposto-de-renda/fonte/excluir")
+def ir_delete_source(request: Request, csrf_token: str = Form(...), source_id: int = Form(...), ano: str = Form("")):
+    _check_csrf(request, csrf_token)
+    ir_estimador.remover_fonte(_ir_member(request), source_id)
+    _flash(request, "success", "Fonte de renda excluída.")
+    return _redirect(request, f"/imposto-de-renda?ano={_ir_year(ano)}")
+
+
+@app.post("/imposto-de-renda/copiar")
+def ir_copy_profile(request: Request, csrf_token: str = Form(...), ano: str = Form("")):
+    _check_csrf(request, csrf_token)
+    year = _ir_year(ano)
+    try:
+        n = ir_estimador.copiar_perfil(_ir_member(request), year - 1, year)
+        _flash(request, "success", f"{plural(n, 'fonte copiada', 'fontes copiadas')} de {year - 1}. Confira os valores de {year}.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, f"/imposto-de-renda?ano={year}")
+
+
+@app.post("/imposto-de-renda/dependente")
+def ir_save_dependent(request: Request, csrf_token: str = Form(...), ano: str = Form(""), name: str = Form(""),
+                      kinship: str = Form("filho"), birth_year: str = Form(""), remove_id: str = Form("")):
+    _check_csrf(request, csrf_token)
+    year = _ir_year(ano)
+    try:
+        if remove_id:
+            ir_estimador.remover_dependente(_ir_member(request), int(remove_id))
+            _flash(request, "success", "Dependente removido.")
+        else:
+            ir_estimador.salvar_dependente(_ir_member(request), year, name, kinship, int(birth_year) if birth_year.isdigit() else None)
+            _flash(request, "success", f"{name.strip()} incluído como dependente.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, f"/imposto-de-renda?ano={year}#dependentes")
+
+
+@app.post("/imposto-de-renda/previdencia-oficial")
+def ir_official_pension(request: Request, csrf_token: str = Form(...), ano: str = Form(""), value: str = Form("auto")):
+    _check_csrf(request, csrf_token)
+    year = _ir_year(ano)
+    ir_estimador.definir_perfil(_ir_member(request), year, None if value == "auto" else value == "sim")
+    _flash(request, "success", "Previdência oficial atualizada.")
+    return _redirect(request, f"/imposto-de-renda?ano={year}#previdencia")
+
+
+@app.post("/imposto-de-renda/categoria")
+def ir_category_kind(request: Request, csrf_token: str = Form(...), category: str = Form(...), kind: str = Form(""),
+                     ano: str = Form("")):
+    _check_csrf(request, csrf_token)
+    try:
+        ir_estimador.definir_categoria(category, kind or None)
+        _flash(request, "success", f"{category}: " + (f"conta como {ir_estimador.TIPOS_DEDUCAO[kind].lower()}." if kind
+                                                       else "não conta mais como dedução."))
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, f"/imposto-de-renda/deducoes?ano={_ir_year(ano)}")
+
+
+@app.post("/imposto-de-renda/deducao")
+async def ir_mark_deduction(request: Request):
+    form = await request.form()
+    _check_csrf(request, str(form.get("csrf_token", "")))
+    year = _ir_year(str(form.get("ano") or ""))
+    try:
+        ids = [int(v) for v in form.getlist("transaction_id") if str(v).isdigit()]
+        kind = str(form.get("kind") or "")
+        if kind == "categoria":
+            ir_estimador.desmarcar_lancamentos(ids)
+        else:
+            ir_estimador.marcar_lancamentos(
+                ids, kind, str(form.get("beneficiary") or "titular"), str(form.get("provider") or "") or None,
+                str(form.get("provider_doc") or "") or None, str(form.get("subkind") or "") or None,
+                _cents_field(form, "reimbursed", "o reembolso") or 0)
+        _flash(request, "success", "Dedução atualizada.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, f"/imposto-de-renda/deducoes?ano={year}")
+
+
+@app.post("/imposto-de-renda/deducao/manual")
+async def ir_manual_deduction(request: Request):
+    form = await request.form()
+    _check_csrf(request, str(form.get("csrf_token", "")))
+    year = _ir_year(str(form.get("ano") or ""))
+    try:
+        ir_estimador.adicionar_manual(_ir_member(request), {
+            "kind": form.get("kind"), "paid_on": form.get("paid_on"), "provider_name": form.get("provider"),
+            "provider_doc": form.get("provider_doc"), "beneficiary": form.get("beneficiary"), "subkind": form.get("subkind"),
+            "amount_cents": _cents_field(form, "amount", "o valor pago", True),
+            "reimbursed_cents": _cents_field(form, "reimbursed", "o reembolso") or 0, "note": form.get("note")})
+        _flash(request, "success", "Despesa dedutível incluída.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, f"/imposto-de-renda/deducoes?ano={year}")
+
+
+@app.post("/imposto-de-renda/deducao/manual/excluir")
+def ir_delete_manual_deduction(request: Request, csrf_token: str = Form(...), deduction_id: int = Form(...),
+                               ano: str = Form("")):
+    _check_csrf(request, csrf_token)
+    ir_estimador.remover_manual(_ir_member(request), deduction_id)
+    _flash(request, "success", "Despesa excluída.")
+    return _redirect(request, f"/imposto-de-renda/deducoes?ano={_ir_year(ano)}")
+
+
+@app.post("/imposto-de-renda/pendencia")
+async def ir_resolve_pending(request: Request):
+    form = await request.form()
+    _check_csrf(request, str(form.get("csrf_token", "")))
+    year = _ir_year(str(form.get("ano") or ""))
+    member = _ir_member(request)
+    kind = str(form.get("kind") or "")
+    try:
+        if kind == "classe":
+            ir_renda_variavel.definir_classe(str(form.get("ticker") or ""), str(form.get("tax_class") or "") or None)
+        elif kind == "prejuizo_anterior":
+            for group in ir_renda_variavel.GRUPOS:
+                ir_renda_variavel.informar(member, kind, _cents_field(form, f"loss_{group}", "o prejuízo") or 0,
+                                           period=str(form.get("period") or year), grupo=group)
+        elif kind == "remover":
+            ir_renda_variavel.remover_informacao(member, int(form.get("info_id") or 0))
+        elif kind in {"custo_bonificacao", "irrf", "taxa", "darf_pago"}:
+            ir_renda_variavel.informar(
+                member, kind, _cents_field(form, "amount", "o valor", True) or 0, period=str(form.get("period") or ""),
+                grupo=str(form.get("group") or ""), conta=str(form.get("account") or ""),
+                ref_id=int(form.get("ref_id") or 0), pago_em=str(form.get("paid_on") or "") or None)
+        else:
+            raise ValueError("Pendência desconhecida.")
+        _flash(request, "success", "Informação registrada. A apuração foi refeita.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, f"/imposto-de-renda/acoes?ano={year}")
 
 
 def _spend_categories() -> list[str]:

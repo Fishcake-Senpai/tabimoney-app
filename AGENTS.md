@@ -32,6 +32,7 @@ citam as ferramentas do MCP; `EQUIVALENTE_CLI` em `app/mcp_server/ferramentas.py
 | Análise completa de um ativo (tese de longo prazo, método Investidor Sardinha) | `app/agente/roteiros/analise-ativo.md` |
 | Acompanhamento trimestral das teses | `app/agente/roteiros/analise-trimestral.md` |
 | Recomendações trimestrais e carteiras-modelo | `app/agente/roteiros/recomendacoes.md` |
+| Imposto de renda: estimativa, deduções, PGBL, bolsa e declaração | `app/agente/roteiros/imposto-renda.md` |
 
 O contrato (formatos de JSON e regras de cálculo) está em `docs/agente-financeiro.md`. Os modelos dos relatórios
 estão em `docs/agentes/modelo-relatorio-tese.md` e `docs/agentes/modelo-relatorio-trimestral.md`, e os exemplos
@@ -69,6 +70,9 @@ pública sobre empresas e títulos (CVM, relações com investidores, Tesouro, n
   executáveis e, se a versão de `app/__init__.py` ainda não tiver tag, publica o Release. Fluxo completo em
   `docs/versionamento.md`.
 - Dinheiro em centavos (int) no banco; quantidades em milionésimos (int). Na CLI, reais (float).
+- **Imposto de renda:** todo número da Receita (tabelas, limites, alíquotas) fica em `app/services/ir/parametros.py`,
+  por ano-calendário, com a fonte. Quando a Receita publicar a declaração nova (março), revise o arquivo e
+  `tests/test_ir_parametros.py` e suba `EXERCICIO_CONFIRMADO`; até lá o app avisa que as regras podem estar velhas.
 - Migrações em `migrations/NNN_*.sql`, aplicadas na inicialização; nunca altere uma migração já aplicada.
 - Textos da interface em português do Brasil.
 - O executável (`Tabimoney.exe` pelo `build.bat`; Windows e Mac pelo GitHub Actions) só leva os arquivos listados em

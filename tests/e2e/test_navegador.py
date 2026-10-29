@@ -13,12 +13,13 @@ import pytest
 from playwright.sync_api import Page, expect
 
 MENU = [("Início", "/"), ("Gastos", "/contas"), ("Investimentos", "/investimentos"), ("Sugestões", "/recomendacoes"),
-        ("Configurações", "/configuracoes")]
+        ("Imposto de renda", "/imposto-de-renda"), ("Configurações", "/configuracoes")]
 ABAS_INVESTIMENTOS = [("Ações e FIIs", "/carteira"), ("Renda fixa", "/renda-fixa"), ("Previdência", "/previdencia"),
                       ("Proventos", "/rendimentos"), ("Metas", "/metas"), ("Resumo", "/investimentos")]
 ABAS_GASTOS = [("Lançamentos", "/contas/lancamentos"), ("Orçamento", "/contas/orcamento"), ("Resumo", "/contas")]
 PAGINAS = [c for _, c in MENU] + [c for _, c in ABAS_INVESTIMENTOS + ABAS_GASTOS if c not in {"/investimentos", "/contas"}] + [
-    "/conciliacao", "/importar", "/analises", "/ativo/EGIE3", "/contas/gastos/Mercado"]
+    "/conciliacao", "/importar", "/analises", "/ativo/EGIE3", "/contas/gastos/Mercado",
+    "/imposto-de-renda/acoes", "/imposto-de-renda/deducoes", "/imposto-de-renda/declaracao"]
 
 
 def _aviso(page: Page):
@@ -659,3 +660,43 @@ def test_atualizacao_concluida_volta_ao_app_com_o_aviso(page: Page, base_url, da
         expect(_aviso(page)).to_contain_text(f"Tabimoney atualizado para a {__version__}")
     finally:
         (dados_do_servidor / "atualizacao.json").unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------- imposto de renda
+
+def test_aporte_da_empresa_nao_conta_no_pgbl(page: Page):
+    page.goto("/imposto-de-renda")
+    falta_antes = page.locator(".stat", has_text="Falta para o limite").locator(".stat-value").inner_text()
+    page.goto("/previdencia")
+    page.get_by_role("button", name="Registrar aporte").first.click()
+    dialogo = page.locator("#dlg-aporte")
+    dialogo.get_by_label("Valor (R$)").fill("777")
+    dialogo.get_by_label("A empresa (não deduz)").check()
+    dialogo.get_by_role("button", name="Registrar").click()
+    expect(_aviso(page)).to_contain_text("da empresa")
+    expect(page.locator("#aportes")).to_contain_text("R$ 777,00")
+    page.goto("/imposto-de-renda")
+    expect(page.locator(".stat", has_text="Falta para o limite").locator(".stat-value")).to_have_text(falta_antes)
+
+
+def test_nova_renda_e_copiar_valor_da_declaracao(page: Page):
+    page.goto("/imposto-de-renda?ano=2025")
+    page.get_by_role("button", name="Cadastrar renda").click()
+    dialogo = page.locator("#dlg-nova-fonte")
+    dialogo.get_by_label("Quem paga").fill("Empresa E2E")
+    dialogo.get_by_label("Bruto por mês (R$)").fill("9.000,00")
+    dialogo.get_by_role("button", name="Incluir renda").click()
+    expect(_aviso(page)).to_contain_text("Fonte de renda salva.")
+    expect(page.locator("#fontes")).to_contain_text("Empresa E2E")
+    page.goto("/imposto-de-renda/declaracao?ano=2025")
+    botao = page.locator("#tributaveis-pj").get_by_role("button", name="Copiar Nome da fonte pagadora").first
+    botao.click()
+    expect(botao).to_have_text("Copiado")
+
+
+def test_imposto_de_renda_cabe_no_celular(page: Page):
+    page.set_viewport_size({"width": 390, "height": 800})
+    for caminho in ("/imposto-de-renda", "/imposto-de-renda/acoes", "/imposto-de-renda/deducoes", "/imposto-de-renda/declaracao"):
+        page.goto(caminho)
+        expect(page.locator("h1")).to_have_text("Imposto de renda")
+        assert page.evaluate("document.documentElement.scrollWidth") <= 390, caminho

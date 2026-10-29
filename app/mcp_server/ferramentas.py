@@ -56,7 +56,12 @@ EQUIVALENTE_CLI: dict[str, str] = {
     "recomendacoes_importar": "recomendacoes importar ARQUIVO", "recomendacoes_listar": "recomendacoes listar",
     "recomendacoes_mostrar": "recomendacoes mostrar", "alertas_listar": "alertas listar", "alertas_resolver": "alertas resolver ID",
     "backup": "backup", "atualizar_dados": "atualizar",
+    "ir_contexto": "ir contexto", "ir_acoes": "ir acoes", "ir_estimativa": "ir estimativa", "ir_declaracao": "ir declaracao",
+    "ir_fonte_salvar": "ir fonte", "ir_dependente_salvar": "ir dependente", "ir_previdencia_oficial": "ir previdencia-oficial",
+    "ir_deducao_marcar": "ir deducao", "ir_deducao_adicionar": "ir deducao-manual",
+    "ir_pendencia_resolver": "ir pendencia TIPO", "previdencia_aporte_registrar": "previdencia aporte PLANO DATA VALOR",
 }
+Ano = Annotated[int | None, Field(description="Ano-calendário (padrão: o ano atual).", ge=2020, le=2100)]
 
 Titular = Annotated[str | None, Field(description="Nome do titular (gestão a dois). Sem ele, vale a casa toda.")]
 Aporte = Annotated[float | None, Field(description="Valor do próximo aporte em reais. Sem ele, usa a média de sobra mensal.", ge=0)]
@@ -166,7 +171,7 @@ def registrar(server: MCPServer, sessao: Sessao) -> None:  # noqa: C901 - uma li
     @tool(LEITURA, "Roteiro de uma tarefa")
     def roteiro(nome: Annotated[Literal[ROTEIROS], Field(description="Qual roteiro.")], ctx: Context) -> CallToolResult:
         """Passo a passo de uma tarefa: visao-geral (qual roteiro usar), ciclo (atualizar tudo), gastos, orcamento,
-        metas, analise-trimestral ou recomendacoes. Chame antes de uma tarefa com mais de um passo e siga o texto."""
+        metas, analise-trimestral, recomendacoes ou imposto-renda. Chame antes de uma tarefa com mais de um passo e siga o texto."""
         return sessao.rodar(ctx, LEITURA, lambda: agente.roteiro(nome))
 
     @tool(LEITURA, "Titulares e contas")
@@ -447,6 +452,157 @@ def registrar(server: MCPServer, sessao: Sessao) -> None:  # noqa: C901 - uma li
     def alertas_resolver(ids: Annotated[list[int], Field(min_length=1)], ctx: Context) -> CallToolResult:
         """Marca avisos como vistos (ids de alertas_listar). Eles saem da lista padrão, mas continuam no histórico."""
         return sessao.rodar(ctx, ESCRITA, lambda: op.alertas_resolver(ids))
+
+    # ---------------------------------------------------------------- imposto de renda
+
+    @tool(LEITURA, "Imposto de renda do ano")
+    def ir_contexto(ctx: Context, ano: Ano = None, titular: Titular = None) -> CallToolResult:
+        """Ponto de partida do roteiro imposto-renda: perfil fiscal (fontes, dependentes), estimativa nos modelos
+        completo e simplificado, PGBL que falta, apuração da bolsa (DARFs, prejuízos, pendências), deduções marcadas e
+        sugeridas, previdência e o aviso de regras desatualizadas. O IR é por pessoa: sem titular, vale o principal."""
+        return sessao.rodar(ctx, LEITURA, lambda m: op.ir_contexto(ano, member=m), titular, True)
+
+    @tool(LEITURA, "Apuração da bolsa")
+    def ir_acoes(ctx: Context, ano: Ano = None, titular: Titular = None) -> CallToolResult:
+        """Vendas em bolsa do ano mês a mês: preço médio por titular (todas as corretoras), isenção de R$ 20 mil,
+        prejuízo compensado, imposto, IRRF, DARF e vencimento; bens e direitos em 31/12; proventos; pendências."""
+        return sessao.rodar(ctx, LEITURA, lambda m: op.ir_acoes(ano, member=m), titular, True)
+
+    @tool(LEITURA, "Estimativa do IR")
+    def ir_estimativa(
+        ctx: Context, ano: Ano = None,
+        pgbl_extra: Annotated[float | None, Field(description="Simula um aporte extra no PGBL, em reais.", ge=0)] = None,
+        titular: Titular = None,
+    ) -> CallToolResult:
+        """Imposto do ano nos dois modelos, o melhor, restituição ou saldo a pagar, limite do PGBL, quanto falta e
+        quanto completar economiza (contra o melhor modelo), dividendos retidos, IRPFM e conciliação do salário."""
+        return sessao.rodar(ctx, LEITURA, lambda m: op.ir_estimativa(ano, pgbl_extra, member=m), titular, True)
+
+    @tool(LEITURA, "Passo a passo da declaração")
+    def ir_declaracao(
+        ctx: Context,
+        ano: Annotated[int | None, Field(description="Ano-calendário declarado (padrão: o ano passado).", ge=2020, le=2100)] = None,
+        titular: Titular = None,
+    ) -> CallToolResult:
+        """O que preencher em cada ficha do programa da Receita, na ordem do programa, e o checklist de documentos."""
+        return sessao.rodar(ctx, LEITURA, lambda m: op.ir_declaracao(ano, member=m), titular, True)
+
+    @tool(ESCRITA, "Gravar fonte de renda")
+    def ir_fonte_salvar(
+        ctx: Context,
+        tipo: Annotated[Literal["clt", "pro_labore", "outro"], Field(description="Salário CLT, pró-labore (PJ) ou outro tributável.")],
+        pagador: Annotated[str, Field(description="Empregador, a empresa do sócio ou a fonte.")],
+        bruto_mensal: Annotated[float | None, Field(description="Salário ou pró-labore BRUTO por mês, em reais.", ge=0)] = None,
+        ano: Ano = None,
+        cnpj: str | None = None,
+        mes_inicio: Annotated[int, Field(ge=1, le=12)] = 1,
+        mes_fim: Annotated[int, Field(ge=1, le=12)] = 12,
+        decimo_terceiro: bool | None = None,
+        mes_ferias: Annotated[int | None, Field(ge=1, le=12, description="Mês das férias (soma 1/3).")] = None,
+        inss_mensal: Annotated[float | None, Field(ge=0, description="INSS do holerite; sem ele, calcula.")] = None,
+        irrf_ano: Annotated[float | None, Field(ge=0, description="IRRF do ano no informe; sem ele, calcula.")] = None,
+        pensao_em_folha: Annotated[float | None, Field(ge=0)] = None,
+        faturamento_mensal: Annotated[float | None, Field(ge=0, description="PJ: faturamento médio da empresa.")] = None,
+        regime: Literal["simples_fator_r", "simples_iii", "simples_v", "outro"] | None = None,
+        lucro_mensal: Annotated[float | None, Field(ge=0, description="PJ: lucro distribuído por mês.")] = None,
+        fonte_id: Annotated[int | None, Field(description="Para corrigir ou remover uma fonte existente.")] = None,
+        remover: bool = False,
+        titular: Titular = None,
+    ) -> CallToolResult:
+        """Cria, corrige ou remove uma fonte de renda do perfil fiscal. Só com valores que o USUÁRIO informou
+        (holerite, informe de rendimentos); nunca invente o bruto a partir do líquido do extrato."""
+        return sessao.rodar(ctx, ESCRITA, lambda m: op.ir_fonte(
+            ano, tipo, pagador, bruto_mensal, cnpj, mes_inicio, mes_fim, decimo_terceiro, mes_ferias, inss_mensal, irrf_ano,
+            pensao_em_folha, faturamento_mensal, regime, lucro_mensal, fonte_id, remover, member=m, autor=sessao.autor(ctx)),
+            titular, True)
+
+    @tool(ESCRITA, "Gravar dependente")
+    def ir_dependente_salvar(
+        ctx: Context, ano: Ano = None, nome: str | None = None,
+        parentesco: Literal["filho", "cônjuge", "companheiro", "enteado", "pai/mãe", "outro"] = "filho",
+        nascimento: Annotated[int | None, Field(ge=1900, le=2100, description="Ano de nascimento.")] = None,
+        remover_id: int | None = None, titular: Titular = None,
+    ) -> CallToolResult:
+        """Inclui (nome) ou remove (remover_id) um dependente do ano. O CPF não é guardado."""
+        return sessao.rodar(ctx, ESCRITA, lambda m: op.ir_dependente(ano, nome, parentesco, nascimento, remover_id, member=m),
+                            titular, True)
+
+    @tool(ESCRITA, "Contribui para a previdência oficial")
+    def ir_previdencia_oficial(
+        ctx: Context,
+        contribui: Annotated[bool | None, Field(description="true: contribui para INSS/regime próprio ou é aposentado. "
+                                                            "null: deduz pelas fontes de renda.")],
+        ano: Ano = None, titular: Titular = None,
+    ) -> CallToolResult:
+        """Condição do PGBL: sem contribuir para a previdência oficial (nem ser aposentado por ela), o PGBL não deduz."""
+        return sessao.rodar(ctx, ESCRITA, lambda m: op.ir_previdencia_oficial(ano, contribui, member=m), titular, True)
+
+    @tool(ESCRITA, "Marcar despesas dedutíveis")
+    def ir_deducao_marcar(
+        ctx: Context,
+        ids: Annotated[list[int] | None, Field(description="Ids de lançamentos (gastos_listar).")] = None,
+        tipo: Literal["saude", "educacao", "pensao", "doacao", "nenhuma"] | None = None,
+        categoria: Annotated[str | None, Field(description="Sem ids: dá o tipo à categoria inteira (sem tipo, tira).")] = None,
+        beneficiario: Annotated[str, Field(description="'titular' ou 'dep:<id>' de um dependente.")] = "titular",
+        prestador: str | None = None,
+        documento: Annotated[str | None, Field(description="CPF ou CNPJ do prestador.")] = None,
+        subtipo: str | None = None,
+        reembolso: Annotated[float | None, Field(ge=0)] = None,
+        pela_categoria: Annotated[bool, Field(description="Volta os lançamentos para a regra da categoria.")] = False,
+    ) -> CallToolResult:
+        """Marca lançamentos ou uma categoria como dedução do IR. Farmácia, academia e curso livre NÃO deduzem: na
+        dúvida, pergunte ao usuário. 'nenhuma' tira um lançamento das deduções."""
+        return sessao.rodar(ctx, ESCRITA, lambda: op.ir_deducao_marcar(ids, tipo, categoria, beneficiario, prestador, documento,
+                                                                        subtipo, reembolso, pela_categoria, sessao.autor(ctx)))
+
+    @tool(ESCRITA, "Despesa dedutível fora do extrato")
+    def ir_deducao_adicionar(
+        ctx: Context,
+        data: Annotated[str | None, Field(description="AAAA-MM-DD do pagamento.")] = None,
+        tipo: Literal["saude", "educacao", "pensao", "doacao"] | None = None,
+        valor: Annotated[float | None, Field(gt=0)] = None,
+        prestador: str | None = None, documento: str | None = None, beneficiario: str = "titular",
+        subtipo: str | None = None, reembolso: Annotated[float | None, Field(ge=0)] = None, nota: str | None = None,
+        remover_id: int | None = None, titular: Titular = None,
+    ) -> CallToolResult:
+        """Registra (ou remove, com remover_id) despesa dedutível paga fora das contas do app."""
+        return sessao.rodar(ctx, ESCRITA, lambda m: op.ir_deducao_adicionar(
+            data, tipo, valor, prestador, documento, beneficiario, subtipo, reembolso, nota, remover_id, member=m,
+            autor=sessao.autor(ctx)), titular, True)
+
+    @tool(ESCRITA, "Resolver pendência da bolsa")
+    def ir_pendencia_resolver(
+        ctx: Context,
+        tipo: Literal["classe", "custo_bonificacao", "prejuizo_anterior", "irrf", "taxa", "darf_pago"],
+        ticker: str | None = None,
+        classe: Literal["acao", "unit", "bdr", "etf", "etf_rf", "fii", "fiagro", "outro"] | None = None,
+        valor: Annotated[float | None, Field(ge=0, description="Em reais (custo por ação, prejuízo, IRRF, taxa, DARF).")] = None,
+        periodo: Annotated[str | None, Field(description="AAAA (prejuízo anterior) ou AAAA-MM (irrf, taxa, darf_pago).")] = None,
+        grupo: Literal["comum", "day_trade", "fii"] | None = None,
+        conta: Annotated[str | None, Field(description="Conta da corretora (taxa).")] = None,
+        ref_id: Annotated[int | None, Field(description="Evento da bonificação (o ref da pendência).")] = None,
+        pago_em: str | None = None, titular: Titular = None,
+    ) -> CallToolResult:
+        """Resolve o que a apuração não sabe sozinha: classe de um ticker 11 (FII, ETF ou unit), custo da bonificação,
+        prejuízo de antes do histórico (valor 0 = não tem), IRRF da nota, taxas do mês ou DARF pago."""
+        return sessao.rodar(ctx, ESCRITA, lambda m: op.ir_pendencia_resolver(
+            tipo, ticker, classe, valor, periodo, grupo, conta, ref_id, pago_em, member=m, autor=sessao.autor(ctx)),
+            titular, True)
+
+    @tool(ESCRITA, "Registrar aporte de previdência")
+    def previdencia_aporte_registrar(
+        ctx: Context,
+        plano: Annotated[str, Field(description="Nome do plano (como em carteira_contexto) ou product_key.")],
+        data: Annotated[str, Field(description="AAAA-MM-DD.")],
+        valor: Annotated[float, Field(gt=0)],
+        pagador: Annotated[Literal["participante", "empresa"], Field(description="Só o do participante deduz no PGBL.")] = "participante",
+        folha: Annotated[bool, Field(description="Descontado em folha.")] = False,
+        repetir_ate_dezembro: Annotated[bool, Field(description="Mesmo valor todo mês até dezembro.")] = False,
+    ) -> CallToolResult:
+        """Registra aportes de previdência dizendo quem pagou: o participante (deduz no PGBL até 12%) ou a empresa
+        (não deduz, mas soma no plano)."""
+        return sessao.rodar(ctx, ESCRITA, lambda: op.previdencia_aporte(plano, data, valor, pagador, folha,
+                                                                         repetir_ate_dezembro, sessao.autor(ctx)))
 
     # ---------------------------------------------------------------- backup e atualização
 

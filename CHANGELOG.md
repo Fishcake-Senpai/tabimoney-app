@@ -11,6 +11,47 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Adicionado
+- **Imposto de renda**, item novo do menu, com quatro abas e as regras de 2025 e de 2026 (Lei 15.270: isenção até
+  R$ 5 mil, redutor anual, retenção de dividendos e tributação mínima acima de R$ 600 mil):
+  - **Estimativa**: cadastre o salário bruto (CLT), o pró-labore e o faturamento da sua empresa (PJ) ou outra renda,
+    e os dependentes. O app calcula INSS e imposto retido mês a mês, o 13º à parte, o ajuste nos modelos completo e
+    simplificado, o melhor modelo e quanto vai restituir ou pagar. Para PJ no Simples, mostra o DAS, o fator R e o
+    pró-labore mínimo para o Anexo III. Compara o líquido esperado de cada mês (com as férias e o 13º no mês deles) com
+    o salário que entrou no extrato.
+  - **PGBL**: limite de 12% da renda tributável, quanto você já aportou, quanto falta e quanto completar o limite
+    economiza, comparado com o melhor modelo (quando o simplificado ganha, o app avisa que o PGBL não ajuda este ano).
+    Dá para simular um aporte extra.
+  - **Ações e fundos**: apuração mês a mês das vendas em bolsa, com preço médio juntando todas as corretoras,
+    isenção de R$ 20 mil das ações e units, day trade e FII em separado, prejuízo compensado nos meses seguintes,
+    IRRF, DARF com vencimento (abaixo de R$ 10 acumula) e o botão para marcar como pago. Mostra quanto ainda dá para
+    vender de ações no mês sem imposto, bens e direitos em 31/12 pelo custo e os proventos do ano. Pendências
+    (ticker 11 sem classe, bonificação sem custo, venda sem preço médio, prejuízo de antes do histórico, posição que
+    a corretora mostra e o histórico de operações não explica) aparecem antes do resultado, com o caminho para
+    resolver. Ticker 11 que a corretora chama de ação e o app não conhece vira pergunta, em vez de unit.
+  - **Deduções**: dê um tipo às categorias (Saúde, Educação) e os lançamentos passam a contar; farmácia, academia,
+    curso livre e material escolar ficam de fora sozinhos. Por prestador, com CPF/CNPJ, quem foi atendido e
+    reembolso; despesas pagas fora do extrato entram à mão. Educação respeita o limite por pessoa.
+  - **Declaração**: o passo a passo ficha por ficha, na ordem do programa da Receita, com botão de copiar em cada
+    valor (rendimentos, isentos, exclusivos, renda variável, bens e direitos, pagamentos efetuados) e o checklist
+    de documentos. Provento que a corretora manda sem dizer se é dividendo ou JCP aparece com o aviso para conferir
+    no informe.
+- Previdência: registre cada aporte dizendo quem pagou, você ou a empresa (só o seu deduz no PGBL), em folha ou
+  não, com repetição mensal até dezembro. Débitos do extrato que parecem aporte viram sugestão.
+- Aviso automático: passado março, se as regras do IR do app não foram revisadas para a declaração do ano, o sino
+  avisa que os números podem estar desatualizados e pede para atualizar o Tabimoney. O aviso some quando a
+  atualização traz os parâmetros revisados.
+- No Início: DARF da bolsa a vencer, PGBL que falta (de outubro a dezembro) e a declaração aberta (março a maio).
+- Agentes de IA: roteiro `imposto-renda` e as ferramentas `ir_contexto`, `ir_estimativa`, `ir_acoes`,
+  `ir_declaracao`, `ir_fonte_salvar`, `ir_dependente_salvar`, `ir_previdencia_oficial`, `ir_deducao_marcar`,
+  `ir_deducao_adicionar`, `ir_pendencia_resolver` e `previdencia_aporte_registrar` (CLI: `financas ir ...` e
+  `financas previdencia aporte`). O ciclo completo passa a olhar o IR.
+- Demonstração com perfil fiscal do casal, despesas dedutíveis e não dedutíveis, aportes de PGBL e vendas de ETF
+  e FII.
+
+### Corrigido
+- Botão Copiar quando o navegador não libera a área de transferência: o valor agora é copiado mesmo assim.
+
 ## [0.18.0] - 2026-10-16
 
 ### Adicionado
