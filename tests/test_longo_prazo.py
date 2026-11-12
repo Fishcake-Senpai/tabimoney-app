@@ -1,6 +1,6 @@
 """Análise de longo prazo: o perfil do investidor (horizonte e objetivo) que as análises perguntam antes de começar.
 
-Spec: docs/superpowers/specs/2026-09-30-analise-longo-prazo.md.
+Guia do usuário: docs/guia/investimentos.md.
 """
 from __future__ import annotations
 

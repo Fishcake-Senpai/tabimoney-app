@@ -1,6 +1,6 @@
 """A interface do revamp 0.14: formatação, ícones de categoria, barra do topo, aparência e as abas novas.
 
-Guia de design: docs/superpowers/specs/2026-09-30-revamp-ui.md.
+Estilos e componentes: app/static/style.css e app/templates/_ui.html.
 """
 from __future__ import annotations
 

@@ -11,6 +11,18 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Alterado
+- **README** reescrito para quem chega de fora: proposta, capturas da demonstração, download, privacidade e links
+  para a documentação, sem o detalhamento técnico que agora fica nos guias.
+- **Documentação pública reorganizada** em `docs/README.md`, com guias de instalação, primeiros passos, conexões,
+  gastos, investimentos, imposto de renda, IA e privacidade, além do guia de desenvolvimento e da referência dos
+  agentes.
+- Teste de documentação confere links relativos e páginas fora do índice.
+
+### Removido
+- Especificações e planos internos antigos de `docs/superpowers/`, substituídos pelos guias públicos e pelo
+  contrato com agentes. As referências nos comentários do código foram atualizadas.
+
 ## [0.19.0] - 2026-10-28
 
 ### Adicionado

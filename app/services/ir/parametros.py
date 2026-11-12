@@ -1,4 +1,4 @@
-"""Números da Receita por ano-calendário, num lugar só (spec §1.2), e as contas que dependem só deles.
+"""Números da Receita por ano-calendário, num lugar só, e as contas que dependem só deles.
 
 Cada ano diz de onde vieram os valores e o que ainda falta conferir no texto oficial (`a_confirmar`). Quando a
 Receita publica o programa e o Perguntas e Respostas da declaração (todo ano, em março), revise este arquivo e os
