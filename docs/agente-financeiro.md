@@ -337,7 +337,8 @@ Formato de `importar-recomendacoes`:
 ## 7. Imposto de renda
 
 O IR é por pessoa: as ferramentas `ir_*` usam o `titular` informado ou, sem ele, o titular principal. Valores em
-reais. Regras, fontes e o memorial de cálculo: `docs/superpowers/specs/2026-10-19-imposto-de-renda.md`.
+reais. Regras e fontes: `app/services/ir/parametros.py`; guia do usuário no repositório:
+`docs/guia/imposto-de-renda.md`.
 
 - **Parâmetros por ano** (`app/services/ir/parametros.py`): tabelas mensal e anual, redutor da Lei 15.270,
   desconto simplificado, dependente, educação, INSS, retenção de dividendos e IRPFM, cada ano com a fonte e o que

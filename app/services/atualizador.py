@@ -1,4 +1,4 @@
-"""Atualização com um clique (spec: docs/superpowers/specs/2026-10-07-atualizacao-automatica.md).
+"""Atualização com um clique (contrato entre versões: docs/versionamento.md).
 
 O servidor aberto baixa o zip do Release, confere o SHA-256, testa o executável novo (`--versao`), faz backup da
 base e troca o executável por dois renomes na mesma pasta: um .exe rodando não pode ser sobrescrito, mas pode ser

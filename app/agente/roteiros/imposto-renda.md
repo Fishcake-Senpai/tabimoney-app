@@ -7,7 +7,8 @@ descricao: Estima o IR do ano, organiza as deduções e o PGBL, resolve as pend�
 
 O IR é **por pessoa**. Com mais de um titular, pergunte de quem é (parâmetro `titular`); sem ele, vale o titular
 principal. Tudo é estimativa de apoio: diga sempre ao usuário para conferir no programa da Receita e nos informes de
-rendimentos. As regras e as fontes estão na spec `docs/superpowers/specs/2026-10-19-imposto-de-renda.md`.
+rendimentos. As regras e as fontes estão em `app/services/ir/parametros.py`; o guia do usuário, em
+`docs/guia/imposto-de-renda.md`.
 
 ## Passos
 

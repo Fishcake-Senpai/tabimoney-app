@@ -1,6 +1,7 @@
 # Versionamento e lançamentos
 
-Este guia é para quem mantém o Tabimoney e publica versões, inclusive agentes de IA que mexem no código.
+Este guia é para quem mantém o Tabimoney e publica versões, inclusive agentes de IA que mexem no código. A visão
+geral da documentação está em [docs/README.md](README.md).
 
 ## Onde fica a versão
 
@@ -29,6 +30,15 @@ MENOR. A `1.0.0` marca a primeira versão pública estável para amigos baixarem
 - Toda mudança entra na seção **`[Não lançado]`** do `CHANGELOG.md` no mesmo commit que a implementa.
 - Use os grupos do Keep a Changelog: **Adicionado**, **Alterado**, **Descontinuado**, **Removido**, **Corrigido**, **Segurança**.
 - Escreva para quem usa o app, em português, uma linha por mudança. Detalhe técnico vai no commit.
+
+## Documentação
+
+- Toda mudança visível para quem usa o app deve atualizar o guia correspondente em `docs/` e, se mudar a porta de
+  entrada, o `README.md`.
+- O índice é [docs/README.md](README.md). Documento novo entra nele no mesmo commit.
+- `docs/agente-financeiro.md` e `docs/agentes/` são lidos pelo servidor MCP em tempo de execução. Mudou uma
+  ferramenta, um formato JSON ou um roteiro? Atualize o contrato, os modelos e os testes.
+- Capturas de tela usam a demonstração (`app/demo.py`), nunca dados reais.
 
 ## Migrações da base
 
@@ -91,8 +101,7 @@ app só recebe aviso de versão nova quando há Release.
 ## Atualização com um clique: o contrato entre versões
 
 No Windows, o botão **Atualizar agora** (`app/services/atualizador.py`) envolve duas versões: a instalada baixa,
-troca o executável e vigia; a nova sobe e limpa. Por isso estas peças não podem mudar de sentido entre versões
-(detalhes na §10 de `docs/superpowers/specs/2026-10-07-atualizacao-automatica.md`):
+troca o executável e vigia; a nova sobe e limpa. Por isso estas peças não podem mudar de sentido entre versões:
 
 - os nomes dos assets do Release (`Tabimoney-X.Y.Z-windows.zip`, com o `Tabimoney.exe` na raiz) e o
   `SHA256SUMS.txt` no formato do `sha256sum`;
@@ -102,15 +111,21 @@ troca o executável e vigia; a nova sobe e limpa. Por isso estas peças não pod
 
 Um Release sem `SHA256SUMS.txt` faz o app voltar ao botão Baixar.
 
-## Antes de tornar o repositório público
+## Checklist de privacidade e publicação
+
+Antes de um release ou de tornar um fork público:
 
 - **Licença:** Apache 2.0 (`LICENSE`), com a marca fora da licença (seção Licença do README).
 - **Dados pessoais:** confira que nada pessoal está versionado. A base, os backups e os segredos ficam fora do
   repositório (`%LOCALAPPDATA%`, Credential Manager e `.gitignore`), mas revise exemplos, capturas de tela e o
-  histórico do git:
-  `git log -p | findstr /i "cpf conta saldo"` e busque seu nome, empresa e números de conta.
-- **Links:** os rodapés do `CHANGELOG.md` apontam para `Fishcake-Senpai/tabimoney-app`; eles só funcionam depois que as tags `vX.Y.Z` existirem.
-- **README para quem baixa:** requisitos (Windows, Python 3.11+), como rodar (`run.bat`), como conectar o Open
-  Finance e o aviso de que os dados ficam só na máquina.
+  histórico do git: `git log -p --all | grep -iE "cpf|conta|saldo"` no Mac ou
+  `git log -p --all | findstr /i "cpf conta saldo"` no Windows; busque também seu nome, empresa e números de conta.
+- **Capturas do README e dos guias:** use sempre a demonstração ou dados fictícios. Nunca versione uma captura com
+  saldo, nome ou conta reais.
+- **Links:** os rodapés do `CHANGELOG.md` apontam para `Fishcake-Senpai/tabimoney-app`; eles só funcionam depois que
+  as tags `vX.Y.Z` existirem. Confira também os links relativos de `docs/README.md` e do README.
+- **Documentação para quem baixa:** requisitos, como abrir, como atualizar, como conectar o Open Finance e o aviso
+  de que os dados ficam só na máquina.
 - **Fonte e marca:** a Inter é distribuída sob a SIL Open Font License (`app/static/fonts/LICENSE-Inter.txt`).
-  A marca Tabimoney (`app/static/brand/`) é do autor e fica fora da licença; o manual de marca (`manual_marca/`) não é versionado.
+  A marca Tabimoney (`app/static/brand/`) é do autor e fica fora da licença; o manual de marca (`manual_marca/`)
+  não é versionado.

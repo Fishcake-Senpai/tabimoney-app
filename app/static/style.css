@@ -1,7 +1,7 @@
 /* Tabimoney — finanças sérias (mais ou menos).
-   Identidade: fundo escuro esverdeado, verde como cor de destaque, Inter. Revamp 0.14 (docs/superpowers/specs/
-   2026-09-30-revamp-ui.md): um número herói por tela, cor só para estado, superfícies por tom em vez de borda,
-   o menu recua e o conteúdo manda. A CSP bloqueia style="": tudo aqui sai de classe (larguras via CSSOM no app.js). */
+   Identidade: fundo escuro esverdeado, verde como cor de destaque, Inter. Um número herói por tela, cor só para
+   estado, superfícies por tom em vez de borda, o menu recua e o conteúdo manda. A CSP bloqueia style="": tudo aqui
+   sai de classe (larguras via CSSOM no app.js). */
 @font-face {
   font-family: "Inter";
   font-style: normal;
