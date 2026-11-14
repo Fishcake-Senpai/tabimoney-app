@@ -9,6 +9,8 @@ itsdangerous>=2.2,<3
 tzdata>=2024.1,<2027
 openpyxl>=3.1,<4
 mcp>=2.2,<3
+# Base local criptografada (SQLCipher 4 com wheels autocontidos para Windows, macOS e Linux).
+sqlcipher3>=0.6.5,<0.7
 # O mcp puxa o cryptography. A partir da 49, ele só publica wheel de Mac para Apple Silicon: no Mac Intel o pip
 # compilaria do código-fonte, ligado ao OpenSSL do Homebrew, e o executável quebraria (o PyInstaller empacota o
 # libssl do Python, mais antigo). A 48 tem wheel universal2 com o OpenSSL embutido.

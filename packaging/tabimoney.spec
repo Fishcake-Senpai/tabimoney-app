@@ -27,8 +27,11 @@ datas += collect_data_files("tzdata") + collect_data_files("certifi")
 datas += copy_metadata("keyring")
 # servidor MCP (app/mcp_server): o SDK lê a própria versão, e o OpenTelemetry acha o contexto por entry points
 datas += copy_metadata("mcp") + copy_metadata("opentelemetry-api")
+# SQLCipher: o wheel traz a extensão estática; os metadados entram para licença/versão no pacote
+datas += copy_metadata("sqlcipher3")
 
 hiddenimports = collect_submodules("uvicorn") + collect_submodules("keyring.backends") + collect_submodules("app")
+hiddenimports += collect_submodules("sqlcipher3")
 # mcp.cli precisa do typer (não usamos); mcp.server.fastmcp só existe para dar erro na 2.x
 hiddenimports += collect_submodules("mcp", filter=lambda name: not name.startswith(("mcp.cli", "mcp.server.fastmcp")))
 hiddenimports += collect_submodules("mcp_types") + collect_submodules("opentelemetry")

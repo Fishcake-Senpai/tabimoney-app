@@ -13,15 +13,52 @@ from pathlib import Path
 import pytest
 from mcp import Client, StdioServerParameters
 
+from app import security
+
 from .conftest import rodar_async
 
 ROOT = Path(__file__).resolve().parent.parent
+SITE = """\
+import os
+
+from app import security
+
+
+class Vault:
+    def __init__(self):
+        self.data = {("FinancasPessoaisLocal", "database_key_v1"): os.environ["TABIMONEY_TEST_DB_KEY"]}
+
+    def get_password(self, service, name):
+        return self.data.get((service, name))
+
+    def set_password(self, service, name, value):
+        self.data[(service, name)] = value
+
+    def delete_password(self, service, name):
+        self.data.pop((service, name), None)
+
+    class errors:
+        class PasswordDeleteError(Exception):
+            pass
+
+
+security._system_vault = lambda: Vault()
+"""
 
 
 @pytest.mark.parametrize("args", [["-m", "app.mcp_server", "--demo"], ["-m", "app.launch", "mcp", "--demo"]],
                          ids=["python -m app.mcp_server", "Tabimoney mcp"])
-def test_servidor_por_stdio(args):
-    env = {**os.environ, "PYTHONPATH": str(ROOT), "PYTHONIOENCODING": "utf-8"}
+def test_servidor_por_stdio(args, tmp_path):
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "sitecustomize.py").write_text(SITE, encoding="utf-8")
+    key = security.get_secret("database_key_v1")
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{site}{os.pathsep}{ROOT}",
+        "PYTHONIOENCODING": "utf-8",
+        "TABIMONEY_TEST_DB_KEY": key,
+    }
     params = StdioServerParameters(command=sys.executable, args=args, env=env, cwd=str(ROOT))
 
     async def conversa():

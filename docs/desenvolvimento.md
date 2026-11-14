@@ -47,7 +47,8 @@ app/
   main.py              rotas FastAPI e montagem das telas
   launch.py            ponto de entrada do executável e do run.bat
   cli.py               linha de comando
-  db.py                conexão SQLite, migrações e pasta de dados
+  db.py                conexão SQLCipher, migrações e pasta de dados
+  db_crypto.py         chave, perfil SQLCipher, fingerprint e migração verificada
   security.py          cofre nativo (Credential Manager / Keychain)
   demo.py              dados fictícios da demonstração
   templates/           Jinja2
@@ -71,8 +72,11 @@ docs/                  documentação pública e recursos dos agentes
 - **Provedores:** `app/providers/` isolam as APIs externas. Se uma fonte cair, o serviço decide o fallback.
 - **Operações dos agentes:** `app/agente/operacoes.py` é a porta única para leitura e escrita feita por IA. O MCP
   (`app/mcp_server/`) e a CLI (`app/cli.py`) chamam as mesmas funções.
-- **Base:** `app/db.py` abre o SQLite e aplica as migrações na inicialização. A pasta de dados depende do sistema
+- **Base:** `app/db.py` abre o SQLCipher e aplica as migrações na inicialização. A chave, o perfil criptográfico, o
+  fingerprint e a migração de uma base plaintext ficam em `app/db_crypto.py`. A pasta de dados depende do sistema
   operacional (`db.data_dir()`), nunca de um caminho fixo.
+- **Criptografia:** toda conexão passa por `db_crypto.connect()`. A chave de 32 bytes fica no cofre nativo; o app
+  usa a forma raw do SQLCipher no dia a dia. Nunca logue a chave.
 
 ### Convenções de dados
 
@@ -93,8 +97,8 @@ python -m pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-No Windows, use `.venv\Scripts\python.exe -m pytest`. Os testes de unidade, telas, CLI e plataforma levam menos de
-15 segundos.
+No Windows, use `.venv\Scripts\python.exe -m pytest`. A suíte é isolada e, com a base criptografada, leva alguns
+minutos.
 
 ### Testes de navegador
 
@@ -113,6 +117,8 @@ traces ficam em `test-results/` (ou nos *Artifacts* do GitHub Actions).
 - **Bug:** escreva primeiro o teste que reproduz a falha; ele deve falhar antes da correção e ficar na suíte para
   sempre.
 - **Comportamento novo ou regra alterada:** teste automatizado no mesmo commit.
+- **Base/criptografia:** `tests/test_db_crypto.py` cobre chave, migração, rollback, backup e restauração. Teste
+  também uma falha de migração e uma restauração de backup plaintext antigo.
 - **Tela ou formulário novo:** cubra também em `tests/e2e`.
 - **Tela, aba ou recurso novo:** adicione exemplos fictícios em `app/demo.py`. `tests/test_demo.py` falha se alguma
   página aparecer vazia na demonstração.
@@ -151,7 +157,7 @@ A demonstração é um casal fictício (Lucas e Marina) com dados em todas as te
 
 O build leva de 1 a 3 minutos e gera:
 
-- `dist\Tabimoney.exe` (cerca de 23 MB), que pode ser enviado direto;
+- `dist\Tabimoney.exe` (cerca de 33 MB), que pode ser enviado direto;
 - `dist\Manual-de-conexoes.html`, o manual ilustrado que ensina a criar as chaves do Meu Pluggy e da brapi;
 - `dist\Tabimoney-<versão>.zip`, com o executável, o `LEIA-ME.txt` e o manual.
 

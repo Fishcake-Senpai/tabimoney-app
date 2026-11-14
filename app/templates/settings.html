@@ -461,16 +461,16 @@
     <section class="set-section" id="dados" aria-labelledby="dad-t">
       <div class="set-head">
         <h2 id="dad-t">Dados e backup</h2>
-        {% call hint("dados", "Onde ficam os dados") %}<p>Tudo fica neste computador, num arquivo SQLite. Senhas e tokens ficam no cofre do sistema e não entram no backup.</p>{% endcall %}
+        {% call hint("dados", "Onde ficam os dados") %}<p>Tudo fica neste computador, num arquivo SQLite criptografado. A chave fica no cofre do sistema e não entra no backup.</p>{% endcall %}
       </div>
       <div class="set-group">
         <form class="set-row" method="post" action="/backup">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <div class="set-row-main"><span class="row-icon">{{ icon("download") }}</span><div class="set-label"><b>Baixar backup</b><small>Uma cópia do banco de dados (.sqlite3)</small></div></div>
+          <div class="set-row-main"><span class="row-icon">{{ icon("download") }}</span><div class="set-label"><b>Baixar backup</b><small>Backup criptografado do banco (.sqlite3)</small></div></div>
           <div class="set-actions"><button class="btn btn-sm" type="submit">Baixar</button></div>
         </form>
         <div class="set-row">
-          <div class="set-row-main"><span class="row-icon">{{ icon("upload") }}</span><div class="set-label"><b>Restaurar um backup</b><small>Substitui os dados atuais; uma cópia preventiva é salva antes</small></div></div>
+          <div class="set-row-main"><span class="row-icon">{{ icon("upload") }}</span><div class="set-label"><b>Restaurar um backup</b><small>Backup criptografado ou antigo em texto claro; uma cópia preventiva é salva antes</small></div></div>
           <div class="set-actions"><button class="btn btn-sm" type="button" data-dialog="dlg-restaurar">Restaurar</button></div>
         </div>
         <div class="set-row">

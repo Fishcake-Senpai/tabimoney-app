@@ -75,7 +75,8 @@ def test_demo_nao_usa_o_cofre_do_sistema(na_demo, cofre):
     pagina = na_demo.get("/configuracoes").text
     assert pagina.count("Configurada") >= 4  # as duas conexões e a brapi da demo
     na_demo.post("/configuracoes", data={"csrf_token": csrf(na_demo), "brapi_token": "token-da-demo"})
-    assert cofre.dados == {}
+    # O cofre real pode ter só a chave da base; credenciais da demo nunca chegam nele.
+    assert set(cofre.dados) <= {("FinancasPessoaisLocal", "database_key_v1")}
     assert security.get_secret("brapi_token") is None
 
 
@@ -237,7 +238,8 @@ def test_demo_nao_deixa_arquivo_temporario():
 
 def test_backup_da_demo_seria_valido():
     demo.build()
-    ok, motivo = db.validate_database(demo.path())
+    with demo.active():  # a demo tem a própria chave, no cofre em memória
+        ok, motivo = db.validate_database(demo.path())
     assert ok, motivo
 
 

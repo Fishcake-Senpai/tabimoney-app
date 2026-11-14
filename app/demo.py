@@ -25,13 +25,13 @@ from __future__ import annotations
 import math
 import os
 import random
-import sqlite3
+import sqlcipher3
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterator
 
-from app import __version__, db, security
+from app import __version__, db, db_crypto, security
 
 FILE_NAME = "demo.sqlite3"
 BUILT_KEY = "demo_built"
@@ -86,7 +86,7 @@ def is_fresh() -> bool:
     try:
         with active():
             return db.get_setting(BUILT_KEY) == _stamp()
-    except sqlite3.Error:
+    except (sqlcipher3.Error, db_crypto.DatabaseCryptoError):
         return False
 
 

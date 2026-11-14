@@ -49,7 +49,7 @@ class CofreFalso:
 
 
 @pytest.fixture(autouse=True)
-def dados_isolados(tmp_path, monkeypatch):
+def dados_isolados(tmp_path, monkeypatch, cofre):
     """Aponta a pasta de dados de todos os sistemas para uma pasta temporária e cria a base vazia."""
     home = tmp_path / "home"
     home.mkdir()
@@ -61,8 +61,9 @@ def dados_isolados(tmp_path, monkeypatch):
     monkeypatch.delenv("CODEX_HOME", raising=False)                       # Codex: ~/.codex, dentro do home falso
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setattr(Path, "home", lambda: home)                       # Mac (~/Library/…) e pasta da IA
-    from app import db
+    from app import db, db_crypto
 
+    db_crypto.clear_key_cache()
     db.init_db()
     return tmp_path
 
@@ -111,6 +112,9 @@ def client(monkeypatch):
     monkeypatch.setattr(main, "quote_scheduler", lambda _stop: None)
     monkeypatch.setattr(main.updates, "scheduler", lambda _stop: None)
     monkeypatch.setattr(main.atualizador, "janitor", lambda _stop: None)
+    # A limpeza/criptografia em segundo plano não pode rodar durante os testes: ela captura a pasta de dados
+    # depois que o fixture já avançou para outro teste.
+    monkeypatch.setattr(main, "_finalize_migration", lambda: None)
     with TestClient(main.app, base_url=f"http://127.0.0.1:{main.PORT}", client=("127.0.0.1", 50000)) as c:
         yield c
 
