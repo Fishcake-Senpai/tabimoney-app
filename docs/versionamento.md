@@ -45,6 +45,10 @@ MENOR. A `1.0.0` marca a primeira versão pública estável para amigos baixarem
 - Mudança no esquema = arquivo novo `migrations/NNN_descricao.sql`, com o número seguinte.
 - Nunca altere uma migração que já foi lançada: quem atualizar perde a mudança.
 - As migrações rodam sozinhas ao abrir o app, e a restauração de backup recusa bases de versão mais nova.
+- A base usa SQLCipher 4 (`app/db_crypto.py`). O perfil criptográfico é versionado; não mude page size, KDF, HMAC ou
+  compatibilidade sem uma migração testada e uma fixture que abra a base antiga. A chave fica no cofre do sistema.
+- A primeira abertura de uma base plaintext faz a migração verificada; mantenha o teste de rollback e o backup
+  plaintext até o servidor subir.
 
 ## Branches e testes
 
@@ -122,6 +126,8 @@ Antes de um release ou de tornar um fork público:
   `git log -p --all | findstr /i "cpf conta saldo"` no Windows; busque também seu nome, empresa e números de conta.
 - **Capturas do README e dos guias:** use sempre a demonstração ou dados fictícios. Nunca versione uma captura com
   saldo, nome ou conta reais.
+- **Criptografia:** confira que um backup novo abre com a chave do cofre, que a restauração de um backup plaintext
+  antigo funciona e que a chave não aparece em logs, capturas ou exemplos.
 - **Links:** os rodapés do `CHANGELOG.md` apontam para `Fishcake-Senpai/tabimoney-app`; eles só funcionam depois que
   as tags `vX.Y.Z` existirem. Confira também os links relativos de `docs/README.md` e do README.
 - **Documentação para quem baixa:** requisitos, como abrir, como atualizar, como conectar o Open Finance e o aviso

@@ -68,30 +68,36 @@ GitHub e não envia dados financeiros.
 - **macOS:** baixe o zip novo, substitua o `Tabimoney.app` e abra. Os dados ficam.
 - **Pelo código:** o aviso pede `git pull` em vez de download.
 
-Os dados nunca são apagados na atualização. A base é migrada automaticamente ao abrir. Você pode desligar a
-verificação em **Configurações › Atualizações** ou verificar na hora.
+Os dados nunca são apagados na atualização. A base é migrada automaticamente ao abrir. Na primeira versão com
+criptografia, o app faz uma cópia de segurança, confere a integridade e só então troca o arquivo; se algo falhar,
+a base original é preservada. Você pode desligar a verificação em **Configurações › Atualizações** ou verificar na
+hora.
 
 ## Onde ficam seus dados
 
 | O quê | Windows | macOS |
 |---|---|---|
 | Banco, backups, logs e cache da CVM | `%LOCALAPPDATA%\FinancasPessoais` | `~/Library/Application Support/Tabimoney` |
-| Senhas e chaves | Gerenciador de Credenciais | Porta-chaves (Keychain) |
+| Chave da base e senhas | Gerenciador de Credenciais | Porta-chaves (Keychain) |
 | Demonstração | `demo.sqlite3` na mesma pasta | `demo.sqlite3` na mesma pasta |
 
 Nada disso vai para a nuvem. A pasta de dados contém:
 
-- `financas.sqlite3` — sua base;
-- `backups\` — cópias automáticas e manuais;
+- `financas.sqlite3` — sua base, criptografada com SQLCipher;
+- `backups\` — cópias automáticas e manuais, criptografadas nas versões novas;
 - `logs\` — registro do app, útil para investigar erros;
 - `cvm\` — cache das demonstrações financeiras baixadas da CVM;
 - `demo.sqlite3` — dados fictícios da demonstração, separados dos seus.
 
+A chave da base fica no cofre do sistema, não na pasta de dados. **Não apague essa entrada do cofre**: sem ela, a
+base e os backups criptografados não abrem. A migração de uma base antiga é automática na primeira abertura.
+
 ## Backup e restauração
 
-Em **Importações**, baixe um backup SQLite ou restaure um anterior. Antes de substituir a base, o app valida a
-integridade e a versão do arquivo e salva uma cópia preventiva dos dados atuais. A restauração recusa uma base de
-versão mais nova do que o app instalado.
+Em **Importações**, baixe um backup SQLite ou restaure um anterior. Os backups são criptografados; os antigos em
+texto claro são convertidos automaticamente na primeira abertura e também continuam aceitos na restauração, sendo
+re-criptografados. Antes de substituir a base, o app valida a integridade e a versão do arquivo e salva uma cópia
+preventiva dos dados atuais. A restauração recusa uma base de versão mais nova do que o app instalado.
 
 Pela linha de comando:
 

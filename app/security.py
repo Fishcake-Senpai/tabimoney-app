@@ -1,4 +1,5 @@
-"""Segredos (Pluggy, brapi) no cofre nativo do sistema: Credential Manager no Windows, Porta-chaves no macOS.
+"""Segredos (chave da base, Pluggy, brapi) no cofre nativo do sistema: Credential Manager no Windows, Porta-chaves
+no macOS.
 
 Só aceita o cofre nativo. Se o keyring cair num backend inseguro (arquivo em texto, nulo), nada é gravado.
 """

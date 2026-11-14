@@ -31,7 +31,8 @@ ENCERRAR
 
 SEUS DADOS
 - Ficam so neste computador, em %LOCALAPPDATA%\FinancasPessoais (banco, backups e logs).
-- Senhas e chaves (Pluggy, brapi) ficam no Gerenciador de Credenciais do Windows.
+- O banco e os backups novos sao criptografados. A chave da base, as senhas e chaves (Pluggy, brapi)
+  ficam no Gerenciador de Credenciais do Windows; nao apague essa entrada.
 - Para apagar tudo: encerre o app e apague a pasta acima.
 
 IA (OPCIONAL)

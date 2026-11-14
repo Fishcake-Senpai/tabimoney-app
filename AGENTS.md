@@ -10,8 +10,9 @@ O caminho principal é o **servidor MCP `tabimoney`** (`app/mcp_server`). Se voc
 
 Sem MCP, use a linha de comando `financas.bat` (ou `.venv\Scripts\python.exe -m app.cli`), que chama as mesmas
 operações (`app/agente/operacoes.py`). As duas respondem em JSON e registram as correções de forma reversível.
-**Não edite o SQLite diretamente** e não apague lançamentos. Antes de mudanças em massa, faça backup (o servidor
-MCP faz sozinho antes da primeira mudança da sessão; na CLI, `financas.bat backup`).
+**Não edite o SQLite diretamente** e não apague lançamentos. A base é criptografada com SQLCipher; a chave fica no
+cofre do sistema e nunca deve ir para log, código ou documentação. Antes de mudanças em massa, faça backup (o
+servidor MCP faz sozinho antes da primeira mudança da sessão; na CLI, `financas.bat backup`).
 
 Comece por `carteira_contexto` (ou `financas.bat carteira contexto`) em qualquer tarefa de investimentos. Ele traz
 metas, posições com fundamentos, as últimas análises, renda fixa e previdência num JSON só.

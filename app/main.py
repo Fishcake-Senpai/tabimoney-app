@@ -3,6 +3,7 @@ from __future__ import annotations
 import calendar
 import contextvars
 import hmac
+import logging
 import os
 import secrets
 import threading
@@ -16,7 +17,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import db, demo
+from app import db, db_crypto, demo
 from app.mcp_server import instalar as mcp_instalar
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
@@ -69,19 +70,45 @@ class LocalOnlyMiddleware(BaseHTTPMiddleware):
         return response
 
 
+def _finalize_migration() -> None:
+    try:
+        db_crypto.finalize_pending()
+    except OSError:
+        pass  # a próxima inicialização tenta de novo
+    try:
+        result = db.encrypt_legacy_backups()
+        if result["falharam"]:
+            logging.getLogger("tabimoney").warning(
+                "Alguns backups antigos não puderam ser criptografados: %s", "; ".join(result["falharam"])
+            )
+    except Exception:  # noqa: BLE001 - a criptografia dos backups não pode impedir o app de funcionar
+        logging.getLogger("tabimoney").exception("Falha ao criptografar backups antigos")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    db.init_db()
-    stop_event = threading.Event()
-    worker = threading.Thread(target=quote_scheduler, args=(stop_event,), daemon=True)
-    worker.start()
-    checker = threading.Thread(target=updates.scheduler, args=(stop_event,), daemon=True)
-    checker.start()
-    janitor = threading.Thread(target=atualizador.janitor, args=(stop_event,), daemon=True)
-    janitor.start()
+    try:
+        db.init_db()
+        stop_event = threading.Event()
+        worker = threading.Thread(target=quote_scheduler, args=(stop_event,), daemon=True)
+        worker.start()
+        checker = threading.Thread(target=updates.scheduler, args=(stop_event,), daemon=True)
+        checker.start()
+        janitor = threading.Thread(target=atualizador.janitor, args=(stop_event,), daemon=True)
+        janitor.start()
+        # A cópia plaintext da migração só é removida depois que o servidor subiu e a base criptografada abriu.
+        # O pequeno atraso deixa o vigia da atualização confirmar a versão nova antes.
+        finalize = threading.Timer(5.0, _finalize_migration)
+        finalize.daemon = True
+        finalize.start()
+    except BaseException:
+        # Se a inicialização falhar antes de abrir a porta, o vigia antigo precisa de uma base plaintext para voltar.
+        db_crypto.rollback_pending()
+        raise
     try:
         yield
     finally:
+        finalize.cancel()
         stop_event.set()
         worker.join(timeout=2)
         checker.join(timeout=2)

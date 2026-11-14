@@ -39,8 +39,8 @@ O Tabimoney junta o extrato, a fatura, a carteira e a declaração em uma visão
 foi, quanto pode gastar sem culpa, onde o próximo aporte faz diferença e quanto vai pagar de imposto. Tudo em um
 aplicativo local, que abre no navegador e funciona offline.
 
-- **Privacidade de verdade:** o banco de dados fica na sua pasta de usuário e o servidor só aceita conexões do
-  próprio computador. Não existe conta, nuvem ou telemetria.
+- **Privacidade de verdade:** o banco de dados fica na sua pasta de usuário, criptografado em repouso com
+  SQLCipher, e o servidor só aceita conexões do próprio computador. Não existe conta, nuvem ou telemetria.
 - **Visão completa:** Open Finance pelo Meu Pluggy, importação de Nubank, B3, OFX e CSV, renda fixa, previdência e
   proventos.
 - **Decisões melhores:** metas de alocação, fundamentos da CVM, teses de longo prazo e recomendações trimestrais.
@@ -79,9 +79,10 @@ O passo a passo completo, incluindo atualização, backup e solução de problem
 
 ## Seus dados são seus
 
-O Tabimoney não tem servidor central. O banco SQLite, os backups e o histórico ficam em `%LOCALAPPDATA%\FinancasPessoais`
-no Windows e em `~/Library/Application Support/Tabimoney` no macOS. As chaves do Meu Pluggy e da brapi ficam no
-Gerenciador de Credenciais do Windows ou no Porta-chaves do Mac.
+O Tabimoney não tem servidor central. O banco SQLite é criptografado com SQLCipher e, junto com os backups novos e
+o histórico, fica em `%LOCALAPPDATA%\FinancasPessoais` no Windows e em `~/Library/Application Support/Tabimoney` no
+macOS. As chaves da base, do Meu Pluggy e da brapi ficam no Gerenciador de Credenciais do Windows ou no Porta-chaves
+do Mac.
 
 A internet só é usada para o que o app precisa: sincronizar o Open Finance, buscar cotações e dados públicos da
 CVM e CDI, e verificar se há versão nova. Fora a sincronização autorizada do Open Finance, nenhum desses pedidos

@@ -7,18 +7,40 @@ para o que o app precisa buscar. Esta página explica exatamente o que fica onde
 
 | O quê | Onde |
 |---|---|
-| Contas, cartões, lançamentos, investimentos e metas | `financas.sqlite3` na pasta de dados |
-| Backups | `backups\` na pasta de dados |
+| Contas, cartões, lançamentos, investimentos e metas | `financas.sqlite3`, criptografado, na pasta de dados |
+| Backups | `backups\` na pasta de dados, criptografados; os antigos são convertidos na primeira abertura |
 | Logs | `logs\` na pasta de dados |
 | Cache das demonstrações da CVM | `cvm\` na pasta de dados |
 | Demonstração | `demo.sqlite3`, separado da sua base |
-| Client ID, Client Secret e token da brapi | Gerenciador de Credenciais (Windows) ou Porta-chaves (macOS) |
+| Chave da base, Client ID, Client Secret e token da brapi | Gerenciador de Credenciais (Windows) ou Porta-chaves (macOS) |
 
 No Windows, a pasta padrão é `%LOCALAPPDATA%\FinancasPessoais`. No macOS, é
 `~/Library/Application Support/Tabimoney`.
 
 O servidor escuta apenas em `127.0.0.1` (o próprio computador). Ele não aceita conexões de outros aparelhos da
 rede, e as rotas que mudam dados exigem um token CSRF da sessão.
+
+## Criptografia em repouso
+
+A base é criptografada com **SQLCipher 4** (AES-256, HMAC-SHA512). O arquivo no disco não começa com o cabeçalho
+`SQLite format 3\0`; sem a chave, ele não abre em ferramentas comuns. Os backups criados pelo app a partir desta
+versão também são criptografados.
+
+- A chave é composta por **32 bytes aleatórios**, guardados no Gerenciador de Credenciais do Windows ou no
+  Porta-chaves do macOS, separados do arquivo do banco.
+- O app usa a chave em modo raw no dia a dia; o KDF de 256 mil iterações será usado no backup portátil com
+  passphrase.
+- A primeira abertura depois de uma atualização migra uma base antiga em texto claro automaticamente. O app guarda
+  uma cópia de segurança, confere um fingerprint lógico do esquema e de todas as linhas e só então troca o arquivo.
+- Backups antigos em texto claro são criptografados automaticamente na primeira abertura, com fingerprint e
+  verificação. Se um arquivo não puder ser convertido, ele fica como está e o app registra o aviso no log.
+- Backups antigos em texto claro também continuam restauráveis: o app os valida e os re-criptografa na restauração.
+- Se a migração falhar, o app preserva a base original e avisa. Nada é apagado.
+
+**Limites importantes:** SQLCipher protege o arquivo em repouso, não o app aberto. Malware rodando como o seu
+usuário, capturas de tela, relatórios HTML exportados e arquivos CSV ainda podem expor os dados. A chave fica no
+cofre do sistema; se ela for perdida, a base e os backups criptografados não poderão ser abertos. O backup portátil
+com passphrase, que permite recuperar os dados em outro computador, está previsto para a próxima fase.
 
 ## O que sai da máquina
 

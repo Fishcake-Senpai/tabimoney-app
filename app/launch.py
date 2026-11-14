@@ -164,6 +164,14 @@ def run_server(foreground: bool = False) -> None:
     try:
         server.run()
     finally:
+        if not server.started:
+            # A porta não abriu: se a base acabou de ser criptografada, devolve o plaintext para o vigia antigo.
+            try:
+                from app import db_crypto
+
+                db_crypto.rollback_pending()
+            except Exception:  # noqa: BLE001 - a recuperação é uma última tentativa; o log já registra o erro
+                logging.getLogger("tabimoney").exception("Não deu para desfazer a migração da base")
         info = _read_lock()
         if info and info.get("pid") == os.getpid():
             lock_path().unlink(missing_ok=True)

@@ -11,9 +11,21 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Segurança
+- **Base local criptografada com SQLCipher 4** (AES-256-CBC com HMAC-SHA512). O arquivo `financas.sqlite3` não tem
+  mais o cabeçalho SQLite em texto claro. A chave é composta por 32 bytes aleatórios guardados no cofre do sistema
+  (Gerenciador de Credenciais ou Porta-chaves), separada do banco.
+- **Migração automática e verificada** de bases antigas: cópia plaintext, checkpoint do WAL, `sqlcipher_export`,
+  fingerprint lógico de esquema e linhas, troca atômica e rollback se a inicialização falhar.
+- **Backups novos criptografados**, conversão automática dos backups antigos em texto claro e restauração
+  compatível com backups antigos, que são re-criptografados ao restaurar.
+- Backups que não puderem ser convertidos ficam como estão e o motivo vai para o log; nenhum é apagado.
+- O restaurador do atualizador aceita o backup plaintext da versão anterior e o backup criptografado novo.
+
 ### Alterado
 - **README** reescrito para quem chega de fora: proposta, capturas da demonstração, download, privacidade e links
   para a documentação, sem o detalhamento técnico que agora fica nos guias.
+- A tela **Dados e backup** informa que o banco e os backups novos são criptografados.
 - **Documentação pública reorganizada** em `docs/README.md`, com guias de instalação, primeiros passos, conexões,
   gastos, investimentos, imposto de renda, IA e privacidade, além do guia de desenvolvimento e da referência dos
   agentes.

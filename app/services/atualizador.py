@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import shutil
+import sqlcipher3
 import sqlite3
 import subprocess
 import sys
@@ -33,7 +34,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from app import __version__, db
+from app import __version__, db, db_crypto
 from app.services import updates
 
 MARKER = "atualizacao.json"
@@ -478,7 +479,7 @@ def revert(state: dict[str, Any], opener: subprocess.Popen | None, reason: str) 
     try:
         if state.get("backup"):
             restore(Path(state["backup"]))
-    except (OSError, sqlite3.Error) as exc:
+    except (OSError, ValueError, sqlite3.Error, sqlcipher3.Error, db_crypto.DatabaseCryptoError) as exc:
         log.exception("Não deu para restaurar a base")
         reason += f" A base não foi restaurada ({exc}); o backup está em {state['backup']}."
     _save(estado="revertida", motivo=reason)
@@ -486,15 +487,8 @@ def revert(state: dict[str, Any], opener: subprocess.Popen | None, reason: str) 
 
 
 def restore(backup: Path) -> None:
-    """Copia o backup por cima da base pela API do SQLite: funciona mesmo com outro processo (um agente de IA)
-    com a base aberta, o que impediria trocar o arquivo no Windows."""
-    source = sqlite3.connect(backup)
-    target = sqlite3.connect(db.database_path(), timeout=30)
-    try:
-        source.backup(target)
-    finally:
-        target.close()
-        source.close()
+    """Restaura o backup da atualização, aceitando o plaintext da versão antiga e o criptografado novo."""
+    db.restore_file(backup)
 
 
 # ---------------------------------------------------------------- a versão nova: avisar e limpar

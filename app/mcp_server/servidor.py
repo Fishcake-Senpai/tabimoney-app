@@ -15,7 +15,7 @@ from pathlib import Path
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.prompts.base import Prompt, PromptArgument
 
-from app import __version__, agente, db
+from app import __version__, agente, db, db_crypto
 from app.mcp_server import ferramentas
 
 ROOT = Path(__file__).resolve().parent.parent.parent  # no executável, a pasta extraída (sys._MEIPASS)
@@ -137,10 +137,22 @@ def _esconder_console() -> None:
 def main(demo: bool = False) -> None:
     _esconder_console()
     _log()
-    db.init_db()
+    try:
+        db.init_db()
+        try:
+            db_crypto.finalize_pending()
+        except OSError:
+            pass
+    except db_crypto.DatabaseCryptoError as exc:
+        logging.getLogger("tabimoney.mcp").error("Não foi possível abrir a base criptografada: %s", exc)
+        raise
     if demo:
         from app import demo as demo_mod
 
         demo_mod.ensure()
+        try:
+            db_crypto.finalize_pending()
+        except OSError:
+            pass
     logging.getLogger("tabimoney.mcp").info("servidor MCP %s iniciado (demo=%s)", __version__, demo)
     criar(demo).run("stdio")

@@ -36,7 +36,7 @@ import sys
 from contextlib import nullcontext
 from typing import Any
 
-from app import __version__, db, demo
+from app import __version__, db, db_crypto, demo
 from app.agente import operacoes as op
 from app.services import fundamentals, household, investor_profile, spending
 
@@ -349,7 +349,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     global _MEMBER
-    db.init_db()
+    try:
+        db.init_db()
+        try:
+            db_crypto.finalize_pending()
+        except OSError:
+            pass
+    except db_crypto.DatabaseCryptoError as exc:
+        _out({"erro": str(exc)})
+        raise SystemExit(1) from exc
     args = build_parser().parse_args(argv)
     if args.grupo == "mcp":
         result = args.func(args)  # o servidor cuida da demo por conta própria
@@ -361,6 +369,10 @@ def main(argv: list[str] | None = None) -> None:
             _out({"erro": "Na demonstração, atualizar e backup ficam desligados: não há dados de verdade."})
             raise SystemExit(1)
         demo.ensure()
+        try:
+            db_crypto.finalize_pending()
+        except OSError:
+            pass
     try:
         with demo.active() if args.demo else nullcontext():
             _MEMBER = household.resolve(args.titular) if args.titular else None
