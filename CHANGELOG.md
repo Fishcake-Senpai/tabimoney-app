@@ -11,6 +11,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.20.0] - 2026-11-14
+
 ### Segurança
 - **Base local criptografada com SQLCipher 4** (AES-256-CBC com HMAC-SHA512). O arquivo `financas.sqlite3` não tem
   mais o cabeçalho SQLite em texto claro. A chave é composta por 32 bytes aleatórios guardados no cofre do sistema
@@ -21,6 +23,10 @@ base (sempre por migração automática) e o contrato da CLI.
   compatível com backups antigos, que são re-criptografados ao restaurar.
 - Backups que não puderem ser convertidos ficam como estão e o motivo vai para o log; nenhum é apagado.
 - O restaurador do atualizador aceita o backup plaintext da versão anterior e o backup criptografado novo.
+
+### Corrigido
+- **Reversão da atualização com um clique**: o vigia prepara o cofre antes de o app antigo sair e conclui a
+  restauração mesmo se algo inesperado falhar; a versão anterior volta com os dados do backup.
 
 ### Alterado
 - **README** reescrito para quem chega de fora: proposta, capturas da demonstração, download, privacidade e links
@@ -455,7 +461,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.19.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.16.0...v0.17.0

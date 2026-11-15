@@ -19,8 +19,6 @@ import json
 import logging
 import os
 import shutil
-import sqlcipher3
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -34,7 +32,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from app import __version__, db, db_crypto
+from app import __version__, db
 from app.services import updates
 
 MARKER = "atualizacao.json"
@@ -299,8 +297,13 @@ def _no_window() -> dict[str, Any]:
 
 
 def _env() -> dict[str, str]:
-    # PyInstaller 6.9+: o filho extrai a própria cópia em vez de reaproveitar a pasta do pai (ver launch.open_app)
-    return dict(os.environ, PYINSTALLER_RESET_ENVIRONMENT="1")
+    # PyInstaller 6.9+: o filho extrai a própria cópia em vez de reaproveitar a pasta do pai (ver launch.open_app).
+    # Além da variável, tiramos as marcas do pai: se o filho herdasse a pasta extraída, ela sumiria junto com o pai
+    # e qualquer import tardio (o cofre, por exemplo) falharia no meio da atualização.
+    env = dict(os.environ, PYINSTALLER_RESET_ENVIRONMENT="1")
+    env.pop("_PYI_APPLICATION_HOME_DIR", None)
+    env.pop("_PYI_PARENT_PROCESS_LEVEL", None)
+    return env
 
 
 def verificar_executavel(exe: Path, version: str) -> None:
@@ -440,6 +443,14 @@ def watch() -> None:
     from app import launch
 
     _setup_log()
+    try:
+        # Prepara o cofre agora, enquanto a pasta de extração do app antigo ainda existe. Se o import ficasse para
+        # a hora da restauração, ele poderia falhar depois que o app antigo saiu e limpou a pasta temporária.
+        from app import security
+
+        security._vault()
+    except Exception:  # noqa: BLE001 - a restauração ainda pode tentar; o log guarda o motivo
+        log.exception("Não deu para preparar o cofre antes da atualização")
     state = marker()
     if state.get("estado") != "reiniciando":
         log.warning("Vigia aberto sem atualização em andamento (%s)", state.get("estado"))
@@ -479,7 +490,7 @@ def revert(state: dict[str, Any], opener: subprocess.Popen | None, reason: str) 
     try:
         if state.get("backup"):
             restore(Path(state["backup"]))
-    except (OSError, ValueError, sqlite3.Error, sqlcipher3.Error, db_crypto.DatabaseCryptoError) as exc:
+    except Exception as exc:  # noqa: BLE001 - a reversão precisa terminar mesmo se a restauração falhar
         log.exception("Não deu para restaurar a base")
         reason += f" A base não foi restaurada ({exc}); o backup está em {state['backup']}."
     _save(estado="revertida", motivo=reason)

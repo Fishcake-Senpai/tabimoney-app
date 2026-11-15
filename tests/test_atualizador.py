@@ -262,6 +262,15 @@ def test_erro_ao_conferir_a_pasta_volta_ao_baixar(app_congelado, monkeypatch):
     assert aviso["auto"] is False and "disco ocupado" in aviso["motivo"]
 
 
+def test_env_do_vigia_nao_herda_a_pasta_extraida_do_pai(monkeypatch):
+    monkeypatch.setenv("_PYI_APPLICATION_HOME_DIR", "C:\\pasta-do-pai")
+    monkeypatch.setenv("_PYI_PARENT_PROCESS_LEVEL", "1")
+    env = atualizador._env()
+    assert env["PYINSTALLER_RESET_ENVIRONMENT"] == "1"
+    assert "_PYI_APPLICATION_HOME_DIR" not in env
+    assert "_PYI_PARENT_PROCESS_LEVEL" not in env
+
+
 def test_caminho_temporario():
     assert atualizador._is_temporary(atualizador.Path(atualizador.tempfile.gettempdir()) / "x" / "Tabimoney.exe")
     assert atualizador._is_temporary(atualizador.Path("/private/var/AppTranslocation/X/d/Tabimoney.app"))
@@ -452,6 +461,22 @@ def test_vigia_desfaz_se_a_versao_nova_nao_sobe(troca_feita, processos, monkeypa
     assert exe.with_name("Tabimoney.falhou.exe").read_bytes() == b"exe novo"
     assert db.get_setting("antes") == "1" and db.get_setting("depois") == ""  # base de volta ao backup
     assert processos[-1] == [str(exe), "--apos-atualizacao"]  # reabre o antigo
+
+
+def test_vigia_prepara_o_cofre_antes_de_esperar_o_app_antigo(troca_feita, processos, monkeypatch):
+    from app import security
+
+    eventos = []
+    original = security._vault
+
+    def registrar():
+        eventos.append("cofre")
+        return original()
+
+    monkeypatch.setattr(security, "_vault", registrar)
+    monkeypatch.setattr(atualizador, "new_is_up", lambda estado: False)
+    atualizador.watch()
+    assert eventos and eventos[0] == "cofre"
 
 
 def test_versao_nova_no_ar_confere_pid_versao_e_caminho(troca_feita, monkeypatch):

@@ -158,8 +158,14 @@ def acompanhar(cliente: httpx.Client) -> dict:
 
 
 def imprimir_log() -> None:
-    log = db.data_dir() / "logs" / "atualizacao.log"
-    print(log.read_text(encoding="utf-8", errors="replace") if log.exists() else "(sem atualizacao.log)")
+    for name in ("atualizacao.log", "vigia-trace.log", "tabimoney.log"):
+        log = db.data_dir() / "logs" / name
+        print(f"--- {name} ---")
+        if not log.exists():
+            print(f"(sem {name})")
+            continue
+        lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
+        print("\n".join(lines[-80:] if name == "tabimoney.log" else lines))
 
 
 def encerrar_app() -> None:
@@ -263,6 +269,9 @@ def main() -> None:
             cenario_reversao(exe, api)
         else:
             cenario_sucesso(exe, api)
+    except SystemExit:
+        imprimir_log()
+        raise
     finally:
         try:
             encerrar_app()  # se algo falhou no meio, não deixa o app de teste aberto
