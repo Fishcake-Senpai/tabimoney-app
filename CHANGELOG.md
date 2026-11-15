@@ -11,6 +11,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.20.0] - 2026-11-14
+
 ### Segurança
 - **Base local criptografada com SQLCipher 4** (AES-256-CBC com HMAC-SHA512). O arquivo `financas.sqlite3` não tem
   mais o cabeçalho SQLite em texto claro. A chave é composta por 32 bytes aleatórios guardados no cofre do sistema
