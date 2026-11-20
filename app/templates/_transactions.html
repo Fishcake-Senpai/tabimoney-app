@@ -59,7 +59,7 @@
       <option value="in">Entrada</option>
     </select>
   </label>
-  <label class="field">Categoria
+  <label class="field">Trocar a categoria
     <select name="category" data-tx-select>
       <option value="" data-auto-option>Automática</option>
       {% for label, names in category_groups %}<optgroup label="{{ label }}">{% for c in names %}<option>{{ c }}</option>{% endfor %}</optgroup>{% endfor %}
