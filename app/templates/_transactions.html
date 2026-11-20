@@ -1,23 +1,33 @@
 {#- Lista de lançamentos por dia + o painel lateral (um só, preenchido pelo app.js). Usado em Gastos › Lançamentos
     e na página de cada categoria. Espera: transactions, category_groups, csrf_token; tx_back (para onde voltar). -#}
 {% from "_ui.html" import icon, cat_icon, drawer %}
-{% macro tx_rows(transactions) -%}
+{% macro tx_rows(transactions, selectable=False, attachments_by_tx=None) -%}
+    {% set att_map = attachments_by_tx or {} %}
     {% for day, items in transactions|groupby("transaction_date")|reverse %}
     <div class="day-head" data-day="{{ day }}"><span>{{ day|day_label }}</span><span class="money">{{ items|sum(attribute="amount_cents")|brl_signed }}</span></div>
     {% for t in items %}
     {% set source = {"manual": "escolhida por você", "regra": "por regra", "auto": "automática"}.get(t.category_source, "automática") %}
-    <button class="row" type="button" data-row data-in="{{ day }}" data-cat="{{ t.category or '' }}"
-            data-tx="{{ t.id }}" data-title="{{ t.description|tx_title }}" data-desc="{{ t.description }}" data-category="{{ t.category or '' }}"
-            data-auto="{{ t.auto_category or t.category or '' }}" data-manual="{{ '1' if t.category_source == 'manual' else '' }}"
-            data-source="{{ source }}" data-account="{{ t.account_name }}" data-date="{{ t.transaction_date|date_br }}"
-            data-amount="{{ t.amount_cents|brl_signed }}" data-positive="{{ '1' if t.amount_cents > 0 }}" data-icon="{{ category_icon(t.category) }}"
-            data-orig="{{ t.original_amount_cents|foreign_money(t.original_currency) if t.original_currency else '' }}"
-            data-pending="{{ '1' if t.status == 'PENDING' }}" data-transfer="{{ t.transfer_with or '' }}">
-      {{ cat_icon(t.category) }}
-      <span class="row-main"><span class="row-title">{{ t.description|tx_title }}</span>
-        <span class="row-sub">{{ t.category or "Sem categoria" }}{% if t.category_source == 'regra' %} · regra{% endif %} · {{ t.account_name }}{% if t.transfer_with %} · ↔ {{ t.transfer_with }}{% endif %}</span></span>
-      <span class="row-end"><b class="money {{ 'up' if t.amount_cents > 0 }}">{{ t.amount_cents|brl_signed }}</b>{% if t.original_currency %}<small>{{ t.original_amount_cents|foreign_money(t.original_currency) }}</small>{% elif t.status == 'PENDING' %}<small>fatura aberta</small>{% endif %}</span>
-    </button>
+    {% set abs_val = "%.2f"|format((t.amount_cents|abs) / 100)|replace(".", ",") %}
+    <div class="tx-row-wrap{% if t.is_ignored %} is-muted{% endif %}" data-row data-in="{{ day }}" data-cat="{{ t.category or '' }}">
+      {% if selectable %}
+      <label class="tx-check" aria-label="Selecionar {{ t.description|tx_title }}"><input type="checkbox" name="ids" value="{{ t.id }}" data-tx-check></label>
+      {% endif %}
+      <button class="row" type="button"
+              data-tx="{{ t.id }}" data-title="{{ t.description|tx_title }}" data-desc="{{ t.description }}" data-category="{{ t.category or '' }}"
+              data-auto="{{ t.auto_category or t.category or '' }}" data-manual="{{ '1' if t.category_source == 'manual' else '' }}"
+              data-source="{{ source }}" data-account="{{ t.account_name }}" data-date="{{ t.transaction_date|date_br }}" data-iso="{{ t.transaction_date }}"
+              data-amount="{{ t.amount_cents|brl_signed }}" data-abs-amount="{{ abs_val }}" data-positive="{{ '1' if t.amount_cents > 0 }}" data-icon="{{ category_icon(t.category) }}"
+              data-orig="{{ t.original_amount_cents|foreign_money(t.original_currency) if t.original_currency else '' }}"
+              data-pending="{{ '1' if t.status == 'PENDING' }}" data-transfer="{{ t.transfer_with or '' }}"
+              data-note="{{ t.note or '' }}" data-ignored="{{ '1' if t.is_ignored else '' }}" data-exclude-pnl="{{ '1' if t.exclude_from_pnl else '' }}"
+              data-is-manual="{{ '1' if t.source == 'manual' else '' }}"
+              data-attachments='{{ att_map.get(t.id, [])|tojson }}'>
+        {{ cat_icon(t.category) }}
+        <span class="row-main"><span class="row-title">{{ t.description|tx_title }}{% if t.recurring_id %} <span class="badge badge-ok">Fixa</span>{% endif %}{% if t.is_ignored %} <span class="badge badge-warn">Ignorado</span>{% elif t.exclude_from_pnl or t.effective_exclude_from_pnl %} <span class="badge badge-warn">Fora do resultado</span>{% endif %}{% if t.attachment_count %} <span class="tx-att-badge" title="{{ t.attachment_count|plural('comprovante', 'comprovantes') }}">{{ icon("receipt", "i-sm") }}{{ t.attachment_count }}</span>{% endif %}</span>
+          <span class="row-sub">{{ t.category or "Sem categoria" }}{% if t.category_source == 'regra' %} · regra{% endif %} · {{ t.account_name }}{% if t.transfer_with %} · ↔ {{ t.transfer_with }}{% endif %}{% if t.note %} · {{ t.note[:50] }}{% endif %}</span></span>
+        <span class="row-end"><b class="money {{ 'up' if t.amount_cents > 0 }}">{{ t.amount_cents|brl_signed }}</b>{% if t.original_currency %}<small>{{ t.original_amount_cents|foreign_money(t.original_currency) }}</small>{% elif t.status == 'PENDING' %}<small>fatura aberta</small>{% endif %}</span>
+      </button>
+    </div>
     {% endfor %}
     {% endfor %}
 {%- endmacro %}
@@ -29,16 +39,26 @@
   <div class="hero-value money" data-tx-amount></div>
   <p data-tx-title></p>
 </div>
-<div class="kv"><span>Data</span><b data-tx-date></b></div>
 <div class="kv"><span>Conta</span><b data-tx-account></b></div>
 <div class="kv"><span>Categoria</span><b data-tx-source></b></div>
 <div class="kv" data-tx-orig-row><span>Valor original</span><b data-tx-orig></b></div>
 <div class="kv" data-tx-transfer-row><span>Transferência com</span><b data-tx-transfer></b></div>
-<form method="post" action="/contas/categoria" class="form-grid modal-gap">
+
+<form method="post" action="/contas/lancamentos/editar" class="form-grid modal-gap">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="transaction_id" data-tx-id>
-  <input type="hidden" name="description" data-tx-desc>
   <input type="hidden" name="back" value="{{ tx_back }}">
+  <label class="field">Descrição<input type="text" name="description" maxlength="200" data-tx-desc-input required></label>
+  <div class="form-row">
+    <label class="field">Data<input type="date" name="transaction_date" data-tx-date-input required></label>
+    <label class="field">Valor (R$)<input type="text" name="amount" inputmode="decimal" data-tx-amount-input required></label>
+  </div>
+  <label class="field">Tipo
+    <select name="kind" data-tx-kind-input>
+      <option value="out">Saída</option>
+      <option value="in">Entrada</option>
+    </select>
+  </label>
   <label class="field">Trocar a categoria
     <select name="category" data-tx-select>
       <option value="" data-auto-option>Automática</option>
@@ -46,7 +66,28 @@
     </select>
   </label>
   <label class="check"><input type="checkbox" name="create_rule"> <span>Usar sempre para <b data-tx-rule></b></span></label>
+  <label class="field">Nota<input type="text" name="note" maxlength="500" placeholder="Opcional" data-tx-note-input></label>
+  <label class="check"><input type="checkbox" name="exclude_from_pnl" data-tx-exclude-pnl> <span>Tirar do resultado <small class="muted">(conta no saldo, sai de gastos/receitas)</small></span></label>
+  <label class="check"><input type="checkbox" name="is_ignored" data-tx-ignored> <span>Ignorar lançamento <small class="muted">(some de saldos e relatórios)</small></span></label>
   <div class="modal-actions"><a class="btn btn-ghost" data-tx-category-link href="/contas">Ver a categoria</a><button class="btn btn-primary" type="submit">Salvar</button></div>
+</form>
+
+<div class="drawer-section" data-tx-att-section>
+  <h4>Comprovantes</h4>
+  <div class="att-list" data-tx-att-list></div>
+  <form method="post" action="/contas/lancamentos/0/comprovantes" enctype="multipart/form-data" class="toolbar modal-gap" data-tx-att-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="back" value="{{ tx_back }}">
+    <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.webp" aria-label="Anexar comprovante" required>
+    <button class="btn btn-sm" type="submit">{{ icon("upload", "i-sm") }}Anexar</button>
+  </form>
+</div>
+
+<form method="post" action="/contas/lancamentos/excluir" class="modal-gap" data-tx-delete-form data-confirm="Excluir este lançamento manual?" hidden>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="transaction_id" data-tx-delete-id>
+  <input type="hidden" name="back" value="{{ tx_back }}">
+  <button class="btn btn-ghost btn-sm down" type="submit">{{ icon("trash-2", "i-sm") }}Excluir lançamento manual</button>
 </form>
 {% endcall %}
 {%- endmacro %}

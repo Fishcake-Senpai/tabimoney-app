@@ -852,6 +852,57 @@ class _Seeder:
                  "Bonificação de 20 units em junho: a XP já mostra, as movimentações ainda não."),
             )
 
+    def recurring_bills(self) -> None:
+        from app.services import recurring as rec_service
+        from app.services import transactions as tx_service
+
+        start = (self.today - timedelta(days=90)).replace(day=1).isoformat()
+        rec_service.save_recurring(
+            account_id=1,
+            description="Aluguel",
+            amount_cents=-240000,
+            frequency="monthly",
+            day_of_month=5,
+            start_date=start,
+            category="Casa",
+            adjust_business_day=True,
+            match_pattern="Aluguel",
+            author="demo",
+        )
+        rec_service.save_recurring(
+            account_id=2,
+            description="Vivo Fibra",
+            amount_cents=-13990,
+            frequency="monthly",
+            day_of_month=12,
+            start_date=start,
+            category="Casa",
+            adjust_business_day=True,
+            match_pattern="Vivo Fibra",
+            author="demo",
+        )
+        rec_service.save_recurring(
+            account_id=2,
+            description="Academia Smart Fit",
+            amount_cents=-12990,
+            frequency="monthly",
+            day_of_month=25,
+            start_date=start,
+            category="Saúde",
+            adjust_business_day=False,
+            match_pattern="Smart Fit",
+            author="demo",
+        )
+        tx_service.create_transaction(
+            account_id="dinheiro",
+            transaction_date=(self.today - timedelta(days=2)).isoformat(),
+            description="Feira livre (dinheiro)",
+            amount_cents=-6500,
+            category="Mercado",
+            note="Pago em espécie",
+            author="demo",
+        )
+
 
 def seed(today: date | None = None) -> None:
     """Grava a demonstração na base do contexto atual (use dentro de active() ou de db.using_database)."""
@@ -868,3 +919,4 @@ def seed(today: date | None = None) -> None:
     seeder.plans(partner, quarters)
     seeder.taxes(partner)
     seeder.history()
+    seeder.recurring_bills()

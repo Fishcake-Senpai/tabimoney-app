@@ -373,7 +373,9 @@ def delete_rule(rule_id: int) -> None:
 # ---------------------------------------------------------------- tendência
 
 def _spend_kind(t: dict[str, Any]) -> bool:
-    """Entra no gasto: saída, ou estorno (entrada fora das categorias de receita), nunca movimento interno."""
+    """Entra no gasto: saída, ou estorno (entrada fora das categorias de receita), nunca movimento interno ou ignorado."""
+    if t.get("is_ignored") or t.get("exclude_from_pnl") or t.get("effective_exclude_from_pnl"):
+        return False
     category = t["category"] or "Outros"
     if category in INTERNAL_CATEGORIES:
         return False

@@ -306,12 +306,15 @@ def import_ofx(content: bytes) -> int:
                     "transaction_date = excluded.transaction_date, description = excluded.description, "
                     "amount_cents = excluded.amount_cents, sync_run_id = excluded.sync_run_id, "
                     "category = COALESCE(cash_transaction.category, excluded.category), "
-                    "statement_ref = COALESCE(excluded.statement_ref, cash_transaction.statement_ref)",
+                    "statement_ref = COALESCE(excluded.statement_ref, cash_transaction.statement_ref), "
+                    "deleted_at = NULL",
                     (account_id, run_id, external_id, transaction_date, description, amount, currency,
                      categorize(description), statement_ref),
                 )
         link_accounts(connection)
         _finish_run(connection, run_id, total, f"{total} movimentação(ões) importada(s).")
+    from app.services import recurring
+    recurring.match_recurring()
     return total
 
 

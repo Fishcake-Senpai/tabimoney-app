@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, gastos_tabs, stat, badge, modal, empty, cat_icon %}
+{% block title %}Contas fixas{% endblock %}
+{% set status_map = {'pago': ('ok', 'Baixada'), 'pendente': ('warn', 'A vencer'), 'atrasado': ('err', 'Atrasada')} %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Gastos</h1><div class="sub">Contas fixas com baixa automática: quando a cobrança cai no extrato, ela substitui o previsto sem duplicar.</div></div>
+  <div class="actions">
+    <form method="post" action="/contas/fixas/conciliar">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn btn-ghost btn-sm" type="submit">{{ icon("refresh-cw", "i-sm") }}Conciliar agora</button>
+    </form>
+    <button class="btn btn-primary btn-sm" type="button" data-dialog="nova-fixa">{{ icon("plus", "i-sm") }}Nova conta fixa</button>
+  </div>
+</div>
+{{ gastos_tabs("fixas") }}
+
+{% if not recurring_list %}
+<div class="card empty">
+  <h2>Nenhuma conta fixa cadastrada</h2>
+  <p>Cadastre aluguel, internet, academia ou assinaturas. O app acompanha o vencimento e dá baixa sozinho quando o lançamento chegar.</p>
+  <div class="actions"><button class="btn btn-primary" type="button" data-dialog="nova-fixa">Cadastrar primeira conta fixa</button></div>
+</div>
+{% else %}
+<section class="stats">
+  {{ stat("Previsto em " ~ (schedule.month|month_label), schedule.total_planned_cents|brl, schedule['items']|length|plural("ocorrência", "ocorrências"), "calendar-clock") }}
+  {{ stat("Já baixado", schedule.total_paid_cents|brl, schedule.count_paid|plural("paga", "pagas"), "circle-check", value_tone="up") }}
+  {{ stat("Ainda a vencer / atrasado", schedule.total_pending_cents|brl, (schedule.count_pending + schedule.count_overdue)|plural("pendente", "pendentes"), "clock", value_tone="down" if schedule.count_overdue else "") }}
+</section>
+
+<section class="grid">
+  <article class="card card-flush span-7">
+    <div class="card-head">
+      <h2 class="card-title">Agenda de {{ schedule.month|month_label }}</h2>
+      <span class="card-note">{{ schedule['items']|length|plural("item", "itens") }}</span>
+    </div>
+    {% if schedule['items'] %}
+    <div class="rows">
+      {% for it in schedule['items'] %}
+      <div class="row">
+        {{ cat_icon(it.category) }}
+        <span class="row-main">
+          <span class="row-title">{{ it.description }} {{ badge(*status_map[it.status]) }}</span>
+          <span class="row-sub">Vence {{ it.due_date|date_br }} · {{ it.category }} · {{ it.account_name }} · {{ it.frequency_label }}{% if it.paid_date %} · pago em {{ it.paid_date|date_br }}{% endif %}</span>
+        </span>
+        <span class="row-end">
+          <b class="money {{ 'up' if it.amount_cents > 0 }}">{{ (it.actual_cents if it.actual_cents is not none else it.amount_cents)|brl_signed }}</b>
+          {% if it.transaction_id %}
+          <a class="link" href="/contas/lancamentos#tx-{{ it.transaction_id }}">ver lançamento</a>
+          {% else %}
+          <form method="post" action="/contas/fixas/baixar">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="recurring_id" value="{{ it.recurring_id }}">
+            <input type="hidden" name="due_date" value="{{ it.due_date }}">
+            <button class="btn btn-ghost btn-sm" type="submit">Dar baixa</button>
+          </form>
+          {% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}{{ empty("calendar", "Nenhuma ocorrência prevista neste mês.") }}{% endif %}
+  </article>
+
+  <article class="card card-flush span-5">
+    <div class="card-head"><h2 class="card-title">Contas cadastradas</h2></div>
+    <div class="rows">
+      {% for rec in recurring_list %}
+      <div class="row">
+        {{ cat_icon(rec.category) }}
+        <span class="row-main">
+          <span class="row-title">{{ rec.description }}</span>
+          <span class="row-sub">{{ rec.frequency_label }}{% if rec.day_of_month %} · dia {{ rec.day_of_month }}{% endif %}{% if rec.adjust_business_day %} · dia útil{% endif %} · {{ rec.account_name }}</span>
+        </span>
+        <span class="row-end">
+          <b class="money {{ 'up' if rec.amount_cents > 0 }}">{{ rec.amount_cents|brl_signed }}</b>
+          <form method="post" action="/contas/fixas/excluir" data-confirm="Excluir a conta fixa {{ rec.description }}?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="recurring_id" value="{{ rec.id }}">
+            <button class="icon-btn icon-btn-sm" type="submit" aria-label="Excluir {{ rec.description }}">{{ icon("trash-2", "i-sm") }}</button>
+          </form>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% endif %}
+
+{% call modal("nova-fixa", "Nova conta fixa") %}
+<form method="post" action="/contas/fixas" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label class="field">Descrição<input type="text" name="description" maxlength="200" placeholder="Ex.: Aluguel, Internet, Academia" required></label>
+  <div class="form-row">
+    <label class="field">Valor (R$)<input type="text" name="amount" inputmode="decimal" placeholder="0,00" required></label>
+    <label class="field">Tipo
+      <select name="kind">
+        <option value="out">Saída (despesa)</option>
+        <option value="in">Entrada (receita)</option>
+      </select>
+    </label>
+  </div>
+  <div class="form-row">
+    <label class="field">Frequência
+      <select name="frequency">
+        {% for key, label in frequencies.items() %}<option value="{{ key }}"{% if key == 'monthly' %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="field">Dia do vencimento<input type="number" name="day_of_month" min="1" max="31" value="{{ today[8:10]|int }}"></label>
+  </div>
+  <div class="form-row">
+    <label class="field">Início<input type="date" name="start_date" value="{{ today }}" required></label>
+    <label class="field">Fim <small class="muted">(opcional)</small><input type="date" name="end_date"></label>
+  </div>
+  <div class="form-row">
+    <label class="field">Conta
+      <select name="account_id">
+        {% for acc in cash_accounts %}<option value="{{ acc.id }}">{{ acc.account_name }}</option>{% endfor %}
+        <option value="dinheiro">Carteira (dinheiro)</option>
+      </select>
+    </label>
+    <label class="field">Categoria
+      <select name="category">
+        <option value="">Automática</option>
+        {% for label, names in category_groups %}<optgroup label="{{ label }}">{% for c in names %}<option>{{ c }}</option>{% endfor %}</optgroup>{% endfor %}
+      </select>
+    </label>
+  </div>
+  <label class="field">Texto no extrato para casar <small class="muted">(opcional; usa a descrição)</small>
+    <input type="text" name="match_pattern" maxlength="120" placeholder="Ex.: VIVO FIBRA">
+  </label>
+  <label class="check"><input type="checkbox" name="adjust_business_day" checked> <span>Ajustar para o próximo dia útil se cair no fim de semana</span></label>
+  <div class="modal-actions"><button class="btn btn-ghost" type="button" data-close>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div>
+</form>
+{% endcall %}
+{% endblock %}

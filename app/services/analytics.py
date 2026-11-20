@@ -928,7 +928,8 @@ HOUSEHOLD_PIX_WINDOW_DAYS = 1
 BILL_WINDOW_DAYS = 5
 
 
-def cash_transactions(limit: int | None = None, member: int | None = None) -> list[dict[str, Any]]:
+def cash_transactions(limit: int | None = None, member: int | None = None,
+                      include_ignored: bool = False) -> list[dict[str, Any]]:
     """Movimentações de conta e cartão sem contar duas vezes o que veio de duas origens.
 
     A mesma conta pode chegar por arquivo (OFX/CSV) e por Open Finance, com ids diferentes. Por conta,
@@ -937,14 +938,17 @@ def cash_transactions(limit: int | None = None, member: int | None = None) -> li
     compras iguais legítimas continuam sendo duas. Depois, as transferências entre contas próprias são
     conciliadas (ver match_transfers). A conciliação olha a casa toda; só então fica o titular pedido.
     """
+    ignored_filter = "" if include_ignored else " AND COALESCE(t.is_ignored, 0) = 0"
     data = [
         dict(r) for r in rows(
-            "SELECT t.id, t.transaction_date, t.description, t.amount_cents, t.status, t.category, t.user_category, "
-            "t.source, t.original_currency, t.original_amount_cents, a.account_name, a.account_type, a.provider, a.institution, "
+            "SELECT t.id, t.account_id, t.transaction_date, t.description, t.amount_cents, t.status, t.category, "
+            "t.user_category, t.source, t.original_currency, t.original_amount_cents, t.note, "
+            "COALESCE(t.is_ignored, 0) AS is_ignored, COALESCE(t.exclude_from_pnl, 0) AS exclude_from_pnl, "
+            "t.recurring_id, t.recurring_due_date, a.account_name, a.account_type, a.provider, a.institution, "
             "COALESCE(a.member_id, 1) AS member_id "
             "FROM cash_transaction t JOIN financial_account a ON a.id = t.account_id "
-            "WHERE a.account_type IN ('BANK', 'CREDIT') AND (t.status <> 'PENDING' OR "
-            "(a.account_type = 'CREDIT' AND t.transaction_date <= date('now', 'localtime'))) "
+            "WHERE t.deleted_at IS NULL AND a.account_type IN ('BANK', 'CREDIT') AND (t.status <> 'PENDING' OR "
+            "(a.account_type = 'CREDIT' AND t.transaction_date <= date('now', 'localtime')))" + ignored_filter + " "
             "ORDER BY t.transaction_date DESC, t.id DESC"
         )
     ]
@@ -960,7 +964,7 @@ def cash_transactions(limit: int | None = None, member: int | None = None) -> li
         for r in providers[primary]:
             free[int(r["amount_cents"])].append(date.fromisoformat(r["transaction_date"]))
         for provider, items in providers.items():
-            if provider == primary:
+            if provider == primary or provider == "manual":
                 continue
             for r in items:
                 candidates = free.get(int(r["amount_cents"]))
@@ -974,6 +978,22 @@ def cash_transactions(limit: int | None = None, member: int | None = None) -> li
     output = [r for r in data if int(r["id"]) not in dropped]
     apply_overrides(output)
     match_transfers(output)
+    att_counts = {
+        int(r["transaction_id"]): int(r["n"])
+        for r in rows("SELECT transaction_id, COUNT(*) AS n FROM transaction_attachment WHERE deleted_at IS NULL GROUP BY transaction_id")
+    }
+    excluded_cats = {
+        str(r["name_key"])
+        for r in rows("SELECT name_key FROM category WHERE exclude_from_pnl = 1 AND deleted_at IS NULL")
+    }
+    from app.services.spending import normalize as _norm_cat
+    for t in output:
+        t["is_ignored"] = bool(t.get("is_ignored"))
+        t["exclude_from_pnl"] = bool(t.get("exclude_from_pnl"))
+        t["effective_exclude_from_pnl"] = bool(
+            t["exclude_from_pnl"] or _norm_cat(t.get("category") or "") in excluded_cats
+        )
+        t["attachment_count"] = att_counts.get(int(t["id"]), 0)
     if member is not None:
         output = [t for t in output if t["member_id"] == member]
     return output[:limit] if limit else output
@@ -1035,17 +1055,21 @@ def match_transfers(transactions: list[dict[str, Any]]) -> int:
     return matched
 
 
-def unmatched_transfers(transactions: list[dict[str, Any]], since: str) -> list[dict[str, Any]]:
+def unmatched_transfers(transactions: list[dict[str, Any]], since: str,
+                        dismissed: set[str] | None = None) -> list[dict[str, Any]]:
     """Transferências próprias (ou entre titulares) sem o outro lado: o dinheiro foi ou veio de uma conta não conectada."""
+    skip = dismissed or set()
     return [
         t for t in transactions
         if t["category"] in {OWN_TRANSFER, HOUSEHOLD_TRANSFER} and not t.get("transfer_with")
-        and t["transaction_date"] >= since
+        and t["transaction_date"] >= since and str(t["id"]) not in skip
     ]
 
 
 def _flow_kind(t: dict[str, Any]) -> str | None:
-    """'in' (receita), 'out' (despesa), 'refund' (estorno, abate a despesa) ou None (movimento interno)."""
+    """'in' (receita), 'out' (despesa), 'refund' (estorno, abate a despesa) ou None (movimento interno / fora do resultado)."""
+    if t.get("is_ignored") or t.get("exclude_from_pnl") or t.get("effective_exclude_from_pnl"):
+        return None
     category = t["category"] or "Outros"
     if category in INTERNAL_CATEGORIES:
         return None

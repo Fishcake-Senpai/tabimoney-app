@@ -31,8 +31,14 @@ Em **Entrou e saiu** dá para comparar receitas e despesas em 6M, 12M, 24M, 36M 
 
 ## Lançamentos e categorias
 
-Em **Gastos › Lançamentos**, clique em um lançamento para abrir o painel e trocar a categoria. A ordem de
-prioridade é:
+Em **Gastos › Lançamentos**, você pode:
+
+- clicar em **Novo lançamento** para registrar dinheiro vivo, reembolsos ou ajustes à mão (com sugestão de descrição pelo histórico);
+- clicar em um lançamento para editar descrição, data, valor, categoria, nota, anexar **comprovantes** (PDF ou imagem, salvos localmente) ou marcar como **Fora do resultado** (conta no saldo, sai de gastos/receitas) ou **Ignorado** (some de saldos e relatórios; use **Mostrar ignorados** para rever);
+- selecionar vários lançamentos para **recategorizar em lote**, ignorar, tirar do resultado ou exportar os selecionados em CSV;
+- clicar em **Exportar CSV** para baixar o extrato filtrado em formato compatível com planilhas.
+
+A ordem de prioridade da categoria é:
 
 1. **escolha manual** — o que você definiu naquele lançamento;
 2. **regra** — texto que contém algo (ex.: “UBER” → Transporte);
@@ -43,6 +49,12 @@ Marcar **Usar sempre** cria a regra ali mesmo. As regras e as categorias própri
 
 Categorias internas — *Investimentos*, *Pagamento de fatura*, *Transferência própria* e *Transferência entre
 titulares* — não contam como receita nem como despesa.
+
+## Contas fixas
+
+Em **Gastos › Contas fixas**, cadastre despesas ou receitas recorrentes (semanal, quinzenal, mensal, trimestral ou anual), com ajuste opcional para o próximo dia útil no fim de semana.
+
+Quando a cobrança chega por Open Finance ou importação, o app faz a **baixa automática**, trocando o previsto pelo lançamento real sem contar em dobro. O que ainda não caiu aparece como **A vencer** ou **Atrasada**, com opção de dar baixa manual.
 
 ## O que entra como receita
 

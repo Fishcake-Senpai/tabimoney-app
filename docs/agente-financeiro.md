@@ -63,6 +63,15 @@ reversível*, **sensível** (`destructiveHint`; só com pedido explícito do usu
 | `gastos_criar_categoria` | escrita reversível | `financas gastos criar-categoria` |
 | `gastos_excluir_categoria` | **sensível** | `financas gastos excluir-categoria` |
 | `gastos_restaurar_categoria` | escrita reversível | `financas gastos restaurar-categoria` |
+| `gastos_criar_lancamento` | escrita reversível | `financas gastos criar-lancamento` |
+| `gastos_editar_lancamento` | escrita reversível | `financas gastos editar-lancamento` |
+| `gastos_ignorar` | escrita reversível | `financas gastos ignorar` |
+| `gastos_exportar_csv` | escrita (grava um arquivo) | `financas gastos exportar-csv` |
+| `importacao_desfazer` | **sensível** | `financas importacao desfazer ID` |
+| `pendencia_dispensar` | escrita reversível | `financas pendencia dispensar TIPO CHAVE` |
+| `contas_fixas_listar` | leitura | `financas contas-fixas listar` |
+| `contas_fixas_salvar` | escrita reversível | `financas contas-fixas salvar` |
+| `contas_fixas_remover` | **sensível** | `financas contas-fixas remover ID` |
 | `relatorio_exportar` | escrita (grava um arquivo) | `financas relatorio exportar` |
 | `orcamento_mostrar` | leitura | `financas orcamento mostrar` |
 | `orcamento_contexto` | leitura | `financas orcamento contexto` |

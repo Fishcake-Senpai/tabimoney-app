@@ -11,6 +11,18 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+### Adicionado
+- **Lançamentos manuais e edição**: botão **Novo lançamento** em Gastos › Lançamentos (com sugestão de descrição pelo histórico, conta Carteira/dinheiro ou conta conectada, nota e opção "Tirar do resultado"), edição de descrição, data, valor, categoria e nota no painel lateral, e exclusão reversível de lançamentos manuais.
+- **Ignorar lançamento e tirar do resultado**: opções por lançamento (e em lote) para ignorar completamente (`is_ignored`, com alternador **Mostrar ignorados**) ou tirar de receitas, despesas e orçamento mantendo no saldo (`exclude_from_pnl`), além de suporte por categoria.
+- **Recategorização e ações em lote** na tela de Lançamentos: seleção múltipla com barra de ações para recategorizar, ignorar, tirar do resultado ou exportar os selecionados em CSV.
+- **Exportar lançamentos em CSV**: botão **Exportar CSV** na tela de Lançamentos (UTF-8 com BOM e separador `;`, respeitando filtros ou seleção).
+- **Desfazer importação**: botão **Desfazer** no histórico de importações (`/importar`), removendo o lote gravado (lançamentos com exclusão reversível; posições/eventos/saldos recalculados automaticamente).
+- **Pendências que não voltam**: botão **Dispensar** em Pendências (`/conciliacao`) para transferências sem par e divergências de posição/saldo, com expiração automática de 60 dias para transferências antigas sem par.
+- **Contas fixas com baixa automática**: nova aba **Contas fixas** em Gastos (`/contas/fixas`), com frequências de semanal a anual, ajuste para dia útil no fim de semana, status derivado (baixada, a vencer, atrasada) e casamento automático com lançamentos importados/sincronizados sem duplicar.
+- **Comprovantes nos lançamentos**: anexo de PDF/PNG/JPG/WEBP no painel lateral de cada lançamento (salvo localmente em `attachments/`), com indicador na lista, download e remoção.
+- **Agentes (MCP e CLI)**: novas ferramentas e comandos `gastos_criar_lancamento`, `gastos_editar_lancamento`, `gastos_ignorar`, `gastos_exportar_csv`, `importacao_desfazer`, `pendencia_dispensar`, `contas_fixas_listar`, `contas_fixas_salvar` e `contas_fixas_remover`.
+- **Demonstração**: atualizada com contas fixas (Aluguel, Vivo Fibra, Academia) e lançamento manual em dinheiro.
+
 ## [0.20.0] - 2026-11-14
 
 ### Segurança

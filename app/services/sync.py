@@ -661,6 +661,8 @@ def sync_pluggy(item_id: str | None = None) -> dict[str, Any]:
     if len(failed) == len(results):
         raise SyncError(" ".join(dict.fromkeys(r["message"] for r in failed))[:500])
     status = "partial" if failed or any(r["status"] == "partial" for r in results) else "success"
+    from app.services import recurring
+    recurring.match_recurring()
     return {
         "status": status,
         "records_read": sum(r["records_read"] for r in results),

@@ -36,10 +36,20 @@
     <div class="card-head"><h2 class="card-title">Últimas importações</h2></div>
     {% if recent_runs %}
     <div class="rows">
-      {% for run in recent_runs[:5] %}
+      {% for run in recent_runs[:8] %}
       <div class="row">
         <span class="row-main"><span class="row-title">{{ run.source }}</span><span class="row-sub">{{ run.started_at|date_br }} {{ run.started_at[11:16] }} · {{ run.records_written|plural("registro", "registros") }}</span></span>
+        {% if run.undone_at %}
+        {{ badge("warn", "Desfeita") }}
+        {% else %}
         {{ badge(*run_status[run.status]) }}
+        {% if run.records_written > 0 %}
+        <form method="post" action="/importar/{{ run.id }}/desfazer" data-confirm="Desfazer esta importação e remover os {{ run.records_written }} registros dela?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-ghost btn-sm" type="submit">Desfazer</button>
+        </form>
+        {% endif %}
+        {% endif %}
       </div>
       {% endfor %}
     </div>
