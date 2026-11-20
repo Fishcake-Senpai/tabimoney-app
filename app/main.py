@@ -1305,6 +1305,8 @@ def edit_transaction(
         if create_rule == "on" and category.strip() and updated["description"]:
             rule = spending.add_rule(updated["description"].split("|")[0], category)
             _flash(request, "success", f"Salvo e regra criada: '{rule['pattern']}' → {rule['category']} ({rule['matches']} lançamento(s)).")
+        elif category.strip():
+            _flash(request, "success", f"Categoria alterada para {category.strip()}.")
         else:
             _flash(request, "success", "Lançamento atualizado.")
     except ValueError as exc:
