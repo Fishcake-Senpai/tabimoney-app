@@ -144,6 +144,79 @@ def build_parser() -> argparse.ArgumentParser:
     cmd(g, "regras", lambda a: op.gastos_regras(), help="lista regras")
     p = cmd(g, "remover-regra", lambda a: op.gastos_remover_regra(a.id))
     p.add_argument("id", type=int)
+    p = cmd(g, "criar-lancamento", lambda a: op.gastos_criar_lancamento(
+        a.data, a.descricao, a.valor, a.tipo, a.conta, a.categoria, a.nota, a.fora_do_resultado, member=_MEMBER, autor=a.autor),
+        help="registra um lançamento manual")
+    p.add_argument("--data", required=True)
+    p.add_argument("--descricao", required=True)
+    p.add_argument("--valor", required=True)
+    p.add_argument("--tipo", choices=["saida", "entrada"], default="saida")
+    p.add_argument("--conta")
+    p.add_argument("--categoria")
+    p.add_argument("--nota")
+    p.add_argument("--fora-do-resultado", action="store_true")
+    p.add_argument("--autor", default="agente")
+    p = cmd(g, "editar-lancamento", lambda a: op.gastos_editar_lancamento(
+        a.id, a.data, a.descricao, a.valor, a.tipo, a.categoria, a.nota,
+        None if a.ignorado is None else a.ignorado == "sim",
+        None if a.fora_do_resultado is None else a.fora_do_resultado == "sim", autor=a.autor),
+        help="edita um lançamento existente")
+    p.add_argument("id", type=int)
+    p.add_argument("--data")
+    p.add_argument("--descricao")
+    p.add_argument("--valor")
+    p.add_argument("--tipo", choices=["saida", "entrada"])
+    p.add_argument("--categoria")
+    p.add_argument("--nota")
+    p.add_argument("--ignorado", choices=["sim", "nao"])
+    p.add_argument("--fora-do-resultado", choices=["sim", "nao"])
+    p.add_argument("--autor", default="agente")
+    p = cmd(g, "ignorar", lambda a: op.gastos_ignorar(
+        a.id, None if a.ignorado is None else a.ignorado == "sim",
+        None if a.fora_do_resultado is None else a.fora_do_resultado == "sim"),
+        help="marca ou desmarca lançamentos como ignorados ou fora do resultado")
+    p.add_argument("--id", type=int, nargs="+", required=True)
+    p.add_argument("--ignorado", choices=["sim", "nao"])
+    p.add_argument("--fora-do-resultado", choices=["sim", "nao"])
+    p = cmd(g, "exportar-csv", lambda a: op.gastos_exportar_csv(
+        a.arquivo, a.categoria, a.busca, a.incluir_ignorados, member=_MEMBER),
+        help="exporta lançamentos em CSV")
+    p.add_argument("--arquivo")
+    p.add_argument("--categoria")
+    p.add_argument("--busca")
+    p.add_argument("--incluir-ignorados", action="store_true")
+
+    g = groups.add_parser("importacao", help="histórico de importações").add_subparsers(dest="acao", required=True)
+    p = cmd(g, "desfazer", lambda a: op.importacao_desfazer(a.id), help="desfaz uma importação pelo id")
+    p.add_argument("id", type=int)
+
+    g = groups.add_parser("pendencia", help="pendências de conciliação").add_subparsers(dest="acao", required=True)
+    p = cmd(g, "dispensar", lambda a: op.pendencia_dispensar(a.tipo, a.chave), help="dispensa uma pendência")
+    p.add_argument("tipo", choices=["transfer_orphan", "position", "bank"])
+    p.add_argument("chave")
+
+    g = groups.add_parser("contas-fixas", help="contas fixas com baixa automática").add_subparsers(dest="acao", required=True)
+    p = cmd(g, "listar", lambda a: op.contas_fixas_listar(a.mes, member=_MEMBER), help="lista contas fixas e agenda do mês")
+    p.add_argument("--mes")
+    p = cmd(g, "salvar", lambda a: op.contas_fixas_salvar(
+        a.descricao, a.valor, a.frequencia, a.tipo, a.conta, a.categoria, a.dia, a.inicio, a.fim,
+        not a.sem_dia_util, a.padrao, a.id, member=_MEMBER, autor=a.autor),
+        help="cria ou atualiza uma conta fixa")
+    p.add_argument("--descricao", required=True)
+    p.add_argument("--valor", required=True)
+    p.add_argument("--frequencia", choices=["weekly", "biweekly", "monthly", "quarterly", "yearly"], default="monthly")
+    p.add_argument("--tipo", choices=["saida", "entrada"], default="saida")
+    p.add_argument("--conta")
+    p.add_argument("--categoria")
+    p.add_argument("--dia", type=int)
+    p.add_argument("--inicio")
+    p.add_argument("--fim")
+    p.add_argument("--sem-dia-util", action="store_true")
+    p.add_argument("--padrao")
+    p.add_argument("--id", type=int)
+    p.add_argument("--autor", default="agente")
+    p = cmd(g, "remover", lambda a: op.contas_fixas_remover(a.id), help="remove uma conta fixa")
+    p.add_argument("id", type=int)
 
     g = groups.add_parser("carteira", help="posições com fundamentos").add_subparsers(dest="acao", required=True)
     cmd(g, "posicoes", lambda a: op.carteira_posicoes(member=_MEMBER))

@@ -1004,3 +1004,19 @@ table.data td.wrap { white-space: normal; }
   .ir-field > span:first-child { grid-column: 1 / -1; }
 }
 .copy-temp { position: fixed; left: -9999px; top: 0; opacity: 0; }
+
+/* Lançamentos: seleção em lote, comprovantes e contas fixas */
+.tx-row-wrap { display: flex; align-items: stretch; border-bottom: 1px solid var(--border); }
+.tx-row-wrap:last-child { border-bottom: 0; }
+.tx-row-wrap > .row { flex: 1; border-bottom: 0; min-width: 0; }
+.tx-row-wrap.is-muted { opacity: 0.6; }
+.tx-check { display: flex; align-items: center; padding: 0 4px 0 14px; cursor: pointer; }
+.tx-check input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.batch-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; margin-bottom: 12px;
+  background: var(--surface); border: 1px solid var(--accent); border-radius: var(--r); position: sticky; top: 12px; z-index: 20; }
+.batch-count { font-weight: 600; font-size: 0.875rem; margin-right: 4px; }
+.tx-att-badge { display: inline-flex; align-items: center; gap: 2px; font-size: 0.75rem; color: var(--muted); vertical-align: middle; margin-left: 4px; }
+.drawer-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.drawer-section h4 { margin: 0 0 8px; font-size: 0.9rem; }
+.att-list { display: flex; flex-direction: column; gap: 6px; }
+.att-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.875rem; }

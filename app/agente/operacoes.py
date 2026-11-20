@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from app import db
-from app.services import (analytics, budgets, fundamentals, household, investor_profile, recommendations, relatorio, spending,
-                          targets)
+from app.services import (analytics, budgets, fundamentals, household, investor_profile, recommendations, recurring,
+                          relatorio, spending, targets, transactions as tx_service)
 from app.services.pension import parse_amount
 
 # erros que viram {"erro": ...} na CLI e mensagem de erro no MCP
@@ -707,3 +707,187 @@ def previdencia_aporte(plano: str, data: str, valor: str | float, pagador: str =
         raise ValueError(f"Plano não encontrado: {plano}. Planos: {nomes}.")
     return estimador.registrar_aporte(found["product_key"], data, _cents(valor, "o valor"), pagador, folha,
                                       repetir_ate_dezembro=repetir_ate_dezembro, autor=autor)
+
+
+# ---------------------------------------------------------------- lançamentos manuais, CSV, importação, pendências, contas fixas
+
+def gastos_criar_lancamento(
+    data: str,
+    descricao: str,
+    valor: str | float,
+    tipo: str = "saida",
+    conta: str | None = None,
+    categoria: str | None = None,
+    nota: str | None = None,
+    fora_do_resultado: bool = False,
+    member: int | None = None,
+    autor: str = "agente",
+) -> dict[str, Any]:
+    cents = parse_amount(_amount_text(valor), "o valor")
+    signed = -abs(cents) if tipo == "saida" else abs(cents)
+    created = tx_service.create_transaction(
+        account_id=conta or "dinheiro",
+        transaction_date=data,
+        description=descricao,
+        amount_cents=signed,
+        category=categoria,
+        note=nota,
+        exclude_from_pnl=fora_do_resultado,
+        member=member,
+        author=autor,
+    )
+    return {
+        "id": created["id"], "data": created["transaction_date"], "descricao": created["description"],
+        "valor": created["amount_cents"] / 100, "conta": created["account_name"], "categoria": created["category"],
+        "nota": created["note"], "fora_do_resultado": created["exclude_from_pnl"],
+    }
+
+
+def gastos_editar_lancamento(
+    lancamento_id: int,
+    data: str | None = None,
+    descricao: str | None = None,
+    valor: str | float | None = None,
+    tipo: str | None = None,
+    categoria: str | None = None,
+    nota: str | None = None,
+    ignorado: bool | None = None,
+    fora_do_resultado: bool | None = None,
+    autor: str = "agente",
+) -> dict[str, Any]:
+    signed = None
+    if valor is not None and _amount_text(valor):
+        cents = parse_amount(_amount_text(valor), "o valor")
+        signed = -abs(cents) if tipo == "saida" else abs(cents) if tipo == "entrada" else cents
+    kwargs: dict[str, Any] = {
+        "transaction_date": data,
+        "description": descricao,
+        "amount_cents": signed,
+        "is_ignored": ignorado,
+        "exclude_from_pnl": fora_do_resultado,
+        "author": autor,
+    }
+    if categoria is not None:
+        kwargs["category"] = categoria
+    if nota is not None:
+        kwargs["note"] = nota
+    updated = tx_service.update_transaction(lancamento_id, **kwargs)
+    return {
+        "id": updated["id"], "data": updated["transaction_date"], "descricao": updated["description"],
+        "valor": updated["amount_cents"] / 100, "conta": updated["account_name"], "categoria": updated["category"],
+        "nota": updated["note"], "ignorado": updated["is_ignored"], "fora_do_resultado": updated["exclude_from_pnl"],
+    }
+
+
+def gastos_ignorar(
+    ids: list[int],
+    ignorado: bool | None = None,
+    fora_do_resultado: bool | None = None,
+) -> dict[str, Any]:
+    if ignorado is None and fora_do_resultado is None:
+        raise ValueError("Informe ignorado e/ou fora_do_resultado.")
+    count = tx_service.set_flags(ids, is_ignored=ignorado, exclude_from_pnl=fora_do_resultado)
+    return {"atualizados": count, "ignorado": ignorado, "fora_do_resultado": fora_do_resultado}
+
+
+def gastos_exportar_csv(
+    arquivo: str | None = None,
+    categoria: str | None = None,
+    busca: str | None = None,
+    incluir_ignorados: bool = False,
+    member: int | None = None,
+) -> dict[str, Any]:
+    tx_list = analytics.cash_transactions(member=member, include_ignored=incluir_ignorados)
+    if categoria:
+        wanted = spending.normalize(categoria)
+        tx_list = [t for t in tx_list if spending.normalize(t.get("category") or "") == wanted]
+    if busca:
+        q = spending.normalize(busca)
+        tx_list = [t for t in tx_list if q in spending.normalize(f"{t['description']} {t.get('account_name', '')}")]
+    payload = tx_service.export_csv(tx_list)
+    if arquivo:
+        target = Path(arquivo).expanduser().resolve()
+        target.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        folder = db.data_dir() / "Relatorios"
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / f"lancamentos-{date.today().isoformat()}.csv"
+    target.write_bytes(payload)
+    return {"arquivo": str(target), "lancamentos": len(tx_list)}
+
+
+def importacao_desfazer(run_id: int) -> dict[str, Any]:
+    return tx_service.undo_import(run_id)
+
+
+def pendencia_dispensar(tipo: str, chave: str) -> dict[str, Any]:
+    return tx_service.dismiss_pending(tipo, chave)
+
+
+def contas_fixas_listar(mes: str | None = None, member: int | None = None) -> dict[str, Any]:
+    sched = recurring.month_schedule(mes, member=member)
+    return {
+        "mes": sched["month"],
+        "previsto": _money(sched["total_planned_cents"]),
+        "baixado": _money(sched["total_paid_cents"]),
+        "pendente": _money(sched["total_pending_cents"]),
+        "agenda": [
+            {
+                "conta_fixa_id": i["recurring_id"], "descricao": i["description"], "conta": i["account_name"],
+                "categoria": i["category"], "vencimento": i["due_date"], "valor": _money(i["amount_cents"]),
+                "status": i["status"], "lancamento_id": i["transaction_id"],
+            }
+            for i in sched["items"]
+        ],
+        "cadastradas": [
+            {
+                "id": r["id"], "descricao": r["description"], "conta": r["account_name"], "categoria": r["category"],
+                "valor": _money(r["amount_cents"]), "frequencia": r["frequency"], "dia": r["day_of_month"],
+                "dia_util": r["adjust_business_day"], "inicio": r["start_date"], "fim": r["end_date"],
+            }
+            for r in recurring.list_recurring(member=member)
+        ],
+    }
+
+
+def contas_fixas_salvar(
+    descricao: str,
+    valor: str | float,
+    frequencia: str = "monthly",
+    tipo: str = "saida",
+    conta: str | None = None,
+    categoria: str | None = None,
+    dia: int | None = None,
+    inicio: str | None = None,
+    fim: str | None = None,
+    dia_util: bool = True,
+    padrao: str | None = None,
+    conta_fixa_id: int | None = None,
+    member: int | None = None,
+    autor: str = "agente",
+) -> dict[str, Any]:
+    cents = parse_amount(_amount_text(valor), "o valor")
+    signed = -abs(cents) if tipo == "saida" else abs(cents)
+    saved = recurring.save_recurring(
+        account_id=conta or "dinheiro",
+        description=descricao,
+        amount_cents=signed,
+        frequency=frequencia,
+        start_date=inicio,
+        day_of_month=dia,
+        end_date=fim,
+        category=categoria,
+        adjust_business_day=dia_util,
+        match_pattern=padrao,
+        recurring_id=conta_fixa_id,
+        member=member,
+        author=autor,
+    )
+    return {
+        "id": saved["id"], "descricao": saved["description"], "valor": _money(saved["amount_cents"]),
+        "frequencia": saved["frequency"], "conta": saved["account_name"], "categoria": saved["category"],
+    }
+
+
+def contas_fixas_remover(conta_fixa_id: int) -> dict[str, Any]:
+    return recurring.delete_recurring(conta_fixa_id)

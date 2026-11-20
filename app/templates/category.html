@@ -99,7 +99,7 @@
   <span class="card-note" data-count-for="cat-tx">{{ d.transactions|length|plural("lançamento", "lançamentos") }}</span>
 </div>
 <section class="card card-flush">
-  <div class="rows" id="cat-tx" data-rows>{{ tx_rows(d.transactions) }}</div>
+  <div class="rows" id="cat-tx" data-rows>{{ tx_rows(d.transactions, attachments_by_tx=attachments_by_tx) }}</div>
 </section>
 {{ tx_drawer(category_groups, "/contas/gastos/" ~ d.category|urlencode) }}
 

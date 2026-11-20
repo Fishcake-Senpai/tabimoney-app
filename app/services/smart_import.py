@@ -162,13 +162,15 @@ def _import_nuconta_csv(records: list[dict[str, str]]) -> ImportResult:
             connection.execute(
                 "INSERT INTO cash_transaction(account_id, sync_run_id, source, external_id, transaction_date, "
                 "description, amount_cents, currency, category) VALUES (?, ?, 'ofx', ?, ?, ?, ?, 'BRL', ?) "
-                "ON CONFLICT(source, external_id) DO UPDATE SET sync_run_id = excluded.sync_run_id",
+                "ON CONFLICT(source, external_id) DO UPDATE SET sync_run_id = excluded.sync_run_id, deleted_at = NULL",
                 (account_id, run_id, f"{external_key}:{identifier}", tx_date, description, amount, categorize(description)),
             )
             last_date = max(last_date or tx_date, tx_date)
         link_accounts(connection)
         derived = _derive_balance(connection, account_id, run_id, last_date)
         _finish_run(connection, run_id, len(rows), f"{len(rows)} movimentação(ões) da conta Nubank.")
+    from app.services import recurring
+    recurring.match_recurring()
     note = "" if derived else " · saldo não incluso no CSV: importe um OFX uma vez para ancorar o saldo"
     return ImportResult("Extrato Nubank (CSV)", len(rows), f"{len(rows)} movimentações{note}")
 
@@ -229,7 +231,7 @@ def _import_card_csv(filename: str, records: list[dict[str, str]]) -> ImportResu
                 "description, amount_cents, currency, category, statement_ref) "
                 "VALUES (?, ?, 'nubank_csv', ?, ?, ?, ?, 'BRL', ?, ?) "
                 "ON CONFLICT(source, external_id) DO UPDATE SET sync_run_id = excluded.sync_run_id, "
-                "category = excluded.category",
+                "category = excluded.category, deleted_at = NULL",
                 (account_id, run_id, external_id, tx_date, title, amount, category, statement_ref),
             )
         connection.execute(
@@ -240,6 +242,8 @@ def _import_card_csv(filename: str, records: list[dict[str, str]]) -> ImportResu
         )
         link_accounts(connection)
         _finish_run(connection, run_id, len(rows), f"Fatura {statement_ref}: {len(rows)} lançamento(s).")
+    from app.services import recurring
+    recurring.match_recurring()
     return ImportResult("Fatura Nubank (CSV)", len(rows), f"fatura {statement_ref} · {len(rows)} lançamentos")
 
 

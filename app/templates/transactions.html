@@ -1,16 +1,30 @@
 {% extends "base.html" %}
-{% from "_ui.html" import icon, gastos_tabs %}
+{% from "_ui.html" import icon, gastos_tabs, modal %}
 {% from "_transactions.html" import tx_rows, tx_drawer with context %}
 {% block title %}Lançamentos{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Gastos</h1></div></div>
+<div class="page-head">
+  <div><h1>Gastos</h1></div>
+  <div class="actions">
+    <button class="btn btn-primary btn-sm" type="button" data-dialog="novo-tx">{{ icon("plus", "i-sm") }}Novo lançamento</button>
+    <a class="btn btn-ghost btn-sm" href="/csv/lancamentos.csv{% if show_ignored %}?ignorados=1{% endif %}">{{ icon("download", "i-sm") }}Exportar CSV</a>
+    {% if show_ignored %}
+    <a class="btn btn-ghost btn-sm" href="/contas/lancamentos">Ocultar ignorados</a>
+    {% else %}
+    <a class="btn btn-ghost btn-sm" href="/contas/lancamentos?ignorados=1">{{ icon("eye-off", "i-sm") }}Mostrar ignorados</a>
+    {% endif %}
+  </div>
+</div>
 {{ gastos_tabs("lancamentos") }}
 
 {% if not transactions %}
 <div class="card empty">
   <h2>Nenhum lançamento</h2>
-  <p>Importe o extrato da conta e a fatura do cartão, ou conecte o Open Finance.</p>
-  <div class="actions"><a class="btn btn-primary" href="/importar">Importar</a></div>
+  <p>Importe o extrato da conta e a fatura do cartão, conecte o Open Finance ou registre um lançamento à mão.</p>
+  <div class="actions">
+    <button class="btn btn-primary" type="button" data-dialog="novo-tx">Novo lançamento</button>
+    <a class="btn btn-ghost" href="/importar">Importar</a>
+  </div>
 </div>
 {% else %}
 <div class="toolbar list-toolbar">
@@ -19,16 +33,77 @@
     <option value="">Todas as categorias</option>
     {% for c in transactions|map(attribute="category")|reject("none")|unique|sort %}<option>{{ c }}</option>{% endfor %}
   </select>
+  <label class="check"><input type="checkbox" data-tx-select-all> <span>Selecionar visíveis</span></label>
   <span class="card-note" data-count-for="tx">{{ transactions|length|plural("lançamento", "lançamentos") }}</span>
 </div>
 
-<section class="card card-flush">
-  <div class="rows" id="tx" data-rows>
-    {{ tx_rows(transactions) }}
+<form method="post" action="/contas/lancamentos/lote" id="tx-batch-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="back" value="/contas/lancamentos{% if show_ignored %}?ignorados=1{% endif %}">
+  <div class="batch-bar" id="tx-batch-bar" hidden>
+    <span class="batch-count" data-batch-count>0 selecionados</span>
+    <select name="category" class="pill" aria-label="Categoria em lote">
+      <option value="">Automática</option>
+      {% for label, names in category_groups %}<optgroup label="{{ label }}">{% for c in names %}<option>{{ c }}</option>{% endfor %}</optgroup>{% endfor %}
+    </select>
+    <button class="btn btn-primary btn-sm" type="submit" name="action" value="recategorizar">Recategorizar</button>
+    <button class="btn btn-ghost btn-sm" type="submit" name="action" value="fora_resultado">Tirar do resultado</button>
+    <button class="btn btn-ghost btn-sm" type="submit" name="action" value="ignorar">Ignorar</button>
+    <button class="btn btn-ghost btn-sm" type="submit" name="action" value="csv">{{ icon("download", "i-sm") }}CSV</button>
   </div>
-  {% if total > transactions|length %}<div class="card-foot"><a class="link" href="/contas/lancamentos?todos=1">Ver os mais antigos ({{ total - transactions|length }}) {{ icon("chevron-down") }}</a></div>{% endif %}
-</section>
+
+  <section class="card card-flush">
+    <div class="rows" id="tx" data-rows>
+      {{ tx_rows(transactions, selectable=True, attachments_by_tx=attachments_by_tx) }}
+    </div>
+    {% if total > transactions|length %}<div class="card-foot"><a class="link" href="/contas/lancamentos?todos=1{% if show_ignored %}&ignorados=1{% endif %}">Ver os mais antigos ({{ total - transactions|length }}) {{ icon("chevron-down") }}</a></div>{% endif %}
+  </section>
+</form>
 
 {{ tx_drawer(category_groups, '/contas/lancamentos') }}
 {% endif %}
+
+{% call modal("novo-tx", "Novo lançamento") %}
+<form method="post" action="/contas/lancamentos/novo" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="back" value="/contas/lancamentos">
+  <label class="field">Descrição
+    <input type="text" name="description" list="tx-desc-list" maxlength="200" placeholder="Ex.: Padaria, Reembolso, Mercado" required>
+  </label>
+  <datalist id="tx-desc-list">
+    {% for d in desc_suggestions %}<option value="{{ d }}"></option>{% endfor %}
+  </datalist>
+  <div class="form-row">
+    <label class="field">Data<input type="date" name="transaction_date" value="{{ today }}" required></label>
+    <label class="field">Valor (R$)<input type="text" name="amount" inputmode="decimal" placeholder="0,00" required></label>
+  </div>
+  <div class="form-row">
+    <label class="field">Tipo
+      <select name="kind">
+        <option value="out">Saída (despesa)</option>
+        <option value="in">Entrada (receita / reembolso)</option>
+      </select>
+    </label>
+    <label class="field">Conta
+      <select name="account_id">
+        <option value="dinheiro">Carteira (dinheiro)</option>
+        {% for acc in cash_accounts %}
+        {% if acc.account_name != 'Carteira (dinheiro)' %}
+        <option value="{{ acc.id }}">{{ acc.account_name }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <label class="field">Categoria
+    <select name="category">
+      <option value="">Automática</option>
+      {% for label, names in category_groups %}<optgroup label="{{ label }}">{% for c in names %}<option>{{ c }}</option>{% endfor %}</optgroup>{% endfor %}
+    </select>
+  </label>
+  <label class="field">Nota<input type="text" name="note" maxlength="500" placeholder="Opcional"></label>
+  <label class="check"><input type="checkbox" name="exclude_from_pnl"> <span>Tirar do resultado (conta no saldo, fora de receitas/despesas)</span></label>
+  <div class="modal-actions"><button class="btn btn-ghost" type="button" data-close>Cancelar</button><button class="btn btn-primary" type="submit">Registrar</button></div>
+</form>
+{% endcall %}
 {% endblock %}

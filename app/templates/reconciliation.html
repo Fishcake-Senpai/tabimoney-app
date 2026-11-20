@@ -27,6 +27,12 @@
           <input type="text" name="note" maxlength="1000" placeholder="Anotar" aria-label="Observação para {{ alert.ticker }}" required>
           <button class="btn btn-sm" type="submit">Salvar</button>
         </form>
+        <form method="post" action="/conciliacao/dispensar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="kind" value="position">
+          <input type="hidden" name="entity_key" value="{{ alert.account_name }}|{{ alert.ticker }}">
+          <button class="btn btn-ghost btn-sm" type="submit" title="Não sugerir novamente">Dispensar</button>
+        </form>
       </div>
       {% endfor %}
       {% for alert in bank_alerts %}
@@ -39,6 +45,12 @@
           <input type="hidden" name="entity_key" value="{{ alert.account_name }}">
           <input type="text" name="note" maxlength="1000" placeholder="Anotar" aria-label="Observação para {{ alert.account_name }}" required>
           <button class="btn btn-sm" type="submit">Salvar</button>
+        </form>
+        <form method="post" action="/conciliacao/dispensar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="kind" value="bank">
+          <input type="hidden" name="entity_key" value="{{ alert.account_name }}">
+          <button class="btn btn-ghost btn-sm" type="submit" title="Não sugerir novamente">Dispensar</button>
         </form>
       </div>
       {% endfor %}
@@ -70,7 +82,15 @@
       {% for t in transfer_orphans[:12] %}
       <div class="row">
         <span class="row-main"><span class="row-title">{{ t.description|tx_title }}</span><span class="row-sub">{{ t.account_name }} · {{ t.transaction_date|date_br }}</span></span>
-        <span class="row-end"><b class="money {{ 'up' if t.amount_cents > 0 }}">{{ t.amount_cents|brl_signed }}</b></span>
+        <span class="row-end">
+          <b class="money {{ 'up' if t.amount_cents > 0 }}">{{ t.amount_cents|brl_signed }}</b>
+          <form method="post" action="/conciliacao/dispensar">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="kind" value="transfer_orphan">
+            <input type="hidden" name="entity_key" value="{{ t.id }}">
+            <button class="btn btn-ghost btn-sm" type="submit" title="Não sugerir novamente">Dispensar</button>
+          </form>
+        </span>
       </div>
       {% endfor %}
     </div>

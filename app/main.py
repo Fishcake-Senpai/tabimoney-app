@@ -8,6 +8,7 @@ import os
 import secrets
 import threading
 from contextlib import asynccontextmanager
+from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -22,8 +23,8 @@ from app.mcp_server import instalar as mcp_instalar
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
 from app.services import (
-    analytics, atualizador, budgets, fundamentals, household, investor_profile, pension, recommendations, relatorio,
-    spending, targets, updates,
+    analytics, atualizador, budgets, fundamentals, household, investor_profile, pension, recommendations, recurring,
+    relatorio, spending, targets, transactions as tx_service, updates,
 )
 from app.services.categories import CATEGORY_ICON_CHOICES, INCOME_CATEGORIES, INTERNAL_CATEGORIES, category_icon
 from app.services.markdown import render as render_markdown
@@ -1202,14 +1203,335 @@ def export_report(request: Request, periodo: str = "mes", ref: str = "", enviado
     return response
 
 
+def _attachments_by_tx(tx_list: list[dict]) -> dict[int, list[dict]]:
+    if not tx_list:
+        return {}
+    ids = [int(t["id"]) for t in tx_list]
+    marks = ",".join("?" * len(ids))
+    out: dict[int, list[dict]] = {}
+    for r in db.rows(
+        f"SELECT id, transaction_id, filename, mime_type, size_bytes FROM transaction_attachment "
+        f"WHERE deleted_at IS NULL AND transaction_id IN ({marks}) ORDER BY id DESC",
+        tuple(ids),
+    ):
+        out.setdefault(int(r["transaction_id"]), []).append(dict(r))
+    return out
+
+
 @app.get("/contas/lancamentos", response_class=HTMLResponse)
-def transactions_page(request: Request, todos: str = ""):
-    """Gastos › Lançamentos: lista por dia; clicar abre o painel para trocar a categoria (e criar a regra ali)."""
-    transactions = analytics.cash_transactions(member=_member(request))
+def transactions_page(request: Request, todos: str = "", ignorados: str = ""):
+    """Gastos › Lançamentos: lista por dia; seleção em lote, novo lançamento, CSV e painel lateral."""
+    member = _member(request)
+    show_ignored = ignorados == "1"
+    transactions = analytics.cash_transactions(member=member, include_ignored=show_ignored)
+    shown = transactions[:3000 if todos else 150]
     return _page(
-        request, "transactions.html", transactions=transactions[:3000 if todos else 150], total=len(transactions),
+        request, "transactions.html", transactions=shown, total=len(transactions),
         category_groups=spending.category_groups(), all_shown=bool(todos),
+        show_ignored=show_ignored,
+        cash_accounts=tx_service.cash_accounts(member=member),
+        desc_suggestions=tx_service.description_suggestions(limit=40),
+        attachments_by_tx=_attachments_by_tx(shown),
+        today=date.today().isoformat(),
     )
+
+
+@app.post("/contas/lancamentos/novo")
+def create_manual_transaction(
+    request: Request,
+    csrf_token: str = Form(...),
+    account_id: str = Form("dinheiro"),
+    transaction_date: str = Form(...),
+    description: str = Form(...),
+    amount: str = Form(...),
+    kind: str = Form("out"),
+    category: str = Form(""),
+    note: str = Form(""),
+    exclude_from_pnl: str = Form(""),
+    back: str = Form("/contas/lancamentos"),
+):
+    _check_csrf(request, csrf_token)
+    try:
+        cents = pension.parse_amount(amount, "o valor")
+        signed = -abs(cents) if kind == "out" else abs(cents)
+        created = tx_service.create_transaction(
+            account_id=account_id,
+            transaction_date=transaction_date,
+            description=description,
+            amount_cents=signed,
+            category=category or None,
+            note=note or None,
+            exclude_from_pnl=exclude_from_pnl == "on",
+            member=_member(request),
+        )
+        _flash(request, "success", f"Lançamento \"{created['description']}\" registrado ({brl(abs(created['amount_cents']))}).")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, _local_path(back, "/contas/lancamentos"))
+
+
+@app.post("/contas/lancamentos/editar")
+def edit_transaction(
+    request: Request,
+    csrf_token: str = Form(...),
+    transaction_id: int = Form(...),
+    transaction_date: str = Form(""),
+    description: str = Form(""),
+    amount: str = Form(""),
+    kind: str = Form(""),
+    category: str = Form(""),
+    create_rule: str = Form(""),
+    note: str = Form(""),
+    is_ignored: str = Form(""),
+    exclude_from_pnl: str = Form(""),
+    back: str = Form("/contas/lancamentos"),
+):
+    _check_csrf(request, csrf_token)
+    try:
+        signed_cents = None
+        if amount.strip():
+            cents = pension.parse_amount(amount, "o valor")
+            signed_cents = -abs(cents) if kind == "out" else abs(cents) if kind == "in" else cents
+        updated = tx_service.update_transaction(
+            transaction_id,
+            transaction_date=transaction_date.strip() or None,
+            description=description.strip() or None,
+            amount_cents=signed_cents,
+            category=category,
+            note=note,
+            is_ignored=is_ignored == "on",
+            exclude_from_pnl=exclude_from_pnl == "on",
+        )
+        if create_rule == "on" and category.strip() and updated["description"]:
+            rule = spending.add_rule(updated["description"].split("|")[0], category)
+            _flash(request, "success", f"Salvo e regra criada: '{rule['pattern']}' → {rule['category']} ({rule['matches']} lançamento(s)).")
+        else:
+            _flash(request, "success", "Lançamento atualizado.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, _local_path(back, "/contas/lancamentos"))
+
+
+@app.post("/contas/lancamentos/excluir")
+def delete_manual_transaction(
+    request: Request,
+    csrf_token: str = Form(...),
+    transaction_id: int = Form(...),
+    back: str = Form("/contas/lancamentos"),
+):
+    _check_csrf(request, csrf_token)
+    try:
+        r = tx_service.delete_transaction(transaction_id)
+        if r["excluido"]:
+            _flash(request, "success", f"Lançamento \"{r['descricao']}\" excluído.")
+        else:
+            _flash(request, "warning", "Lançamento já estava excluído.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, _local_path(back, "/contas/lancamentos"))
+
+
+@app.post("/contas/lancamentos/lote")
+async def batch_transactions(request: Request):
+    form = await request.form()
+    _check_csrf(request, str(form.get("csrf_token", "")))
+    back = _local_path(str(form.get("back", "/contas/lancamentos")), "/contas/lancamentos")
+    ids = [int(v) for v in form.getlist("ids") if str(v).isdigit()]
+    action = str(form.get("action", "")).strip()
+    if not ids:
+        _flash(request, "warning", "Selecione ao menos um lançamento.")
+        return _redirect(request, back)
+    try:
+        if action == "recategorizar":
+            cat = str(form.get("category", "")).strip()
+            count = spending.set_category(ids, cat)
+            _flash(request, "success", f"{plural(count, 'lançamento atualizado', 'lançamentos atualizados')} para {cat or 'automática'}.")
+        elif action == "ignorar":
+            count = tx_service.set_flags(ids, is_ignored=True)
+            _flash(request, "success", f"{plural(count, 'lançamento ignorado', 'lançamentos ignorados')}.")
+        elif action == "restaurar_ignorar":
+            count = tx_service.set_flags(ids, is_ignored=False)
+            _flash(request, "success", f"{plural(count, 'lançamento reativado', 'lançamentos reativados')}.")
+        elif action == "fora_resultado":
+            count = tx_service.set_flags(ids, exclude_from_pnl=True)
+            _flash(request, "success", f"{plural(count, 'lançamento tirado', 'lançamentos tirados')} do resultado.")
+        elif action == "no_resultado":
+            count = tx_service.set_flags(ids, exclude_from_pnl=False)
+            _flash(request, "success", f"{plural(count, 'lançamento incluído', 'lançamentos incluídos')} no resultado.")
+        elif action == "csv":
+            all_tx = analytics.cash_transactions(member=_member(request), include_ignored=True)
+            wanted = set(ids)
+            selected = [t for t in all_tx if int(t["id"]) in wanted]
+            payload = tx_service.export_csv(selected)
+            return Response(
+                payload,
+                media_type="text/csv; charset=utf-8",
+                headers={"Content-Disposition": f'attachment; filename="lancamentos-selecionados-{date.today().isoformat()}.csv"'},
+            )
+        else:
+            raise ValueError("Ação em lote desconhecida.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, back)
+
+
+@app.get("/csv/lancamentos.csv")
+def export_transactions_csv(request: Request, categoria: str = "", busca: str = "", ignorados: str = ""):
+    tx_list = analytics.cash_transactions(member=_member(request), include_ignored=ignorados == "1")
+    if categoria.strip():
+        wanted_cat = spending.normalize(categoria)
+        tx_list = [t for t in tx_list if spending.normalize(t.get("category") or "") == wanted_cat]
+    if busca.strip():
+        q = spending.normalize(busca)
+        tx_list = [t for t in tx_list if q in spending.normalize(f"{t['description']} {t.get('account_name', '')} {t.get('category', '')}")]
+    payload = tx_service.export_csv(tx_list)
+    return Response(
+        payload,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="lancamentos-{date.today().isoformat()}.csv"'},
+    )
+
+
+@app.post("/contas/lancamentos/{tx_id}/comprovantes")
+async def upload_attachment(
+    request: Request,
+    tx_id: int,
+    csrf_token: str = Form(...),
+    file: UploadFile = File(...),
+    back: str = Form("/contas/lancamentos"),
+):
+    _check_csrf(request, csrf_token)
+    try:
+        content = await file.read()
+        att = tx_service.add_attachment(tx_id, file.filename or "comprovante.pdf", content, file.content_type)
+        _flash(request, "success", f"Comprovante \"{att['filename']}\" anexado.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, _local_path(back, "/contas/lancamentos"))
+
+
+@app.get("/comprovantes/{att_id}")
+def download_attachment(att_id: str):
+    if not att_id.isdigit():
+        raise HTTPException(status_code=404, detail="Comprovante não encontrado.")
+    try:
+        row, path = tx_service.get_attachment(int(att_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return FileResponse(path, media_type=row["mime_type"], filename=row["filename"])
+
+
+@app.post("/comprovantes/{att_id}/excluir")
+def delete_attachment(
+    request: Request,
+    att_id: int,
+    csrf_token: str = Form(...),
+    back: str = Form("/contas/lancamentos"),
+):
+    _check_csrf(request, csrf_token)
+    try:
+        r = tx_service.delete_attachment(att_id)
+        _flash(request, "success", f"Comprovante \"{r['filename']}\" removido.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, _local_path(back, "/contas/lancamentos"))
+
+
+@app.get("/contas/fixas", response_class=HTMLResponse)
+def recurring_page(request: Request, mes: str = ""):
+    """Gastos › Contas fixas: recorrências com baixa automática no extrato."""
+    member = _member(request)
+    schedule = recurring.month_schedule(mes or None, member=member)
+    return _page(
+        request, "recurring.html",
+        schedule=schedule,
+        recurring_list=recurring.list_recurring(member=member, include_inactive=True),
+        frequencies=recurring.FREQUENCIES,
+        cash_accounts=tx_service.cash_accounts(member=member),
+        category_groups=spending.category_groups(),
+        today=date.today().isoformat(),
+    )
+
+
+@app.post("/contas/fixas")
+def save_recurring_route(
+    request: Request,
+    csrf_token: str = Form(...),
+    recurring_id: str = Form(""),
+    account_id: str = Form("dinheiro"),
+    description: str = Form(...),
+    amount: str = Form(...),
+    kind: str = Form("out"),
+    category: str = Form(""),
+    frequency: str = Form("monthly"),
+    day_of_month: str = Form(""),
+    start_date: str = Form(""),
+    end_date: str = Form(""),
+    adjust_business_day: str = Form(""),
+    match_pattern: str = Form(""),
+    note: str = Form(""),
+):
+    _check_csrf(request, csrf_token)
+    try:
+        cents = pension.parse_amount(amount, "o valor")
+        signed = -abs(cents) if kind == "out" else abs(cents)
+        saved = recurring.save_recurring(
+            account_id=account_id,
+            description=description,
+            amount_cents=signed,
+            frequency=frequency,
+            start_date=start_date or None,
+            day_of_month=int(day_of_month) if day_of_month.strip().isdigit() else None,
+            end_date=end_date or None,
+            category=category or None,
+            adjust_business_day=adjust_business_day == "on",
+            match_pattern=match_pattern or None,
+            note=note or None,
+            recurring_id=int(recurring_id) if recurring_id.strip().isdigit() else None,
+            member=_member(request),
+        )
+        _flash(request, "success", f"Conta fixa \"{saved['description']}\" salva.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/contas/fixas")
+
+
+@app.post("/contas/fixas/excluir")
+def delete_recurring_route(request: Request, csrf_token: str = Form(...), recurring_id: int = Form(...)):
+    _check_csrf(request, csrf_token)
+    try:
+        r = recurring.delete_recurring(recurring_id)
+        _flash(request, "success", f"Conta fixa \"{r['descricao']}\" excluída.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/contas/fixas")
+
+
+@app.post("/contas/fixas/baixar")
+def settle_recurring_route(
+    request: Request,
+    csrf_token: str = Form(...),
+    recurring_id: int = Form(...),
+    due_date: str = Form(...),
+):
+    _check_csrf(request, csrf_token)
+    try:
+        tx = recurring.settle_occurrence(recurring_id, due_date)
+        _flash(request, "success", f"Baixa registrada: \"{tx['description']}\" em {date_br(tx['transaction_date'])}.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/contas/fixas")
+
+
+@app.post("/contas/fixas/conciliar")
+def match_recurring_route(request: Request, csrf_token: str = Form(...)):
+    _check_csrf(request, csrf_token)
+    count = recurring.match_recurring()
+    if count:
+        _flash(request, "success", f"{plural(count, 'conta fixa baixada', 'contas fixas baixadas')} automaticamente.")
+    else:
+        _flash(request, "warning", "Nenhum lançamento novo casou com as contas fixas.")
+    return _redirect(request, "/contas/fixas")
 
 
 @app.get("/contas/orcamento", response_class=HTMLResponse)
@@ -1239,6 +1561,7 @@ def category_page(request: Request, category: str):
         budgets=[b for b in budget["items"] if category in b["categories"] or b.get("is_total")],
         other_categories=[c["category"] for c in trends["categories"]],
         category_groups=spending.category_groups(),
+        attachments_by_tx=_attachments_by_tx(detail["transactions"]),
     )
 
 
@@ -1398,16 +1721,55 @@ def delete_category_rule(request: Request, csrf_token: str = Form(...), rule_id:
 def reconciliation_page(request: Request):
     transactions = analytics.cash_transactions()
     since = analytics.month_start(2)
+    orphan_since = (date.today() - timedelta(days=tx_service.PENDING_EXPIRY_DAYS)).isoformat()
+    dismissed_orphans = tx_service.dismissed_keys("transfer_orphan")
+    dismissed_positions = tx_service.dismissed_keys("position")
+    dismissed_banks = tx_service.dismissed_keys("bank")
+    position_alerts = [
+        r for r in db.rows("SELECT * FROM v_position_reconciliation WHERE status <> 'OK' ORDER BY status, ticker")
+        if f"{r['account_name']}|{r['ticker']}" not in dismissed_positions
+    ]
+    bank_alerts = [
+        r for r in db.rows("SELECT * FROM v_bank_balance_reconciliation WHERE status <> 'OK' ORDER BY status, account_name")
+        if r["account_name"] not in dismissed_banks
+    ]
     return _page(
         request, "reconciliation.html",
         transfer_pairs=[t for t in transactions if t.get("transfer_with") and t["amount_cents"] < 0 and t["transaction_date"] >= since],
-        transfer_orphans=analytics.unmatched_transfers(transactions, since),
-        position_alerts=db.rows("SELECT * FROM v_position_reconciliation WHERE status <> 'OK' ORDER BY status, ticker"),
-        bank_alerts=db.rows("SELECT * FROM v_bank_balance_reconciliation WHERE status <> 'OK' ORDER BY status, account_name"),
+        transfer_orphans=analytics.unmatched_transfers(transactions, orphan_since, dismissed=dismissed_orphans),
+        position_alerts=position_alerts,
+        bank_alerts=bank_alerts,
         reconciliation_notes=db.rows("SELECT * FROM reconciliation_note WHERE resolved_at IS NULL ORDER BY id DESC LIMIT 50"),
         recent_runs=db.rows("SELECT * FROM sync_run ORDER BY id DESC LIMIT 15"),
         fund_alerts=fundamentals.alerts(),
     )
+
+
+@app.post("/conciliacao/dispensar")
+def dismiss_reconciliation_pending(
+    request: Request,
+    csrf_token: str = Form(...),
+    kind: str = Form(...),
+    entity_key: str = Form(...),
+):
+    _check_csrf(request, csrf_token)
+    try:
+        tx_service.dismiss_pending(kind, entity_key)
+        _flash(request, "success", "Pendência dispensada; ela não será sugerida novamente.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/conciliacao")
+
+
+@app.post("/importar/{run_id}/desfazer")
+def undo_import_route(request: Request, run_id: int, csrf_token: str = Form(...), back: str = Form("/importar")):
+    _check_csrf(request, csrf_token)
+    try:
+        r = tx_service.undo_import(run_id)
+        _flash(request, "success", f"Importação #{run_id} desfeita ({plural(r['total_desfeito'], 'registro removido', 'registros removidos')}).")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, _local_path(back, "/importar"))
 
 
 @app.get("/configuracoes", response_class=HTMLResponse)

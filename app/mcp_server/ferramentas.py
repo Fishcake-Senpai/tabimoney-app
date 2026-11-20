@@ -49,6 +49,11 @@ EQUIVALENTE_CLI: dict[str, str] = {
     "gastos_criar_regra": "gastos regra", "gastos_remover_regra": "gastos remover-regra ID",
     "gastos_criar_categoria": "gastos criar-categoria", "gastos_excluir_categoria": "gastos excluir-categoria",
     "gastos_restaurar_categoria": "gastos restaurar-categoria", "relatorio_exportar": "relatorio exportar",
+    "gastos_criar_lancamento": "gastos criar-lancamento", "gastos_editar_lancamento": "gastos editar-lancamento",
+    "gastos_ignorar": "gastos ignorar", "gastos_exportar_csv": "gastos exportar-csv",
+    "importacao_desfazer": "importacao desfazer ID", "pendencia_dispensar": "pendencia dispensar TIPO CHAVE",
+    "contas_fixas_listar": "contas-fixas listar", "contas_fixas_salvar": "contas-fixas salvar",
+    "contas_fixas_remover": "contas-fixas remover ID",
     "orcamento_mostrar": "orcamento mostrar", "orcamento_contexto": "orcamento contexto",
     "orcamento_definir": "orcamento definir", "orcamento_remover": "orcamento remover",
     "orcamento_importar_recomendacoes": "orcamento importar-recomendacoes ARQUIVO",
@@ -360,6 +365,117 @@ def registrar(server: MCPServer, sessao: Sessao) -> None:  # noqa: C901 - uma li
     def gastos_restaurar_categoria(nome: str, ctx: Context) -> CallToolResult:
         """Desfaz a exclusão de uma categoria: o que ainda está no destino volta para ela."""
         return sessao.rodar(ctx, ESCRITA, lambda: op.gastos_restaurar_categoria(nome))
+
+    @tool(ESCRITA, "Criar lançamento manual")
+    def gastos_criar_lancamento(
+        data: Annotated[str, Field(description="Data AAAA-MM-DD.")],
+        descricao: str,
+        valor: Annotated[float, Field(gt=0, description="Valor em reais (positivo).")],
+        ctx: Context,
+        tipo: Literal["saida", "entrada"] = "saida",
+        conta: Annotated[str | None, Field(description="Nome da conta ou 'dinheiro' (padrão).")] = None,
+        categoria: str | None = None,
+        nota: str | None = None,
+        fora_do_resultado: Annotated[bool, Field(description="Conta no saldo, mas fica fora de receitas e despesas.")] = False,
+        titular: Titular = None,
+    ) -> CallToolResult:
+        """Registra um lançamento à mão (dinheiro vivo, reembolso ou ajuste)."""
+        return sessao.rodar(ctx, ESCRITA, lambda m: op.gastos_criar_lancamento(
+            data, descricao, valor, tipo, conta, categoria, nota, fora_do_resultado, member=m, autor=sessao.autor(ctx)),
+            titular, True)
+
+    @tool(ESCRITA, "Editar lançamento")
+    def gastos_editar_lancamento(
+        lancamento_id: Annotated[int, Field(description="id de gastos_listar.")],
+        ctx: Context,
+        data: str | None = None,
+        descricao: str | None = None,
+        valor: Annotated[float | None, Field(gt=0, description="Valor em reais (positivo).")] = None,
+        tipo: Literal["saida", "entrada"] | None = None,
+        categoria: str | None = None,
+        nota: str | None = None,
+        ignorado: bool | None = None,
+        fora_do_resultado: bool | None = None,
+    ) -> CallToolResult:
+        """Edita descrição, data, valor, categoria, nota ou flags de um lançamento existente."""
+        return sessao.rodar(ctx, ESCRITA, lambda: op.gastos_editar_lancamento(
+            lancamento_id, data, descricao, valor, tipo, categoria, nota, ignorado, fora_do_resultado, autor=sessao.autor(ctx)))
+
+    @tool(ESCRITA, "Ignorar ou tirar lançamentos do resultado")
+    def gastos_ignorar(
+        ids: Annotated[list[int], Field(min_length=1, description="ids de gastos_listar.")],
+        ctx: Context,
+        ignorado: Annotated[bool | None, Field(description="Some de saldos e relatórios.")] = None,
+        fora_do_resultado: Annotated[bool | None, Field(description="Conta no saldo, sai de receitas e despesas.")] = None,
+    ) -> CallToolResult:
+        """Marca ou desmarca lançamentos como ignorados ou fora do resultado."""
+        return sessao.rodar(ctx, ESCRITA, lambda: op.gastos_ignorar(ids, ignorado, fora_do_resultado))
+
+    @tool(ESCRITA, "Exportar lançamentos em CSV")
+    def gastos_exportar_csv(
+        ctx: Context,
+        arquivo: Annotated[str | None, Field(description="Caminho do .csv. Sem ele, salva na pasta Relatorios.")] = None,
+        categoria: str | None = None,
+        busca: str | None = None,
+        incluir_ignorados: bool = False,
+        titular: Titular = None,
+    ) -> CallToolResult:
+        """Exporta os lançamentos em CSV local (UTF-8 com BOM, separador ';')."""
+        return sessao.rodar(ctx, ESCRITA, lambda m: op.gastos_exportar_csv(
+            arquivo, categoria, busca, incluir_ignorados, member=m), titular, True)
+
+    @tool(SENSIVEL, "Desfazer importação")
+    def importacao_desfazer(
+        run_id: Annotated[int, Field(description="id da importação em sync_run.")],
+        ctx: Context,
+    ) -> CallToolResult:
+        """Desfaz uma importação inteira, removendo o lote gravado. SÓ com pedido explícito do usuário."""
+        return sessao.rodar(ctx, SENSIVEL, lambda: op.importacao_desfazer(run_id))
+
+    @tool(ESCRITA, "Dispensar pendência")
+    def pendencia_dispensar(
+        tipo: Literal["transfer_orphan", "position", "bank"],
+        chave: Annotated[str, Field(description="id do lançamento (transfer_orphan), conta|ticker (position) ou conta (bank).")],
+        ctx: Context,
+    ) -> CallToolResult:
+        """Dispensa uma pendência de conciliação para que não seja sugerida novamente."""
+        return sessao.rodar(ctx, ESCRITA, lambda: op.pendencia_dispensar(tipo, chave))
+
+    @tool(LEITURA, "Listar contas fixas")
+    def contas_fixas_listar(
+        ctx: Context,
+        mes: Annotated[str | None, Field(description="AAAA-MM (padrão: mês atual).", pattern=r"^\d{4}-\d{2}$")] = None,
+        titular: Titular = None,
+    ) -> CallToolResult:
+        """Lista as contas fixas cadastradas e a agenda do mês (pago, pendente, atrasado) após baixa automática."""
+        return sessao.rodar(ctx, LEITURA, lambda m: op.contas_fixas_listar(mes, member=m), titular, True)
+
+    @tool(ESCRITA, "Salvar conta fixa")
+    def contas_fixas_salvar(
+        descricao: str,
+        valor: Annotated[float, Field(gt=0, description="Valor em reais.")],
+        ctx: Context,
+        frequencia: Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"] = "monthly",
+        tipo: Literal["saida", "entrada"] = "saida",
+        conta: str | None = None,
+        categoria: str | None = None,
+        dia: Annotated[int | None, Field(ge=1, le=31)] = None,
+        inicio: str | None = None,
+        fim: str | None = None,
+        dia_util: bool = True,
+        padrao: Annotated[str | None, Field(description="Texto no extrato para casar a baixa automática.")] = None,
+        conta_fixa_id: int | None = None,
+        titular: Titular = None,
+    ) -> CallToolResult:
+        """Cria ou atualiza uma conta fixa com baixa automática no extrato."""
+        return sessao.rodar(ctx, ESCRITA, lambda m: op.contas_fixas_salvar(
+            descricao, valor, frequencia, tipo, conta, categoria, dia, inicio, fim, dia_util, padrao, conta_fixa_id,
+            member=m, autor=sessao.autor(ctx)), titular, True)
+
+    @tool(SENSIVEL, "Remover conta fixa")
+    def contas_fixas_remover(conta_fixa_id: int, ctx: Context) -> CallToolResult:
+        """Remove uma conta fixa cadastrada. SÓ com pedido explícito do usuário."""
+        return sessao.rodar(ctx, SENSIVEL, lambda: op.contas_fixas_remover(conta_fixa_id))
 
     # ---------------------------------------------------------------- orçamento
 

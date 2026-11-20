@@ -884,6 +884,46 @@
     const dialog = document.getElementById("dlg-tx");
     if (!dialog) return;
     const $ = (sel) => dialog.querySelector(sel);
+    const csrf = dialog.querySelector('input[name="csrf_token"]')?.value || "";
+    const back = dialog.querySelector('input[name="back"]')?.value || "/contas/lancamentos";
+    const renderAttachments = (txId, raw) => {
+      const list = $("[data-tx-att-list]");
+      const form = $("[data-tx-att-form]");
+      if (!list || !form) return;
+      form.action = "/contas/lancamentos/" + txId + "/comprovantes";
+      list.replaceChildren();
+      let items = [];
+      try { items = JSON.parse(raw || "[]"); } catch (e) { items = []; }
+      if (!items.length) {
+        const empty = document.createElement("p");
+        empty.className = "muted";
+        empty.textContent = "Nenhum comprovante anexado.";
+        list.appendChild(empty);
+        return;
+      }
+      items.forEach((att) => {
+        const row = document.createElement("div");
+        row.className = "att-item";
+        const link = document.createElement("a");
+        link.href = "/comprovantes/" + att.id;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.className = "link";
+        link.textContent = att.filename;
+        const delForm = document.createElement("form");
+        delForm.method = "post";
+        delForm.action = "/comprovantes/" + att.id + "/excluir";
+        const iCsrf = document.createElement("input");
+        iCsrf.type = "hidden"; iCsrf.name = "csrf_token"; iCsrf.value = csrf;
+        const iBack = document.createElement("input");
+        iBack.type = "hidden"; iBack.name = "back"; iBack.value = back;
+        const btn = document.createElement("button");
+        btn.type = "submit"; btn.className = "btn btn-ghost btn-sm"; btn.textContent = "Remover";
+        delForm.append(iCsrf, iBack, btn);
+        row.append(link, delForm);
+        list.appendChild(row);
+      });
+    };
     const open = (row) => {
       const d = row.dataset;
       $("[data-tx-icon] use").setAttribute("href", "/static/icons.svg#i-" + (d.icon || "circle-dashed"));
@@ -891,7 +931,6 @@
       amount.textContent = d.amount;
       amount.classList.toggle("up", d.positive === "1");
       $("[data-tx-title]").textContent = d.title + (d.pending === "1" ? " · fatura aberta" : "");
-      $("[data-tx-date]").textContent = d.date;
       $("[data-tx-account]").textContent = d.account;
       $("[data-tx-source]").textContent = (d.category || "Sem categoria") + " · " + d.source;
       $("[data-tx-orig]").textContent = d.orig;
@@ -899,13 +938,32 @@
       $("[data-tx-transfer]").textContent = d.transfer;
       $("[data-tx-transfer-row]").hidden = !d.transfer;
       $("[data-tx-id]").value = d.tx;
-      $("[data-tx-desc]").value = d.desc;
+      const descInput = $("[data-tx-desc-input]");
+      if (descInput) descInput.value = d.desc;
+      const dateInput = $("[data-tx-date-input]");
+      if (dateInput) dateInput.value = d.iso || "";
+      const amtInput = $("[data-tx-amount-input]");
+      if (amtInput) amtInput.value = d.absAmount || "";
+      const kindInput = $("[data-tx-kind-input]");
+      if (kindInput) kindInput.value = d.positive === "1" ? "in" : "out";
+      const noteInput = $("[data-tx-note-input]");
+      if (noteInput) noteInput.value = d.note || "";
+      const ignInput = $("[data-tx-ignored]");
+      if (ignInput) ignInput.checked = d.ignored === "1";
+      const pnlInput = $("[data-tx-exclude-pnl]");
+      if (pnlInput) pnlInput.checked = d.excludePnl === "1";
       $("[data-tx-rule]").textContent = "“" + d.desc.split("|")[0].trim() + "”";
       const select = $("[data-tx-select]");
       $("[data-auto-option]").textContent = "Automática: " + (d.auto || "—");
       select.value = d.manual === "1" ? d.category : "";
       $("[data-tx-category-link]").href = "/contas/gastos/" + encodeURIComponent(d.category || "Outros");
       $("[data-tx-category-link]").hidden = !d.category;
+      const delForm = $("[data-tx-delete-form]");
+      if (delForm) {
+        delForm.hidden = d.isManual !== "1";
+        $("[data-tx-delete-id]").value = d.tx;
+      }
+      renderAttachments(d.tx, d.attachments);
       dialog.showModal();
       history.replaceState(null, "", "#tx-" + d.tx);
     };
@@ -920,6 +978,33 @@
       const row = document.querySelector(`button[data-tx="${wanted[1]}"]`);
       if (row) { row.scrollIntoView({ block: "center" }); open(row); }
     }
+  }
+
+  function txBatchSelection() {
+    const form = document.getElementById("tx-batch-form");
+    const bar = document.getElementById("tx-batch-bar");
+    if (!form || !bar) return;
+    const countNode = bar.querySelector("[data-batch-count]");
+    const selectAll = document.querySelector("[data-tx-select-all]");
+    const checks = () => Array.from(form.querySelectorAll("input[data-tx-check]"));
+    const sync = () => {
+      const selected = checks().filter((c) => c.checked).length;
+      bar.hidden = selected === 0;
+      if (countNode) countNode.textContent = selected + (selected === 1 ? " selecionado" : " selecionados");
+    };
+    form.addEventListener("change", (evt) => {
+      if (evt.target && evt.target.matches("input[data-tx-check]")) sync();
+    });
+    if (selectAll) {
+      selectAll.addEventListener("change", () => {
+        checks().forEach((c) => {
+          const wrap = c.closest("[data-row]");
+          if (!wrap || !wrap.hidden) c.checked = selectAll.checked;
+        });
+        sync();
+      });
+    }
+    sync();
   }
 
   // ---------------------------------------------------------------- tabela: mostrar todas as colunas
@@ -1056,6 +1141,7 @@
     toasts();
     columnToggles();
     txDrawer();
+    txBatchSelection();
     document.querySelectorAll("[data-chart]").forEach((node) => {
       const fn = charts[node.dataset.chart];
       if (fn) fn(node);

@@ -19,6 +19,9 @@ descricao: Revisa os gastos, explica o que mudou por categoria e corrige categor
 3. **Corrija:**
    - erro que se repete (mesmo estabelecimento ou pagador): `gastos_criar_regra` com `contem`, `categoria` e `nota`;
    - caso isolado: `gastos_recategorizar` com `ids` e `categoria`;
+   - estorno, compra de terceiro ou lançamento duplicado: `gastos_ignorar` (`fora_do_resultado: true` mantém no saldo e tira de gastos/receitas; `ignorado: true` tira de tudo);
+   - gasto em dinheiro vivo, reembolso ou ajuste à mão: `gastos_criar_lancamento` (e `gastos_editar_lancamento` para corrigir data, descrição, valor ou nota);
+   - contas recorrentes (aluguel, internet, assinaturas): `contas_fixas_listar` e `contas_fixas_salvar` (a baixa acontece automaticamente quando o lançamento chega no extrato);
    - para desfazer: `gastos_recategorizar` com `automatica: true`, ou `gastos_remover_regra`.
    Use as categorias de `gastos_categorias`; crie uma nova só quando nenhuma servir, com `gastos_criar_categoria`
    (idempotente). Para excluir, `gastos_excluir_categoria` com `destino` (ex.: `Outros`, ou `automatica` para
@@ -32,5 +35,5 @@ Regras de conduta:
 - Categorias internas (`Investimentos`, `Pagamento de fatura`, `Transferência própria`, `Transferência entre
   titulares`) tiram o valor de receitas e despesas. Use-as só quando o dinheiro de fato não saiu do patrimônio.
 - Ao final, diga o que mudou (quantos lançamentos, efeito em reais por categoria) e que o resultado aparece em
-  **Gastos** (Resumo e Lançamentos). Se o usuário quiser guardar ou mandar o resultado, ofereça `relatorio_exportar`
-  (com as categorias já corrigidas).
+  **Gastos** (Resumo, Lançamentos e Contas fixas). Se o usuário quiser guardar ou mandar o resultado, ofereça
+  `relatorio_exportar` (com as categorias já corrigidas) ou `gastos_exportar_csv`.

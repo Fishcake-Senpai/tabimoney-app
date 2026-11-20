@@ -24,7 +24,10 @@ from .conftest import rodar_async
 ROOT = Path(__file__).resolve().parent.parent
 EXEMPLOS = ROOT / "docs" / "agentes" / "exemplos"
 CLIENTE = Implementation(name="teste-agente", version="1.0")
-SENSIVEIS = {"metas_definir", "orcamento_definir", "orcamento_remover", "gastos_excluir_categoria", "gastos_remover_regra"}
+SENSIVEIS = {
+    "metas_definir", "orcamento_definir", "orcamento_remover", "gastos_excluir_categoria",
+    "gastos_remover_regra", "importacao_desfazer", "contas_fixas_remover",
+}
 
 
 def _rodar(na_demo: bool, passos, mode: str = "legacy"):
