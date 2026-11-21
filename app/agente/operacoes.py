@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from app import db
-from app.services import (analytics, budgets, fundamentals, household, investor_profile, recommendations, recurring,
-                          relatorio, spending, targets, transactions as tx_service)
+from app.services import (analytics, budgets, fundamentals, household, investor_profile, patrimonio, recommendations,
+                          recurring, relatorio, spending, targets, transactions as tx_service)
 from app.services.pension import parse_amount
 
 # erros que viram {"erro": ...} na CLI e mensagem de erro no MCP
@@ -311,6 +311,7 @@ def carteira_contexto(aporte: str | float | None = None, member: int | None = No
                        for p in book.fixed_income()],
         "previdencia": {k: v for k, v in book.pension().items() if k not in ("history", "plans")},
         "caixa": _money(book.cash_at(book.today)),
+        "patrimonio_bens": _patrimonio_resumo_curto(member),
         "analises_sem_ticker": [{k: r[k] for k in ("id", "subject", "subject_type", "period", "title", "summary")}
                                 for r in fundamentals.reports(limit=20) if not r["ticker"]],
         "recomendacao_anterior": {k: rec[k] for k in ("id", "period", "title", "summary", "created_at")} if rec else None,
@@ -891,3 +892,226 @@ def contas_fixas_salvar(
 
 def contas_fixas_remover(conta_fixa_id: int) -> dict[str, Any]:
     return recurring.delete_recurring(conta_fixa_id)
+
+
+# ---------------------------------------------------------------- patrimônio (imóveis, veículos e outros bens)
+
+def _patrimonio_resumo_curto(member: int | None = None) -> dict[str, Any]:
+    s = patrimonio.summary(member=member)
+    return {
+        "quantidade": s["count"],
+        "total": _money(s["total_cents"]),
+        "imoveis": _money(s["imoveis_cents"]),
+        "veiculos": _money(s["veiculos_cents"]),
+        "outros": _money(s["outros_cents"]),
+        "custos_anuais_estimados": _money(s["estimated_annual_carrying_cents"]),
+        "aluguel_mensal_potencial": _money(s["estimated_monthly_rent_cents"]),
+    }
+
+
+def _patrimonio_financeiro_total_cents(member: int | None = None) -> int:
+    try:
+        book = analytics.Book(member)
+        series = book.series()
+        return int(series[-1]["nw"]) if series else 0
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _bem_out(a: dict[str, Any]) -> dict[str, Any]:
+    lv = a.get("latest_valuation")
+    return {
+        "id": a["id"],
+        "nome": a["name"],
+        "tipo": a["asset_type"],
+        "subtipo": a["subtype"],
+        "status": a["status"],
+        "titular": a.get("member_name"),
+        "valor_atual": _money(a["effective_value_cents"]),
+        "valor_aquisicao": _money(a["acquisition_cents"]),
+        "data_aquisicao": a.get("acquisition_date"),
+        "ganho": _money(a["gain_cents"]),
+        "ganho_pct": round(a["gain_pct"], 4) if a.get("gain_pct") is not None else None,
+        "metodo_avaliacao": a["valuation_method"],
+        "taxa_regra_anual_ou_mensal": round(a["growth_rate_bps"] / 10000.0, 4) if a.get("growth_rate_bps") else 0.0,
+        "periodo_regra": a["growth_period"],
+        "detalhes": a.get("details") or {},
+        "estimativas": {
+            "imposto_anual": _money(a["estimated_annual_tax_cents"]),
+            "seguro_anual": _money(a["estimated_annual_insurance_cents"]),
+            "aluguel_mensal": _money(a["estimated_monthly_rent_cents"]),
+            "manutencao_anual": _money(a["estimated_annual_maintenance_cents"]),
+            "carregamento_anual": _money(a["annual_carrying_cents"]),
+        },
+        "nota": a.get("note"),
+        "ultima_avaliacao": {
+            "id": lv["id"],
+            "data": lv["evaluated_at"],
+            "origem": lv["source"],
+            "valor": _money(lv["value_cents"]),
+            "piso": _money(lv["value_low_cents"]),
+            "teto": _money(lv["value_high_cents"]),
+            "confianca": lv.get("confidence"),
+            "kpis": lv.get("kpis") or {},
+            "fontes": lv.get("sources") or [],
+            "amostras": len(lv.get("comparables") or []),
+        } if lv else None,
+    }
+
+
+def patrimonio_contexto(member: int | None = None) -> dict[str, Any]:
+    """Fotografia completa do patrimônio físico (imóveis, veículos e outros bens) com CDI e patrimônio total."""
+    s = patrimonio.summary(member=member)
+    fin_cents = _patrimonio_financeiro_total_cents(member=member)
+    total_geral_cents = fin_cents + s["total_cents"]
+    cdi_12m, cdi_fonte = patrimonio.cdi_12m_atual()
+    return {
+        "data": date.today().isoformat(),
+        "titular": _member_names().get(member) if member is not None else "casa",
+        "resumo": {
+            "patrimonio_financeiro": _money(fin_cents),
+            "patrimonio_bens": _money(s["total_cents"]),
+            "patrimonio_total": _money(total_geral_cents),
+            "peso_bens_no_total": round(s["total_cents"] / total_geral_cents, 4) if total_geral_cents > 0 else 0.0,
+            "imoveis": _money(s["imoveis_cents"]),
+            "veiculos": _money(s["veiculos_cents"]),
+            "outros": _money(s["outros_cents"]),
+            "impostos_anuais_estimados": _money(s["estimated_annual_tax_cents"]),
+            "seguros_anuais_estimados": _money(s["estimated_annual_insurance_cents"]),
+            "manutencao_anual_estimada": _money(s["estimated_annual_maintenance_cents"]),
+            "carregamento_anual_total": _money(s["estimated_annual_carrying_cents"]),
+            "aluguel_mensal_potencial": _money(s["estimated_monthly_rent_cents"]),
+        },
+        "referencias": {
+            "cdi_12m": cdi_12m,
+            "cdi_fonte": cdi_fonte,
+            "ipca_referencia": patrimonio.DEFAULT_IPCA_ANNUAL,
+        },
+        "bens": [_bem_out(a) for a in s["assets"]],
+        "unidades": "reais; percentuais e taxas como fração (0.06 = 6%)",
+    }
+
+
+def patrimonio_salvar(
+    nome: str,
+    tipo: str,
+    subtipo: str = "",
+    valor_atual: str | float = 0,
+    valor_aquisicao: str | float = 0,
+    data_aquisicao: str | None = None,
+    metodo: str = "manual",
+    taxa_valorizacao: float = 0.0,
+    periodo_valorizacao: str = "anual",
+    detalhes: dict[str, Any] | None = None,
+    imposto_anual: str | float = 0,
+    seguro_anual: str | float = 0,
+    aluguel_mensal: str | float = 0,
+    manutencao_anual: str | float = 0,
+    nota: str | None = None,
+    bem_id: int | None = None,
+    member: int | None = None,
+    autor: str = "agente",
+) -> dict[str, Any]:
+    def _opt_cents(v: str | float | None) -> int:
+        if v is None or v == "" or v == 0 or v == 0.0:
+            return 0
+        return parse_amount(_amount_text(v), "o valor")
+
+    saved = patrimonio.save_asset(
+        name=nome,
+        asset_type=tipo,
+        subtype=subtipo,
+        current_value_cents=_opt_cents(valor_atual),
+        acquisition_cents=_opt_cents(valor_aquisicao),
+        acquisition_date=data_aquisicao,
+        valuation_method=metodo,
+        growth_rate_bps=int(round(float(taxa_valorizacao or 0.0) * 10000)),
+        growth_period=periodo_valorizacao,
+        details=detalhes,
+        estimated_annual_tax_cents=_opt_cents(imposto_anual),
+        estimated_annual_insurance_cents=_opt_cents(seguro_anual),
+        estimated_monthly_rent_cents=_opt_cents(aluguel_mensal),
+        estimated_annual_maintenance_cents=_opt_cents(manutencao_anual),
+        note=nota,
+        member_id=member or household.PRIMARY_ID,
+        asset_id=bem_id,
+        author=autor,
+    )
+    return _bem_out(saved)
+
+
+def patrimonio_remover(bem_id: int) -> dict[str, Any]:
+    return patrimonio.delete_asset(bem_id)
+
+
+def patrimonio_simular_avaliacao(
+    bem_id: int,
+    comparaveis_venda: list[dict[str, Any]] | None = None,
+    comparaveis_aluguel: list[dict[str, Any]] | None = None,
+    fontes_fipe: list[dict[str, Any]] | None = None,
+    aluguel_mensal: float | None = None,
+    iptu_anual: float | None = None,
+    seguro_anual: float | None = None,
+    manutencao_anual: float | None = None,
+    ipva_aliquota: float | None = None,
+    member: int | None = None,
+) -> dict[str, Any]:
+    """Cálculo puro (sem gravar) de homogeneização NBR 14653-2 (imóvel) ou FIPE/TCO (veículo)."""
+    s = patrimonio.summary(member=member)
+    total_cents = _patrimonio_financeiro_total_cents(member=member) + s["total_cents"]
+    return patrimonio.simular_avaliacao(
+        bem_id,
+        comparaveis_venda=comparaveis_venda,
+        comparaveis_aluguel=comparaveis_aluguel,
+        fontes_fipe=fontes_fipe,
+        aluguel_mensal_reais=aluguel_mensal,
+        iptu_anual_reais=iptu_anual,
+        seguro_anual_reais=seguro_anual,
+        manutencao_anual_reais=manutencao_anual,
+        ipva_aliquota=ipva_aliquota,
+        patrimonio_liquido_total_cents=total_cents,
+    )
+
+
+def patrimonio_registrar_avaliacao(
+    bem_id: int,
+    valor: str | float,
+    valor_piso: str | float | None = None,
+    valor_teto: str | float | None = None,
+    confianca: str | None = None,
+    comparaveis: list[dict[str, Any]] | None = None,
+    kpis: dict[str, Any] | None = None,
+    fontes: list[dict[str, Any]] | None = None,
+    relatorio_md: str = "",
+    imposto_anual: str | float | None = None,
+    seguro_anual: str | float | None = None,
+    aluguel_mensal: str | float | None = None,
+    manutencao_anual: str | float | None = None,
+    data: str | None = None,
+    autor: str = "agente",
+) -> dict[str, Any]:
+    def _opt_cents(v: str | float | None) -> int | None:
+        if v is None or v == "":
+            return None
+        return parse_amount(_amount_text(v), "o valor")
+
+    val_cents = parse_amount(_amount_text(valor), "o valor da avaliação")
+    res = patrimonio.registrar_avaliacao(
+        bem_id,
+        value_cents=val_cents,
+        value_low_cents=_opt_cents(valor_piso),
+        value_high_cents=_opt_cents(valor_teto),
+        confidence=confianca,
+        comparables=comparaveis,
+        kpis=kpis,
+        sources=fontes,
+        report_md=relatorio_md,
+        estimated_annual_tax_cents=_opt_cents(imposto_anual),
+        estimated_annual_insurance_cents=_opt_cents(seguro_anual),
+        estimated_monthly_rent_cents=_opt_cents(aluguel_mensal),
+        estimated_annual_maintenance_cents=_opt_cents(manutencao_anual),
+        evaluated_at=data,
+        source="ia",
+        author=autor,
+    )
+    return {"avaliacao_id": res["valuation_id"], "bem": _bem_out(res["asset"])}

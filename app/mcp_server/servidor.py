@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent  # no executável, a pasta 
 INSTRUCOES = """Tabimoney: finanças pessoais locais do usuário (gastos, orçamento, carteira, metas de alocação, \
 análises fundamentalistas e recomendações). Valores em reais; percentuais como fração (0.15 = 15%).
 Antes de uma tarefa com mais de um passo, chame `roteiro` com o nome da tarefa (ciclo, gastos, orcamento, metas, \
-analise-ativo, analise-trimestral, recomendacoes, imposto-renda; ou visao-geral para escolher) e siga os passos. Em investimentos, \
+analise-ativo, analise-trimestral, recomendacoes, imposto-renda, patrimonio; ou visao-geral para escolher) e siga os passos. Em investimentos, \
 comece por `carteira_contexto`; as análises são de longo prazo e começam pelo horizonte (`perfil_investidor`). Pergunta simples se responde direto com a ferramenta certa.
 Ferramentas destrutivas (metas_definir, orcamento_definir, orcamento_remover, gastos_excluir_categoria, \
 gastos_remover_regra) só com pedido explícito do usuário. Nada apaga lançamentos, e o servidor faz backup antes \
@@ -37,8 +37,11 @@ RESOURCES = {
                                                ROOT / "docs" / "agentes" / "modelo-relatorio-tese.md", "text/markdown"),
     "tabimoney://docs/modelo-relatorio-trimestral": ("modelo-relatorio-trimestral", "Modelo do acompanhamento trimestral",
                                                      ROOT / "docs" / "agentes" / "modelo-relatorio-trimestral.md", "text/markdown"),
+    "tabimoney://docs/modelo-relatorio-patrimonio": ("modelo-relatorio-patrimonio", "Modelo de laudo de patrimônio (imóveis e veículos)",
+                                                     ROOT / "docs" / "agentes" / "modelo-relatorio-patrimonio.md", "text/markdown"),
     **{f"tabimoney://exemplos/{n}": (f"exemplo-{n}", f"Exemplo válido: {n}", ROOT / "docs" / "agentes" / "exemplos" / f"{n}.json",
-                                     "application/json") for n in ("analise-ativo", "analise-trimestral", "recomendacoes", "orcamento")},
+                                     "application/json") for n in ("analise-ativo", "analise-trimestral", "recomendacoes", "orcamento",
+                                                                   "avaliacao-imovel", "avaliacao-veiculo")},
 }
 
 # prompt → (roteiro, título, argumentos com descrição)
@@ -51,6 +54,7 @@ PROMPTS = {
     "analise_trimestral": ("analise-trimestral", "Acompanhamento trimestral das teses", {"tickers": "Tickers separados por vírgula (opcional; padrão: todos)", "titular": "Nome do titular (opcional)"}),
     "recomendacoes": ("recomendacoes", "Recomendações trimestrais da carteira", {"aporte": "Valor do aporte em reais (opcional)", "titular": "Nome do titular (opcional)"}),
     "imposto_renda": ("imposto-renda", "Imposto de renda: estimativa, deduções, PGBL e declaração", {"ano": "Ano-calendário (opcional)", "titular": "Nome do titular (opcional)"}),
+    "patrimonio": ("patrimonio", "Avaliação de imóveis (NBR 14653-2) e veículos (FIPE, IPVA, seguro e TCO)", {"titular": "Nome do titular (opcional)"}),
 }
 
 

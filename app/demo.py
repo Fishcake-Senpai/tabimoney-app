@@ -107,6 +107,7 @@ def build() -> Path:
         db.init_db()
         seed()
         db.set_setting(BUILT_KEY, _stamp())
+    db.close_scoped_connections()
     os.replace(temporary, target)
     return target
 
@@ -903,6 +904,133 @@ class _Seeder:
             author="demo",
         )
 
+    def patrimonio_bens(self, partner: int) -> None:
+        from app.services import patrimonio as pat_service
+
+        apto = pat_service.save_asset(
+            name="Apartamento Vila Mariana",
+            asset_type="imovel",
+            subtype="apartamento",
+            current_value_cents=84000000,
+            acquisition_cents=72000000,
+            acquisition_date=(self.today - timedelta(days=900)).isoformat(),
+            valuation_method="ia",
+            details={
+                "bairro": "Vila Mariana",
+                "cidade": "São Paulo",
+                "uf": "SP",
+                "area_construida_m2": 78,
+                "quartos": 2,
+                "vagas": 1,
+                "padrao": "medio_alto",
+                "conservacao": "reformado",
+                "uso": "moradia",
+                "condominio_mensal": 920,
+            },
+            estimated_annual_tax_cents=340000,
+            estimated_annual_insurance_cents=85000,
+            estimated_monthly_rent_cents=430000,
+            note="Reformado em 2024; sol da manhã",
+            author="demo",
+        )
+        sim_apto = pat_service.simular_avaliacao(
+            apto["id"],
+            comparaveis_venda=[
+                {"fonte": "ZAP Imóveis", "url": "https://www.zapimoveis.com.br/", "tipo_dado": "oferta", "preco": 930000, "area_construida_m2": 76, "padrao": "medio_alto", "conservacao": "reformado", "observacao": "Mesma quadra"},
+                {"fonte": "VivaReal", "url": "https://www.vivareal.com.br/", "tipo_dado": "oferta", "preco": 950000, "area_construida_m2": 80, "padrao": "medio_alto", "conservacao": "reformado", "observacao": "Lazer completo"},
+                {"fonte": "QuintoAndar", "url": "https://www.quintoandar.com.br/", "tipo_dado": "oferta", "preco": 890000, "area_construida_m2": 75, "padrao": "medio_alto", "conservacao": "original_bom", "observacao": "Andar médio"},
+                {"fonte": "Imovelweb", "url": "https://www.imovelweb.com.br/", "tipo_dado": "oferta", "preco": 970000, "area_construida_m2": 82, "padrao": "medio_alto", "conservacao": "reformado", "observacao": "1 vaga"},
+                {"fonte": "Loft", "url": "https://loft.com.br/", "tipo_dado": "oferta", "preco": 910000, "area_construida_m2": 77, "padrao": "medio_alto", "conservacao": "reformado", "observacao": "Próximo ao metrô"},
+                {"fonte": "ZAP Imóveis", "url": "https://www.zapimoveis.com.br/", "tipo_dado": "oferta", "preco": 1580000, "area_construida_m2": 78, "padrao": "medio_alto", "conservacao": "reformado", "observacao": "Anúncio fora da curva (cobertura)"},
+            ],
+            aluguel_mensal_reais=4300,
+            iptu_anual_reais=3400,
+            seguro_anual_reais=850,
+            patrimonio_liquido_total_cents=150000000,
+        )
+        pat_service.registrar_avaliacao(
+            apto["id"],
+            value_cents=int(round(sim_apto["valor_central"] * 100)),
+            value_low_cents=int(round(sim_apto["valor_piso"] * 100)),
+            value_high_cents=int(round(sim_apto["valor_teto"] * 100)),
+            confidence=sim_apto["grau_confianca"],
+            comparables=sim_apto["comparaveis"],
+            kpis=sim_apto["kpis"],
+            sources=[
+                {"titulo": "ZAP Imóveis — Vila Mariana", "url": "https://www.zapimoveis.com.br/", "data": self.today.isoformat()},
+                {"titulo": "Índice FipeZAP Residencial", "url": "https://www.fipe.org.br/pt-br/indices/fipezap/", "data": self.today.isoformat()},
+            ],
+            report_md=(
+                "## Resumo executivo\n"
+                f"- **Valor de mercado estimado:** R$ {sim_apto['valor_central']:,.0f} "
+                f"(faixa R$ {sim_apto['valor_piso']:,.0f} – R$ {sim_apto['valor_teto']:,.0f}).\n"
+                "- **Metodologia:** Método Comparativo Direto (ABNT NBR 14653-2) com fator de oferta 0,90 e expurgo de 1 outlier.\n"
+                "- **Aluguel estimado:** R$ 4.300/mês · **IPTU:** R$ 3.400/ano.\n"
+            ),
+            estimated_annual_tax_cents=340000,
+            estimated_annual_insurance_cents=85000,
+            estimated_monthly_rent_cents=430000,
+            estimated_annual_maintenance_cents=int(round(sim_apto["estimativas"]["manutencao_anual"] * 100)),
+            evaluated_at=self.today.isoformat(),
+            source="ia",
+            author="demo",
+        )
+
+        carro = pat_service.save_asset(
+            name="Toyota Corolla XEi 2.0 2022",
+            asset_type="veiculo",
+            subtype="carro",
+            current_value_cents=12450000,
+            acquisition_cents=14200000,
+            acquisition_date=(self.today - timedelta(days=730)).isoformat(),
+            valuation_method="ia",
+            details={
+                "marca": "Toyota",
+                "modelo": "Corolla XEi 2.0 Flex 16V Aut.",
+                "ano": 2022,
+                "codigo_fipe": "002111-3",
+                "uf": "SP",
+            },
+            estimated_annual_tax_cents=498000,
+            estimated_annual_insurance_cents=560000,
+            note="38.000 km · revisões em concessionária",
+            member_id=partner,
+            author="demo",
+        )
+        sim_carro = pat_service.simular_avaliacao(
+            carro["id"],
+            fontes_fipe=[
+                {"fonte": "Tabela FIPE oficial", "preco": 124500, "mes_referencia": self.today.strftime("%Y-%m"), "url": "https://veiculos.fipe.org.br/"},
+                {"fonte": "Mobiauto FIPE", "preco": 124900, "mes_referencia": self.today.strftime("%Y-%m"), "url": "https://www.mobiauto.com.br/tabela-fipe"},
+            ],
+            seguro_anual_reais=5600,
+            patrimonio_liquido_total_cents=150000000,
+        )
+        pat_service.registrar_avaliacao(
+            carro["id"],
+            value_cents=int(round(sim_carro["valor_central"] * 100)),
+            value_low_cents=int(round(sim_carro["valor_piso"] * 100)),
+            value_high_cents=int(round(sim_carro["valor_teto"] * 100)),
+            confidence=sim_carro["grau_confianca"],
+            comparables=sim_carro["comparaveis"],
+            kpis=sim_carro["kpis"],
+            sources=[
+                {"titulo": "Tabela FIPE oficial", "url": "https://veiculos.fipe.org.br/", "data": self.today.isoformat()},
+            ],
+            report_md=(
+                "## Resumo executivo\n"
+                f"- **Consenso FIPE:** R$ {sim_carro['valor_central']:,.0f} (código FIPE 002111-3).\n"
+                f"- **IPVA SP (4%):** R$ {sim_carro['estimativas']['imposto_anual']:,.0f}/ano · **Seguro:** R$ 5.600/ano.\n"
+                f"- **TCO mensal:** R$ {sim_carro['kpis']['tco_mensal']:,.0f}/mês (incluindo depreciação).\n"
+            ),
+            estimated_annual_tax_cents=int(round(sim_carro["estimativas"]["imposto_anual"] * 100)),
+            estimated_annual_insurance_cents=560000,
+            estimated_annual_maintenance_cents=int(round(sim_carro["estimativas"]["manutencao_anual"] * 100)),
+            evaluated_at=self.today.isoformat(),
+            source="ia",
+            author="demo",
+        )
+
 
 def seed(today: date | None = None) -> None:
     """Grava a demonstração na base do contexto atual (use dentro de active() ou de db.using_database)."""
@@ -920,3 +1048,4 @@ def seed(today: date | None = None) -> None:
     seeder.taxes(partner)
     seeder.history()
     seeder.recurring_bills()
+    seeder.patrimonio_bens(partner)

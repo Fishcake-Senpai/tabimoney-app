@@ -50,19 +50,68 @@ def data_dir() -> Path:
 
 # Troca a base só no contexto atual (uma requisição, um comando): é o que isola a demonstração (app/demo.py).
 _database_override: ContextVar[Path | None] = ContextVar("database_override", default=None)
+# Reutiliza a conexão SQLCipher dentro da mesma requisição HTTP, mantendo o page cache quente e evitando
+# reabrir/fechar a base (com PRAGMAs e wipe de memória) dezenas de vezes por página.
+_scoped_conns: ContextVar[dict[str, sqlcipher3.Connection] | None] = ContextVar("scoped_conns", default=None)
+_scoped_cache: ContextVar[dict[object, object] | None] = ContextVar("scoped_cache", default=None)
 
 
 def database_path() -> Path:
     return _database_override.get() or data_dir() / "financas.sqlite3"
 
 
+def scope_cache() -> dict[object, object] | None:
+    """Cache efêmero da requisição atual (limpo ao fim da requisição ou após qualquer transaction)."""
+    return _scoped_cache.get()
+
+
+def clear_scope_cache() -> None:
+    cache = _scoped_cache.get()
+    if cache is not None:
+        cache.clear()
+
+
+def close_scoped_connections() -> None:
+    """Fecha todas as conexões abertas no escopo atual (use antes de substituir o arquivo da base)."""
+    clear_scope_cache()
+    pool = _scoped_conns.get()
+    if not pool:
+        return
+    for conn in list(pool.values()):
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001
+            pass
+    pool.clear()
+
+
+@contextmanager
+def connection_scope() -> Iterator[None]:
+    """Abre um escopo de reutilização de conexões SQLCipher; fecha tudo ao sair."""
+    if _scoped_conns.get() is not None:
+        yield
+        return
+    pool: dict[str, sqlcipher3.Connection] = {}
+    cache: dict[object, object] = {}
+    t_conn = _scoped_conns.set(pool)
+    t_cache = _scoped_cache.set(cache)
+    try:
+        yield
+    finally:
+        close_scoped_connections()
+        _scoped_conns.reset(t_conn)
+        _scoped_cache.reset(t_cache)
+
+
 @contextmanager
 def using_database(path: Path) -> Iterator[Path]:
     """Tudo o que roda dentro do bloco (e nas threads que ele abre) lê e grava em outra base."""
+    clear_scope_cache()
     token = _database_override.set(path)
     try:
         yield path
     finally:
+        clear_scope_cache()
         _database_override.reset(token)
 
 
@@ -74,26 +123,42 @@ def connect(path: Path | None = None) -> sqlcipher3.Connection:
     return db_crypto.connect(db_path, key, timeout=20, verify=False)
 
 
+def _acquire(path: Path | None = None) -> tuple[sqlcipher3.Connection, bool]:
+    """Retorna (conexão, deve_fechar). Dentro de connection_scope(), reutiliza a mesma conexão por caminho."""
+    pool = _scoped_conns.get()
+    if pool is None:
+        return connect(path), True
+    key = str(path or database_path())
+    conn = pool.get(key)
+    if conn is None:
+        conn = connect(path)
+        pool[key] = conn
+    return conn, False
+
+
 @contextmanager
 def session(path: Path | None = None) -> Iterator[sqlcipher3.Connection]:
-    connection = connect(path)
+    connection, should_close = _acquire(path)
     try:
         yield connection
     finally:
-        connection.close()
+        if should_close:
+            connection.close()
 
 
 @contextmanager
 def transaction(path: Path | None = None) -> Iterator[sqlcipher3.Connection]:
-    connection = connect(path)
+    connection, should_close = _acquire(path)
     try:
         yield connection
         connection.commit()
+        clear_scope_cache()
     except Exception:
         connection.rollback()
         raise
     finally:
-        connection.close()
+        if should_close:
+            connection.close()
 
 
 def init_db() -> None:
@@ -279,6 +344,7 @@ def _prepare_restore_file(source: Path, destination: Path) -> Path:
 
 
 def restore_database(uploaded_bytes: bytes) -> Path:
+    close_scoped_connections()
     folder = data_dir()
     candidate = folder / "restore-candidate.sqlite3"
     candidate.write_bytes(uploaded_bytes)
@@ -302,6 +368,7 @@ def restore_database(uploaded_bytes: bytes) -> Path:
 
 def restore_file(backup: Path) -> None:
     """Restaura um backup do atualizador, aceitando o plaintext da versão anterior e o criptografado novo."""
+    close_scoped_connections()
     prepared = _prepare_restore_file(backup, database_path())
     try:
         db_crypto.remove_sidecars(database_path())

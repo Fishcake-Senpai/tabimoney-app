@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, stat, badge, chip, modal, empty %}
+{% block title %}Patrimônio{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Patrimônio</h1>
+    <div class="sub">Imóveis, veículos e bens físicos integrados ao seu patrimônio líquido · avaliações e KPIs pela IA</div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" type="button" data-dialog="dlg-novo-bem">{{ icon("plus") }}Novo bem</button>
+  </div>
+</div>
+
+<section class="stats">
+  {% call stat("Total em bens", summary.total_cents|brl_compact, icon_name="building-2") %}{{ summary.count }} {{ "bem ativo" if summary.count == 1 else "bens ativos" }}{% if total_patrimonio_cents %} · {{ ((summary.total_cents / total_patrimonio_cents))|pct(1, False) }} do total{% endif %}{% endcall %}
+  {% call stat("Imóveis", summary.imoveis_cents|brl_compact, icon_name="house") %}{{ summary.imoveis|length }} {{ "imóvel" if summary.imoveis|length == 1 else "imóveis" }}{% if summary.estimated_monthly_rent_cents %} · aluguel est. {{ summary.estimated_monthly_rent_cents|brl_whole }}/mês{% endif %}{% endcall %}
+  {% call stat("Veículos", summary.veiculos_cents|brl_compact, icon_name="car") %}{{ summary.veiculos|length }} {{ "veículo" if summary.veiculos|length == 1 else "veículos" }}{% endcall %}
+  {% call stat("Custos anuais est.", summary.estimated_annual_carrying_cents|brl_compact, icon_name="calendar-clock") %}IPTU/IPVA {{ summary.estimated_annual_tax_cents|brl_whole }} · Seguros {{ summary.estimated_annual_insurance_cents|brl_whole }}{% endcall %}
+</section>
+
+{% if not summary.assets %}
+<section class="card">
+  {{ empty("building-2", "Nenhum bem físico cadastrado ainda. Cadastre um imóvel ou veículo para acompanhar valor de mercado, custos anuais e avaliações da IA.") }}
+  <div class="actions pat-empty-actions">
+    <button class="btn btn-primary" type="button" data-dialog="dlg-novo-bem">{{ icon("plus") }}Cadastrar primeiro bem</button>
+  </div>
+</section>
+{% else %}
+<section class="grid">
+  <article class="card card-flush span-5">
+    <div class="card-head">
+      <h2 class="card-title">Bens cadastrados</h2>
+      <span class="muted">{{ summary.count }} {{ "item" if summary.count == 1 else "itens" }}</span>
+    </div>
+    <div class="rows">
+      {% for a in summary.assets %}
+      {% set is_sel = selected and selected.id == a.id %}
+      {% set lv = a.latest_valuation %}
+      <a class="row{% if is_sel %} is-active{% endif %}" href="/patrimonio?bem={{ a.id }}">
+        <span class="row-icon">{{ icon("house" if a.asset_type == "imovel" else "car" if a.asset_type == "veiculo" else "layers") }}</span>
+        <span class="row-main">
+          <span class="row-title">{{ a.name }}</span>
+          <span class="row-sub">
+            {{ a.subtype_label }}
+            {% if a.details.bairro or a.details.cidade %} · {{ a.details.bairro }}{% if a.details.bairro and a.details.cidade %}, {% endif %}{{ a.details.cidade }}{% if a.details.uf %}/{{ a.details.uf }}{% endif %}{% elif a.details.marca or a.details.modelo %} · {{ a.details.marca }} {{ a.details.modelo }}{% if a.details.ano %} {{ a.details.ano }}{% endif %}{% endif %}
+            {% if lv and lv.confidence %} · Confiança {{ lv.confidence_label|lower }}{% endif %}
+          </span>
+        </span>
+        <span class="row-end">
+          <b class="money">{{ a.effective_value_cents|brl_whole }}</b>
+          <small>{% if a.gain_pct is not none %}<span class="{{ a.gain_cents|tone }}">{{ a.gain_pct|pct(1) }}</span>{% else %}{{ a.valuation_method_label }}{% endif %}</small>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </article>
+
+  {% if selected %}
+  {% set d = selected.details %}
+  {% set lv = selected.latest_valuation %}
+  {% set kpis = lv.kpis if lv and lv.kpis else {} %}
+  <article class="card span-7">
+    <div class="card-head">
+      <div>
+        <h2 class="card-title">{{ selected.name }}</h2>
+        <div class="sub">
+          {{ selected.subtype_label }} · {{ selected.valuation_method_label }}
+          {% if selected.valuation_method == "regra" and selected.growth_rate_bps %} ({{ (selected.growth_rate_bps / 10000)|pct(1) }} {{ growth_periods[selected.growth_period] }}){% endif %}
+          {% if lv %} · Última avaliação {{ lv.evaluated_at|date_br }}{% endif %}
+        </div>
+      </div>
+      <div class="actions">
+        {% if lv and lv.confidence %}{{ badge("ok" if lv.confidence == "alta" else "warn" if lv.confidence == "media" else "muted", "Confiança " ~ lv.confidence_label|lower) }}{% endif %}
+        <button class="btn btn-sm" type="button" data-dialog="dlg-editar-bem">{{ icon("pencil") }}Editar</button>
+        <form method="post" action="/patrimonio/remover" data-confirm="Remover '{{ selected.name }}' do patrimônio?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="asset_id" value="{{ selected.id }}">
+          <button class="btn btn-ghost btn-sm" type="submit" title="Remover bem">{{ icon("trash-2") }}</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="kpis pat-kpis">
+      <div class="kpi">
+        <div class="kpi-label">Valor de mercado</div>
+        <div class="kpi-value money">{{ selected.effective_value_cents|brl_whole }}</div>
+        <div class="kpi-sub">
+          {% if lv and lv.value_low_cents and lv.value_high_cents %}
+            Faixa {{ lv.value_low_cents|brl_compact }} – {{ lv.value_high_cents|brl_compact }}
+          {% elif selected.acquisition_cents %}
+            Compra: {{ selected.acquisition_cents|brl_compact }}
+          {% else %}
+            Sem faixa registrada
+          {% endif %}
+        </div>
+      </div>
+
+      {% if selected.asset_type == "imovel" %}
+      <div class="kpi">
+        <div class="kpi-label">Preço / m²</div>
+        <div class="kpi-value money">
+          {% if kpis.get("preco_m2_construido") %}R$ {{ "%.0f"|format(kpis.get("preco_m2_construido"))|replace(".", ",") }}/m²
+          {% elif d.get("area_construida_m2") %}R$ {{ "%.0f"|format((selected.effective_value_cents / 100) / (d.get("area_construida_m2")|float)) }}/m²
+          {% else %}—{% endif %}
+        </div>
+        <div class="kpi-sub">
+          {% if d.get("area_construida_m2") %}{{ d.get("area_construida_m2") }} m² construídos{% endif %}
+          {% if d.get("area_terreno_m2") %} · {{ d.get("area_terreno_m2") }} m² terreno{% endif %}
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Aluguel & Yield</div>
+        <div class="kpi-value money">{{ selected.estimated_monthly_rent_cents|brl_whole if selected.estimated_monthly_rent_cents else "—" }}</div>
+        <div class="kpi-sub">
+          {% if kpis.get("rental_yield_bruto") is not none %}Bruto {{ kpis.get("rental_yield_bruto")|pct(1, False) }} a.a.{% endif %}
+          {% if kpis.get("cap_rate_liquido") is not none %} · Cap Rate {{ kpis.get("cap_rate_liquido")|pct(1, False) }}{% endif %}
+        </div>
+      </div>
+      {% elif selected.asset_type == "veiculo" %}
+      <div class="kpi">
+        <div class="kpi-label">IPVA & Seguro est.</div>
+        <div class="kpi-value money">{{ (selected.estimated_annual_tax_cents + selected.estimated_annual_insurance_cents)|brl_whole }}<small>/ano</small></div>
+        <div class="kpi-sub">IPVA {{ selected.estimated_annual_tax_cents|brl_whole }} · Seguro {{ selected.estimated_annual_insurance_cents|brl_whole }}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Custo total (TCO)</div>
+        <div class="kpi-value money">{% if kpis.get("tco_mensal") %}{{ (kpis.get("tco_mensal") * 100)|int|brl_whole }}/mês{% else %}—{% endif %}</div>
+        <div class="kpi-sub">{% if kpis.get("depreciacao_anual_pct") is not none %}Depreciação {{ kpis.get("depreciacao_anual_pct")|pct(1) }}/ano{% elif d.get("codigo_fipe") %}FIPE {{ d.get("codigo_fipe") }}{% else %}Inclui depreciação + fixos{% endif %}</div>
+      </div>
+      {% else %}
+      <div class="kpi">
+        <div class="kpi-label">Variação desde a aquisição</div>
+        <div class="kpi-value money">{% if selected.gain_cents is not none %}{{ selected.gain_cents|brl_signed }}{% else %}—{% endif %}</div>
+        <div class="kpi-sub">{% if selected.acquisition_cents %}Aquisição: {{ selected.acquisition_cents|brl_whole }}{% endif %}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if kpis %}
+    <div class="chips pat-chips">
+      {% if kpis.get("custo_carregamento_anual") %}{{ chip("Carregamento: R$ " ~ ("%.0f"|format(kpis.get("custo_carregamento_anual"))) ~ "/ano") }}{% endif %}
+      {% if kpis.get("spread_vs_cdi_liquido") is not none %}{{ chip("vs CDI líq.: " ~ (kpis.get("spread_vs_cdi_liquido")|pct(1)), "up" if kpis.get("spread_vs_cdi_liquido") >= 0 else "down") }}{% endif %}
+      {% if kpis.get("valorizacao_real_anual") is not none %}{{ chip("Valorização real: " ~ (kpis.get("valorizacao_real_anual")|pct(1)) ~ "/ano") }}{% endif %}
+      {% if kpis.get("concentracao_patrimonio") is not none %}{{ chip("Peso no patrimônio: " ~ (kpis.get("concentracao_patrimonio")|pct(1, False))) }}{% endif %}
+      {% if kpis.get("aliquota_ipva") is not none %}{{ chip("IPVA " ~ (kpis.get("uf") or "") ~ ": " ~ (kpis.get("aliquota_ipva")|pct(2, False))) }}{% endif %}
+    </div>
+    {% endif %}
+
+    {% if selected.estimated_annual_tax_cents > 0 or selected.estimated_annual_insurance_cents > 0 %}
+    <div class="card-sub-actions pat-sub-actions">
+      <span class="muted pat-sub-label">Lançar no orçamento (Contas fixas):</span>
+      {% if selected.estimated_annual_tax_cents > 0 %}
+      <form method="post" action="/patrimonio/conta-fixa" class="pat-inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="asset_id" value="{{ selected.id }}">
+        <input type="hidden" name="kind" value="imposto">
+        <input type="hidden" name="frequency" value="yearly">
+        <button class="btn btn-sm" type="submit">{{ icon("repeat") }}Criar conta fixa de {{ "IPVA" if selected.asset_type == "veiculo" else "IPTU" }} ({{ selected.estimated_annual_tax_cents|brl_whole }}/ano)</button>
+      </form>
+      {% endif %}
+      {% if selected.estimated_annual_insurance_cents > 0 %}
+      <form method="post" action="/patrimonio/conta-fixa" class="pat-inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="asset_id" value="{{ selected.id }}">
+        <input type="hidden" name="kind" value="seguro">
+        <input type="hidden" name="frequency" value="yearly">
+        <button class="btn btn-sm" type="submit">{{ icon("shield-check") }}Criar conta fixa de Seguro ({{ selected.estimated_annual_insurance_cents|brl_whole }}/ano)</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if lv and lv.report_md %}
+    <div class="pat-section">
+      <h3>Laudo da IA ({{ lv.evaluated_at|date_br }})</h3>
+      <div class="prose">{{ lv.report_md|md }}</div>
+    </div>
+    {% endif %}
+
+    {% if lv and lv.comparables %}
+    <div class="pat-section">
+      <h3>{{ "Fontes FIPE consultadas" if selected.asset_type == "veiculo" else "Comparáveis homogeneizados (NBR 14653-2)" }}</h3>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Fonte</th>
+              <th class="num">Preço</th>
+              {% if selected.asset_type != "veiculo" %}
+              <th class="num">Área</th>
+              <th class="num">F. Oferta</th>
+              <th class="num">F. Total</th>
+              <th class="num">R$/m² hom.</th>
+              <th>Situação</th>
+              {% else %}
+              <th>Referência</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in lv.comparables %}
+            <tr{% if c.descartado %} class="muted"{% endif %}>
+              <td>{% if c.url %}<a href="{{ c.url }}" target="_blank" rel="noreferrer">{{ c.fonte or "Fonte" }}</a>{% else %}{{ c.fonte or "Fonte" }}{% endif %}{% if c.observacao %}<br><small class="muted">{{ c.observacao }}</small>{% endif %}</td>
+              <td class="num money">{{ ((c.preco or 0) * 100)|int|brl_whole }}</td>
+              {% if selected.asset_type != "veiculo" %}
+              <td class="num">{{ c.area_m2 or c.area_construida_m2 or "—" }} m²</td>
+              <td class="num">{{ "%.2f"|format(c.f_oferta) if c.f_oferta else "—" }}</td>
+              <td class="num">{{ "%.2f"|format(c.f_total) if c.f_total else "—" }}</td>
+              <td class="num money">{% if c.pu_homogeneizado %}R$ {{ "%.0f"|format(c.pu_homogeneizado) }}{% else %}—{% endif %}</td>
+              <td>{% if c.descartado %}{{ badge("muted", "Outlier") }}{% else %}{{ badge("ok", "Válido") }}{% endif %}</td>
+              {% else %}
+              <td>{{ c.mes_referencia or "—" }}</td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if selected.valuations and selected.valuations|length > 1 %}
+    <div class="pat-section">
+      <h3>Histórico de avaliações</h3>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Data</th><th>Origem</th><th class="num">Valor</th><th>Confiança</th></tr></thead>
+          <tbody>
+            {% for v in selected.valuations %}
+            <tr>
+              <td>{{ v.evaluated_at|date_br }}</td>
+              <td>{{ v.source|upper }}</td>
+              <td class="num money">{{ v.value_cents|brl_whole }}</td>
+              <td>{{ v.confidence_label or "—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </article>
+  {% endif %}
+</section>
+{% endif %}
+
+{% macro asset_form(prefix, item=None) %}
+{% set det = item.details if item else {} %}
+<form method="post" action="/patrimonio/salvar" class="form-stack">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if item %}<input type="hidden" name="asset_id" value="{{ item.id }}">{% endif %}
+
+  <div class="form-grid">
+    <label>Nome do bem
+      <input type="text" name="name" required value="{{ item.name if item else '' }}" placeholder="Ex.: Casa Condomínio Jardins · Corolla XEi 2022">
+    </label>
+    <label>Tipo
+      <select name="asset_type" data-asset-type-select="{{ prefix }}">
+        {% for k, v in asset_types.items() %}
+        <option value="{{ k }}"{% if (item and item.asset_type == k) or (not item and k == 'imovel') %} selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Subtipo
+      <select name="subtype">
+        {% for group, subs in asset_subtypes.items() %}
+        <optgroup label="{{ asset_types[group] }}">
+          {% for sk, sv in subs.items() %}
+          <option value="{{ sk }}"{% if item and item.subtype == sk %} selected{% endif %}>{{ sv }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+
+  <div class="form-grid">
+    <label>Valor atual (R$)
+      <input type="text" name="current_value" value="{{ ('%.2f'|format(item.current_value_cents / 100))|replace('.', ',') if item and item.current_value_cents else '' }}" placeholder="850000,00">
+    </label>
+    <label>Valor de aquisição (R$)
+      <input type="text" name="acquisition_value" value="{{ ('%.2f'|format(item.acquisition_cents / 100))|replace('.', ',') if item and item.acquisition_cents else '' }}" placeholder="720000,00">
+    </label>
+    <label>Data de aquisição
+      <input type="date" name="acquisition_date" value="{{ item.acquisition_date if item and item.acquisition_date else '' }}">
+    </label>
+  </div>
+
+  <div class="form-grid">
+    <label>Método de atualização
+      <select name="valuation_method">
+        {% for k, v in valuation_methods.items() %}
+        <option value="{{ k }}"{% if item and item.valuation_method == k %} selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Taxa da regra (% ao ano ou mês)
+      <input type="text" name="growth_rate_pct" value="{{ ('%.2f'|format(item.growth_rate_bps / 100))|replace('.', ',') if item and item.growth_rate_bps else '' }}" placeholder="6,0 ou -10,0">
+    </label>
+    <label>Período da regra
+      <select name="growth_period">
+        {% for k, v in growth_periods.items() %}
+        <option value="{{ k }}"{% if item and item.growth_period == k %} selected{% endif %}>{{ v|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+
+  <fieldset class="form-section">
+    <legend>Detalhes de Imóvel (usados pela IA na busca de comparáveis)</legend>
+    <div class="form-grid">
+      <label>Bairro / Condomínio<input type="text" name="bairro" value="{{ det.bairro or '' }}" placeholder="Ex.: Pinheiros / Cond. Alphaville"></label>
+      <label>Cidade<input type="text" name="cidade" value="{{ det.cidade or '' }}" placeholder="São Paulo"></label>
+      <label>UF<input type="text" name="uf" maxlength="2" value="{{ det.uf or '' }}" placeholder="SP"></label>
+    </div>
+    <div class="form-grid">
+      <label>Área construída (m²)<input type="number" step="0.1" name="area_construida_m2" value="{{ det.area_construida_m2 or '' }}"></label>
+      <label>Área do terreno (m²)<input type="number" step="0.1" name="area_terreno_m2" value="{{ det.area_terreno_m2 or '' }}"></label>
+      <label>Quartos<input type="number" name="quartos" value="{{ det.quartos or '' }}"></label>
+      <label>Vagas<input type="number" name="vagas" value="{{ det.vagas or '' }}"></label>
+    </div>
+    <div class="form-grid">
+      <label>Padrão construtivo
+        <select name="padrao">
+          {% for k, pair in property_standards.items() %}
+          <option value="{{ k }}"{% if (det.padrao or 'medio') == k %} selected{% endif %}>{{ pair[0] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Conservação
+        <select name="conservacao">
+          {% for k, pair in property_conservation.items() %}
+          <option value="{{ k }}"{% if (det.conservacao or 'original_bom') == k %} selected{% endif %}>{{ pair[0] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Uso
+        <select name="uso">
+          {% for k, v in property_uses.items() %}
+          <option value="{{ k }}"{% if (det.uso or 'moradia') == k %} selected{% endif %}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>Detalhes de Veículo (FIPE / IPVA)</legend>
+    <div class="form-grid">
+      <label>Marca<input type="text" name="marca" value="{{ det.marca or '' }}" placeholder="Toyota"></label>
+      <label>Modelo / Versão<input type="text" name="modelo" value="{{ det.modelo or '' }}" placeholder="Corolla XEi 2.0 Flex Aut."></label>
+      <label>Ano modelo<input type="number" name="ano" value="{{ det.ano or '' }}" placeholder="2022"></label>
+      <label>Código FIPE<input type="text" name="codigo_fipe" value="{{ det.codigo_fipe or '' }}" placeholder="002111-3"></label>
+      <label>UF (IPVA)<input type="text" name="uf_veiculo" maxlength="2" value="{{ det.uf or '' }}" placeholder="PR"></label>
+    </div>
+  </fieldset>
+
+  <div class="form-grid">
+    <label>IPTU / IPVA anual (R$)<input type="text" name="estimated_annual_tax" value="{{ ('%.2f'|format(item.estimated_annual_tax_cents / 100))|replace('.', ',') if item and item.estimated_annual_tax_cents else '' }}"></label>
+    <label>Seguro anual (R$)<input type="text" name="estimated_annual_insurance" value="{{ ('%.2f'|format(item.estimated_annual_insurance_cents / 100))|replace('.', ',') if item and item.estimated_annual_insurance_cents else '' }}"></label>
+    <label>Aluguel mensal (R$)<input type="text" name="estimated_monthly_rent" value="{{ ('%.2f'|format(item.estimated_monthly_rent_cents / 100))|replace('.', ',') if item and item.estimated_monthly_rent_cents else '' }}"></label>
+    <label>Condomínio mensal (R$)<input type="text" name="condominio_mensal" value="{{ det.condominio_mensal or '' }}"></label>
+  </div>
+
+  <label>Observações (piscina, reforma, energia solar, km, apólice…)
+    <input type="text" name="note" value="{{ item.note or '' if item else '' }}">
+  </label>
+
+  <div class="actions pat-form-actions">
+    <button class="btn" type="button" data-close>Cancelar</button>
+    <button class="btn btn-primary" type="submit">Salvar bem</button>
+  </div>
+</form>
+{% endmacro %}
+
+{% call modal("novo-bem", "Novo bem físico", wide=True) %}
+  {{ asset_form("novo") }}
+{% endcall %}
+
+{% if selected %}
+{% call modal("editar-bem", "Editar " ~ selected.name, wide=True) %}
+  {{ asset_form("edit", selected) }}
+{% endcall %}
+{% endif %}
+{% endblock %}

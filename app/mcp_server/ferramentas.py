@@ -65,6 +65,9 @@ EQUIVALENTE_CLI: dict[str, str] = {
     "ir_fonte_salvar": "ir fonte", "ir_dependente_salvar": "ir dependente", "ir_previdencia_oficial": "ir previdencia-oficial",
     "ir_deducao_marcar": "ir deducao", "ir_deducao_adicionar": "ir deducao-manual",
     "ir_pendencia_resolver": "ir pendencia TIPO", "previdencia_aporte_registrar": "previdencia aporte PLANO DATA VALOR",
+    "patrimonio_contexto": "patrimonio contexto", "patrimonio_salvar": "patrimonio salvar",
+    "patrimonio_remover": "patrimonio remover ID", "patrimonio_simular_avaliacao": "patrimonio simular ID",
+    "patrimonio_registrar_avaliacao": "patrimonio avaliar ID",
 }
 Ano = Annotated[int | None, Field(description="Ano-calendário (padrão: o ano atual).", ge=2020, le=2100)]
 
@@ -719,6 +722,111 @@ def registrar(server: MCPServer, sessao: Sessao) -> None:  # noqa: C901 - uma li
         (não deduz, mas soma no plano)."""
         return sessao.rodar(ctx, ESCRITA, lambda: op.previdencia_aporte(plano, data, valor, pagador, folha,
                                                                          repetir_ate_dezembro, sessao.autor(ctx)))
+
+    # ---------------------------------------------------------------- patrimônio (bens físicos)
+
+    @tool(LEITURA, "Contexto de patrimônio (bens físicos)")
+    def patrimonio_contexto(ctx: Context, titular: Titular = None) -> CallToolResult:
+        """Lista todos os imóveis, veículos e outros bens cadastrados, última avaliação, estimativas anuais
+        (IPTU, IPVA, seguro, aluguel), CDI de referência e peso no patrimônio total. Comece por aqui no roteiro patrimonio."""
+        return sessao.rodar(ctx, LEITURA, lambda m: op.patrimonio_contexto(member=m), titular, True)
+
+    @tool(ESCRITA, "Cadastrar ou atualizar bem físico")
+    def patrimonio_salvar(
+        ctx: Context,
+        nome: Annotated[str, Field(description="Nome do bem (ex.: 'Casa Condomínio Jardins', 'Corolla XEi 2022').")],
+        tipo: Literal["imovel", "veiculo", "outro"],
+        subtipo: Annotated[str, Field(description="Imóvel: casa_rua, casa_condominio, apartamento, terreno, comercial. Veículo: carro, moto, utilitario.")] = "",
+        valor_atual: Annotated[float, Field(ge=0, description="Valor atual estimado em reais.")] = 0,
+        valor_aquisicao: Annotated[float, Field(ge=0, description="Valor pago na compra em reais.")] = 0,
+        data_aquisicao: Annotated[str | None, Field(description="Data da compra AAAA-MM-DD.")] = None,
+        metodo: Literal["manual", "regra", "ia"] = "manual",
+        taxa_valorizacao: Annotated[float, Field(description="Taxa da regra em fração (0.06 = +6%, -0.10 = -10%).")] = 0.0,
+        periodo_valorizacao: Literal["mensal", "anual"] = "anual",
+        detalhes: Annotated[dict[str, Any] | None, Field(description="Atributos: bairro, cidade, uf, area_construida_m2, area_terreno_m2, quartos, vagas, padrao, conservacao, uso; ou marca, modelo, versao, ano, codigo_fipe, uf, km.")] = None,
+        imposto_anual: Annotated[float, Field(ge=0, description="IPTU ou IPVA anual estimado em reais.")] = 0,
+        seguro_anual: Annotated[float, Field(ge=0, description="Seguro anual estimado em reais.")] = 0,
+        aluguel_mensal: Annotated[float, Field(ge=0, description="Aluguel mensal potencial ou atual em reais.")] = 0,
+        manutencao_anual: Annotated[float, Field(ge=0, description="Manutenção anual estimada em reais.")] = 0,
+        nota: str | None = None,
+        bem_id: Annotated[int | None, Field(description="ID existente para editar; sem ele, cria um bem novo.")] = None,
+        titular: Titular = None,
+    ) -> CallToolResult:
+        """Cadastra ou atualiza um imóvel, veículo ou outro bem físico no Tabimoney."""
+        return sessao.rodar(
+            ctx, ESCRITA,
+            lambda m: op.patrimonio_salvar(
+                nome=nome, tipo=tipo, subtipo=subtipo, valor_atual=valor_atual, valor_aquisicao=valor_aquisicao,
+                data_aquisicao=data_aquisicao, metodo=metodo, taxa_valorizacao=taxa_valorizacao,
+                periodo_valorizacao=periodo_valorizacao, detalhes=detalhes, imposto_anual=imposto_anual,
+                seguro_anual=seguro_anual, aluguel_mensal=aluguel_mensal, manutencao_anual=manutencao_anual,
+                nota=nota, bem_id=bem_id, member=m, autor=sessao.autor(ctx),
+            ),
+            titular, True,
+        )
+
+    @tool(SENSIVEL, "Remover bem físico")
+    def patrimonio_remover(ctx: Context, bem_id: Annotated[int, Field(gt=0, description="ID do bem a remover.")]) -> CallToolResult:
+        """Remove (soft-delete) um bem físico do patrimônio. Só use com pedido explícito do usuário."""
+        return sessao.rodar(ctx, SENSIVEL, lambda: op.patrimonio_remover(bem_id))
+
+    @tool(LEITURA, "Simular avaliação de bem (NBR 14653-2 / FIPE)")
+    def patrimonio_simular_avaliacao(
+        ctx: Context,
+        bem_id: Annotated[int, Field(gt=0, description="ID do bem cadastrado.")],
+        comparaveis_venda: Annotated[list[dict[str, Any]] | None, Field(description="Imóvel: lista de anúncios/transações de venda com preco, area_construida_m2 (ou area_terreno_m2), fonte, url, tipo_dado ('oferta'|'transacao'), padrao, conservacao, fator_localizacao.")] = None,
+        comparaveis_aluguel: Annotated[list[dict[str, Any]] | None, Field(description="Imóvel: lista opcional de comparáveis de aluguel mensal.")] = None,
+        fontes_fipe: Annotated[list[dict[str, Any]] | None, Field(description="Veículo: lista de consultas FIPE com fonte, preco, mes_referencia, url.")] = None,
+        aluguel_mensal: Annotated[float | None, Field(ge=0, description="Imóvel: aluguel mensal em reais (se não passou comparaveis_aluguel).")] = None,
+        iptu_anual: Annotated[float | None, Field(ge=0, description="Imóvel: IPTU anual em reais.")] = None,
+        seguro_anual: Annotated[float | None, Field(ge=0, description="Seguro anual em reais.")] = None,
+        manutencao_anual: Annotated[float | None, Field(ge=0, description="Manutenção anual em reais.")] = None,
+        ipva_aliquota: Annotated[float | None, Field(ge=0, le=0.2, description="Veículo: sobrescreve alíquota padrão da UF (ex.: 0.04 = 4%).")] = None,
+        titular: Titular = None,
+    ) -> CallToolResult:
+        """Cálculo puro (sem gravar) de homogeneização NBR 14653-2 para imóveis (fator de oferta, área, terreno,
+        padrão, conservação, expurgo de outliers, faixa e confiança) ou consenso FIPE + IPVA + TCO para veículos.
+        Use sempre antes de patrimonio_registrar_avaliacao."""
+        return sessao.rodar(
+            ctx, LEITURA,
+            lambda m: op.patrimonio_simular_avaliacao(
+                bem_id=bem_id, comparaveis_venda=comparaveis_venda, comparaveis_aluguel=comparaveis_aluguel,
+                fontes_fipe=fontes_fipe, aluguel_mensal=aluguel_mensal, iptu_anual=iptu_anual,
+                seguro_anual=seguro_anual, manutencao_anual=manutencao_anual, ipva_aliquota=ipva_aliquota,
+                member=m,
+            ),
+            titular, True,
+        )
+
+    @tool(ESCRITA, "Registrar avaliação de bem")
+    def patrimonio_registrar_avaliacao(
+        ctx: Context,
+        bem_id: Annotated[int, Field(gt=0, description="ID do bem avaliado.")],
+        valor: Annotated[float, Field(gt=0, description="Valor central em reais (da simulação).")],
+        valor_piso: Annotated[float | None, Field(ge=0, description="Limite inferior da faixa em reais.")] = None,
+        valor_teto: Annotated[float | None, Field(ge=0, description="Limite superior da faixa em reais.")] = None,
+        confianca: Literal["alta", "media", "baixa", "insuficiente"] | None = None,
+        comparaveis: Annotated[list[dict[str, Any]] | None, Field(description="Lista de comparáveis homogeneizados ou fontes FIPE.")] = None,
+        kpis: Annotated[dict[str, Any] | None, Field(description="Dicionário de KPIs devolvido por patrimonio_simular_avaliacao.")] = None,
+        fontes: Annotated[list[dict[str, Any]] | None, Field(description="Fontes consultadas [{titulo, url, data}].")] = None,
+        relatorio_md: Annotated[str, Field(description="Laudo completo em Markdown seguindo modelo-relatorio-patrimonio.")] = "",
+        imposto_anual: Annotated[float | None, Field(ge=0, description="IPTU ou IPVA anual estimado em reais.")] = None,
+        seguro_anual: Annotated[float | None, Field(ge=0, description="Seguro anual estimado em reais.")] = None,
+        aluguel_mensal: Annotated[float | None, Field(ge=0, description="Aluguel mensal estimado em reais.")] = None,
+        manutencao_anual: Annotated[float | None, Field(ge=0, description="Manutenção anual estimada em reais.")] = None,
+        data: Annotated[str | None, Field(description="Data da avaliação AAAA-MM-DD (padrão: hoje).")] = None,
+    ) -> CallToolResult:
+        """Grava a avaliação de mercado de um imóvel ou veículo (valor, faixa, comparáveis, KPIs, custos anuais e
+        laudo em Markdown) no histórico e atualiza o valor corrente do bem."""
+        return sessao.rodar(
+            ctx, ESCRITA,
+            lambda: op.patrimonio_registrar_avaliacao(
+                bem_id=bem_id, valor=valor, valor_piso=valor_piso, valor_teto=valor_teto, confianca=confianca,
+                comparaveis=comparaveis, kpis=kpis, fontes=fontes, relatorio_md=relatorio_md,
+                imposto_anual=imposto_anual, seguro_anual=seguro_anual, aluguel_mensal=aluguel_mensal,
+                manutencao_anual=manutencao_anual, data=data, autor=sessao.autor(ctx),
+            ),
+        )
 
     # ---------------------------------------------------------------- backup e atualização
 

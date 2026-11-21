@@ -12,6 +12,7 @@ import re
 import unicodedata
 from collections import Counter, defaultdict
 from datetime import date, timedelta
+from functools import lru_cache
 from typing import Any
 
 from app.db import rows, transaction
@@ -26,6 +27,7 @@ BASE_CATEGORIES = [
 ]
 
 
+@lru_cache(maxsize=4096)
 def normalize(text: str) -> str:
     decomposed = unicodedata.normalize("NFKD", (text or "").casefold())
     return " ".join("".join(c for c in decomposed if not unicodedata.combining(c)).split())

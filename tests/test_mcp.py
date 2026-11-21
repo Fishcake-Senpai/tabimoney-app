@@ -26,7 +26,7 @@ EXEMPLOS = ROOT / "docs" / "agentes" / "exemplos"
 CLIENTE = Implementation(name="teste-agente", version="1.0")
 SENSIVEIS = {
     "metas_definir", "orcamento_definir", "orcamento_remover", "gastos_excluir_categoria",
-    "gastos_remover_regra", "importacao_desfazer", "contas_fixas_remover",
+    "gastos_remover_regra", "importacao_desfazer", "contas_fixas_remover", "patrimonio_remover",
 }
 
 
@@ -92,8 +92,16 @@ def _argumentos_de_leitura() -> dict[str, dict]:
     with demo.active():
         ticker = op.carteira_contexto()["renda_variavel"]["posicoes"][0]["ticker"]
         relatorio = op.analise_listar(limite=1)["relatorios"][0]["id"]
-    return {"fundamentos_contexto": {"ticker": ticker}, "analise_mostrar": {"relatorio_id": relatorio},
-            "roteiro": {"nome": "ciclo"}}
+        veiculo = next(b for b in op.patrimonio_contexto()["bens"] if b["tipo"] == "veiculo")
+    return {
+        "fundamentos_contexto": {"ticker": ticker},
+        "analise_mostrar": {"relatorio_id": relatorio},
+        "roteiro": {"nome": "ciclo"},
+        "patrimonio_simular_avaliacao": {
+            "bem_id": veiculo["id"],
+            "fontes_fipe": [{"fonte": "Tabela FIPE", "preco": 124500}],
+        },
+    }
 
 
 def test_toda_leitura_responde_na_demo():

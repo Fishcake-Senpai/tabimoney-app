@@ -1020,3 +1020,12 @@ table.data td.wrap { white-space: normal; }
 .drawer-section h4 { margin: 0 0 8px; font-size: 0.9rem; }
 .att-list { display: flex; flex-direction: column; gap: 6px; }
 .att-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.875rem; }
+.pat-empty-actions { justify-content: center; margin-top: 0.75rem; }
+.pat-kpis { margin-top: 0.75rem; }
+.pat-chips { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.pat-sub-actions { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.pat-sub-label { font-size: 0.85rem; }
+.pat-inline-form { display: inline-flex; gap: 0.35rem; align-items: center; }
+.pat-section { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.pat-section h3 { margin-bottom: 0.5rem; }
+.pat-form-actions { justify-content: flex-end; }

@@ -1,0 +1,54 @@
+{
+  "valor": 920000,
+  "valor_piso": 874000,
+  "valor_teto": 966000,
+  "confianca": "alta",
+  "imposto_anual": 3800,
+  "seguro_anual": 920,
+  "aluguel_mensal": 4600,
+  "manutencao_anual": 7360,
+  "comparaveis": [
+    {
+      "fonte": "ZAP Imóveis",
+      "url": "https://www.zapimoveis.com.br/exemplo-1",
+      "tipo_dado": "oferta",
+      "preco": 1020000,
+      "area_m2": 185,
+      "f_oferta": 0.9,
+      "f_total": 1.0,
+      "pu_homogeneizado": 4962.16,
+      "descartado": false
+    },
+    {
+      "fonte": "VivaReal",
+      "url": "https://www.vivareal.com.br/exemplo-2",
+      "tipo_dado": "oferta",
+      "preco": 980000,
+      "area_m2": 175,
+      "f_oferta": 0.9,
+      "f_total": 1.02,
+      "pu_homogeneizado": 5140.8,
+      "descartado": false
+    }
+  ],
+  "kpis": {
+    "tipo": "imovel",
+    "preco_m2_construido": 5111.11,
+    "rental_yield_bruto": 0.06,
+    "cap_rate_liquido": 0.0442,
+    "custo_carregamento_anual": 12080.0
+  },
+  "fontes": [
+    {
+      "titulo": "ZAP Imóveis — comparáveis no bairro",
+      "url": "https://www.zapimoveis.com.br/",
+      "data": "2026-11-21"
+    },
+    {
+      "titulo": "Índice FipeZAP Residencial",
+      "url": "https://www.fipe.org.br/pt-br/indices/fipezap/",
+      "data": "2026-11-21"
+    }
+  ],
+  "relatorio_md": "## Resumo executivo\n- **Valor de mercado:** R$ 920.000 (faixa R$ 874.000 – R$ 966.000).\n"
+}

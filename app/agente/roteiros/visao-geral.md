@@ -24,6 +24,7 @@ Antes de começar, chame `roteiro` com o nome indicado e siga os passos.
 | "analisa minhas ações/FIIs/CDB", "relatório trimestral", "atualiza fundamentos" | `analise-trimestral` (chama `analise-ativo` quando falta tese) |
 | "onde aportar este mês", "o que mudar na carteira", "sugere carteiras" | `recomendacoes` (depois das análises) |
 | "quanto vou pagar de IR", "quanto aportar no PGBL", "o que posso deduzir", "me ajuda a declarar", "tenho DARF da bolsa?" | `imposto-renda` |
+| "quanto vale minha casa/apto/carro?", "atualiza a FIPE", "estima IPTU/IPVA/seguro/aluguel", "avalia meu patrimônio" | `patrimonio` |
 
 Pergunta simples ("quanto gastei com mercado em agosto?") não precisa de roteiro: responda com a ferramenta certa.
 "Me manda o relatório de agosto" também não: chame `relatorio_exportar` e diga onde o arquivo ficou.
@@ -56,6 +57,8 @@ investidor (`perfil_investidor`); sem ele, pergunte o horizonte e o objetivo ao 
 - Imposto de renda (por pessoa): `ir_contexto` (comece por aqui), `ir_estimativa`, `ir_acoes`, `ir_declaracao`;
   para gravar, `ir_fonte_salvar`, `ir_dependente_salvar`, `ir_previdencia_oficial`, `ir_deducao_marcar`,
   `ir_deducao_adicionar`, `ir_pendencia_resolver` e `previdencia_aporte_registrar`.
+- Patrimônio físico (imóveis e veículos): `patrimonio_contexto`, `patrimonio_salvar`, `patrimonio_remover`,
+  `patrimonio_simular_avaliacao` (cálculo NBR 14653-2 / FIPE sem gravar) e `patrimonio_registrar_avaliacao`.
 
 Ferramentas marcadas como destrutivas (`metas_definir`, `orcamento_definir`, `orcamento_remover`,
 `gastos_excluir_categoria`, `gastos_remover_regra`) só com pedido explícito do usuário.

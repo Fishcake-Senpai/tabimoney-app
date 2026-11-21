@@ -247,9 +247,9 @@ def test_pendencias_reune_conciliacao_e_avisos(client):
 def test_menu_tem_cinco_destinos_e_o_celular_quatro(client, dados_exemplo):
     pagina = client.get("/").text
     principal = pagina.split('aria-label="Principal"', 1)[1].split("</nav>", 1)[0]
-    rotulos = ("Início", "Gastos", "Investimentos", "Sugestões", "Imposto de renda")
+    rotulos = ("Início", "Gastos", "Investimentos", "Patrimônio", "Sugestões", "Imposto de renda")
     assert [rotulo for rotulo in rotulos if rotulo in principal] == list(rotulos)
-    assert principal.count("<a ") == 5
+    assert principal.count("<a ") == 6
     celular = pagina.split('aria-label="Principal no celular"', 1)[1].split("</nav>", 1)[0]
     assert celular.count("<a ") == 4 and "Imposto de renda" not in celular
     assert 'href="/imposto-de-renda"' in pagina.split('id="pop-more"', 1)[1]  # no celular, fica em "Mais"
