@@ -11,6 +11,8 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.21.0] - 2026-11-21
+
 ### Adicionado
 - **Lançamentos manuais e edição**: botão **Novo lançamento** em Gastos › Lançamentos (com sugestão de descrição pelo histórico, conta Carteira/dinheiro ou conta conectada, nota e opção "Tirar do resultado"), edição de descrição, data, valor, categoria e nota no painel lateral, e exclusão reversível de lançamentos manuais.
 - **Ignorar lançamento e tirar do resultado**: opções por lançamento (e em lote) para ignorar completamente (`is_ignored`, com alternador **Mostrar ignorados**) ou tirar de receitas, despesas e orçamento mantendo no saldo (`exclude_from_pnl`), além de suporte por categoria.
@@ -473,7 +475,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.20.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.17.0...v0.18.0
