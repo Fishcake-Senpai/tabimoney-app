@@ -11,6 +11,18 @@ base (sempre por migração automática) e o contrato da CLI.
 
 ## [Não lançado]
 
+## [0.22.0] - 2026-11-21
+
+### Adicionado
+- **Gestão de patrimônio com IA (`/patrimonio`)**: cadastro de imóveis, veículos e outros bens físicos com regras de valorização/depreciação e integração ao patrimônio total no Início.
+- **Avaliação de imóveis (ABNT NBR 14653-2) e veículos (FIPE/IPVA/TCO)**: motor de homogeneização de comparáveis (fator de oferta 0,90/0,97, área, terreno, padrão, conservação, expurgo de outliers, faixa piso–mediana–teto e grau de confiança), tabela de alíquotas de IPVA por UF e KPIs patrimoniais (preço/m², Rental Yield bruto, Cap Rate/NOI, carregamento anual, spread vs. CDI líquido, depreciação e TCO mensal).
+- **Atalho para Contas Fixas**: botões na tela de Patrimônio para transformar IPTU, IPVA e Seguro estimados em contas fixas recorrentes.
+- **Agentes (MCP, CLI e roteiro `patrimonio`)**: novas ferramentas e comandos `patrimonio_contexto`, `patrimonio_salvar`, `patrimonio_remover`, `patrimonio_simular_avaliacao` (cálculo puro sem gravar) e `patrimonio_registrar_avaliacao`, novo roteiro `patrimonio.md`, modelo de laudo `modelo-relatorio-patrimonio.md` e exemplos válidos.
+- **Demonstração**: atualizada com imóvel (Apartamento Vila Mariana, laudo NBR 14653-2 com expurgo de outlier) e veículo (Corolla XEi 2022, FIPE + IPVA + TCO).
+
+### Corrigido
+- **Desempenho na troca de telas com base criptografada (SQLCipher)**: cada requisição HTTP agora reutiliza uma única conexão SQLCipher (`db.connection_scope()`), mantendo o cache de páginas quente e reduzindo de 23–84 conexões por tela para 1 (~3x a 4x mais rápido).
+
 ## [0.21.0] - 2026-11-21
 
 ### Adicionado
@@ -475,7 +487,8 @@ base (sempre por migração automática) e o contrato da CLI.
 - Carteira com preço médio e rentabilidade pelo método de cotas.
 - Base SQLite local com backup e restauração.
 
-[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.21.0...HEAD
+[Não lançado]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/Fishcake-Senpai/tabimoney-app/compare/v0.18.0...v0.19.0
