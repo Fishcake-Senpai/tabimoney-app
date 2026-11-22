@@ -23,8 +23,8 @@ from app.mcp_server import instalar as mcp_instalar
 from app.security import delete_secret, get_secret, save_secret, vault_name
 from app import __version__
 from app.services import (
-    analytics, atualizador, budgets, fundamentals, household, investor_profile, pension, recommendations, recurring,
-    relatorio, spending, targets, transactions as tx_service, updates,
+    analytics, atualizador, budgets, fundamentals, household, investor_profile, patrimonio, pension, recommendations,
+    recurring, relatorio, spending, targets, transactions as tx_service, updates,
 )
 from app.services.categories import CATEGORY_ICON_CHOICES, INCOME_CATEGORIES, INTERNAL_CATEGORIES, category_icon
 from app.services.markdown import render as render_markdown
@@ -117,13 +117,15 @@ async def lifespan(_: FastAPI):
 
 
 class DemoMiddleware(BaseHTTPMiddleware):
-    """Na demonstração, a requisição inteira lê e grava em demo.sqlite3 e usa o cofre em memória (app/demo.py)."""
+    """Na demonstração, a requisição inteira lê e grava em demo.sqlite3 e usa o cofre em memória (app/demo.py).
+    Também abre um escopo de conexão SQLCipher por requisição para manter o page cache quente."""
 
     async def dispatch(self, request: Request, call_next):
-        if not request.session.get("demo"):
-            return await call_next(request)
-        with demo.active():
-            return await call_next(request)
+        with db.connection_scope():
+            if not request.session.get("demo"):
+                return await call_next(request)
+            with demo.active():
+                return await call_next(request)
 
 
 app = FastAPI(title="Tabimoney", version=__version__, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -291,11 +293,17 @@ def _secret_configured(key: str) -> str:
 
 
 def _nav_counts() -> dict[str, int]:
+    cache = db.scope_cache()
+    if cache is not None and "nav_counts" in cache:
+        return cache["nav_counts"]  # type: ignore[return-value]
     pending = db.rows(
         "SELECT (SELECT COUNT(*) FROM v_position_reconciliation WHERE status = 'DIVERGENT') "
         "+ (SELECT COUNT(*) FROM v_bank_balance_reconciliation WHERE status = 'DIVERGENT') AS n"
     )
-    return {"pending": int(pending[0]["n"]) if pending else 0}
+    res = {"pending": int(pending[0]["n"]) if pending else 0}
+    if cache is not None:
+        cache["nav_counts"] = res
+    return res
 
 
 def _member(request: Request) -> int | None:
@@ -322,6 +330,9 @@ def _household_view(request: Request) -> dict[str, object] | None:
 
 def _inbox() -> dict[str, object]:
     """O sino da barra do topo: o que pede atenção, com o link de onde resolver."""
+    cache = db.scope_cache()
+    if cache is not None and "inbox" in cache:
+        return cache["inbox"]  # type: ignore[return-value]
     items: list[dict[str, str]] = []
     count = 0
     divergent = _nav_counts()["pending"]
@@ -349,7 +360,10 @@ def _inbox() -> dict[str, object]:
         items.append({"icon": "sparkles", "tone": "up", "href": "/recomendacoes",
                       "title": plural(len(open_advice), "sugestão da IA", "sugestões da IA") + " para o orçamento",
                       "sub": advice["title"]})
-    return {"items": items, "count": count}
+    res = {"items": items, "count": count}
+    if cache is not None:
+        cache["inbox"] = res
+    return res
 
 
 def _last_sync() -> str:
@@ -452,9 +466,11 @@ def overview(request: Request):
         "spend_prev": previous["out"] if previous else None,
     }
     budget = budgets.status(_household_transactions(member, transactions))
-    has_data = bool(series or transactions)
+    patrimonio_summary = patrimonio.summary(member=member)
+    has_data = bool(series or transactions or patrimonio_summary["count"])
     return _page(
         request, "overview.html", summary=summary, kpis=kpis, budget=budget,
+        patrimonio_summary=patrimonio_summary,
         display_name=db.get_setting("display_name"), attention=_attention(budget, kpis),
         recent=[t for t in transactions if t["category"] not in INTERNAL_CATEGORIES][:6],
         chart_series=[{k: p[k] for k in ("d", "eq", "fi", "pv", "cash", "debt", "nw")} for p in series],
@@ -2340,3 +2356,178 @@ def restore_backup(
     except Exception:
         _flash(request, "error", "Não foi possível restaurar o arquivo; os dados atuais foram preservados.")
     return _redirect(request)
+
+
+# ---------------------------------------------------------------- Patrimônio (bens físicos)
+
+def _parse_money_opt(raw: str) -> int:
+    s = (raw or "").strip()
+    if not s:
+        return 0
+    return pension.parse_amount(s, "o valor")
+
+
+def _parse_float_opt(raw: str) -> float | None:
+    s = (raw or "").strip().replace(",", ".")
+    if not s:
+        return None
+    return float(s)
+
+
+def _parse_int_opt(raw: str) -> int | None:
+    s = (raw or "").strip()
+    if not s:
+        return None
+    return int(s)
+
+
+@app.get("/patrimonio", response_class=HTMLResponse)
+def patrimonio_page(request: Request, bem: int | None = None):
+    member = _member(request)
+    s = patrimonio.summary(member=member)
+    fin_nw = 0
+    if s["count"]:
+        book = analytics.Book(member)
+        series = book.series()
+        fin_nw = int(series[-1]["nw"]) if series else 0
+    total_patrimonio_cents = fin_nw + s["total_cents"]
+    selected = None
+    if bem:
+        selected = patrimonio.get_asset(bem)
+    if selected is None and s["assets"]:
+        selected = patrimonio.get_asset(s["assets"][0]["id"])
+    return _page(
+        request,
+        "patrimonio.html",
+        summary=s,
+        selected=selected,
+        total_patrimonio_cents=total_patrimonio_cents,
+        asset_types=patrimonio.ASSET_TYPES,
+        asset_subtypes=patrimonio.ASSET_SUBTYPES,
+        valuation_methods=patrimonio.VALUATION_METHODS,
+        growth_periods=patrimonio.GROWTH_PERIODS,
+        property_standards=patrimonio.PROPERTY_STANDARDS,
+        property_conservation=patrimonio.PROPERTY_CONSERVATION,
+        property_uses=patrimonio.PROPERTY_USES,
+    )
+
+
+@app.post("/patrimonio/salvar")
+def patrimonio_save_route(
+    request: Request,
+    csrf_token: str = Form(...),
+    asset_id: str = Form(""),
+    name: str = Form(...),
+    asset_type: str = Form("imovel"),
+    subtype: str = Form(""),
+    current_value: str = Form(""),
+    acquisition_value: str = Form(""),
+    acquisition_date: str = Form(""),
+    valuation_method: str = Form("manual"),
+    growth_rate_pct: str = Form(""),
+    growth_period: str = Form("anual"),
+    bairro: str = Form(""),
+    cidade: str = Form(""),
+    uf: str = Form(""),
+    area_construida_m2: str = Form(""),
+    area_terreno_m2: str = Form(""),
+    quartos: str = Form(""),
+    vagas: str = Form(""),
+    padrao: str = Form("medio"),
+    conservacao: str = Form("original_bom"),
+    uso: str = Form("moradia"),
+    marca: str = Form(""),
+    modelo: str = Form(""),
+    ano: str = Form(""),
+    codigo_fipe: str = Form(""),
+    uf_veiculo: str = Form(""),
+    condominio_mensal: str = Form(""),
+    estimated_annual_tax: str = Form(""),
+    estimated_annual_insurance: str = Form(""),
+    estimated_monthly_rent: str = Form(""),
+    note: str = Form(""),
+):
+    _check_csrf(request, csrf_token)
+    member = _member(request) or household.PRIMARY_ID
+    try:
+        rate_f = _parse_float_opt(growth_rate_pct) or 0.0
+        details: dict[str, object] = {}
+        if asset_type == "imovel":
+            for k, v in (
+                ("bairro", bairro.strip()), ("cidade", cidade.strip()), ("uf", uf.strip().upper()),
+                ("padrao", padrao), ("conservacao", conservacao), ("uso", uso),
+            ):
+                if v:
+                    details[k] = v
+            if (v := _parse_float_opt(area_construida_m2)) is not None:
+                details["area_construida_m2"] = v
+            if (v := _parse_float_opt(area_terreno_m2)) is not None:
+                details["area_terreno_m2"] = v
+            if (v := _parse_int_opt(quartos)) is not None:
+                details["quartos"] = v
+            if (v := _parse_int_opt(vagas)) is not None:
+                details["vagas"] = v
+            if (v := _parse_float_opt(condominio_mensal)) is not None:
+                details["condominio_mensal"] = v
+        elif asset_type == "veiculo":
+            for k, v in (
+                ("marca", marca.strip()), ("modelo", modelo.strip()),
+                ("codigo_fipe", codigo_fipe.strip()), ("uf", (uf_veiculo or uf).strip().upper()),
+            ):
+                if v:
+                    details[k] = v
+            if (v := _parse_int_opt(ano)) is not None:
+                details["ano"] = v
+
+        saved = patrimonio.save_asset(
+            name=name,
+            asset_type=asset_type,
+            subtype=subtype,
+            current_value_cents=_parse_money_opt(current_value),
+            acquisition_cents=_parse_money_opt(acquisition_value),
+            acquisition_date=acquisition_date or None,
+            valuation_method=valuation_method,
+            growth_rate_bps=int(round(rate_f * 100)),
+            growth_period=growth_period,
+            details=details,
+            estimated_annual_tax_cents=_parse_money_opt(estimated_annual_tax),
+            estimated_annual_insurance_cents=_parse_money_opt(estimated_annual_insurance),
+            estimated_monthly_rent_cents=_parse_money_opt(estimated_monthly_rent),
+            note=note or None,
+            member_id=member,
+            asset_id=int(asset_id) if asset_id.strip().isdigit() else None,
+            author="usuario",
+        )
+        _flash(request, "success", f"Bem '{saved['name']}' salvo.")
+        return _redirect(request, f"/patrimonio?bem={saved['id']}")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+        return _redirect(request, "/patrimonio")
+
+
+@app.post("/patrimonio/remover")
+def patrimonio_remove_route(request: Request, csrf_token: str = Form(...), asset_id: int = Form(...)):
+    _check_csrf(request, csrf_token)
+    try:
+        res = patrimonio.delete_asset(asset_id)
+        _flash(request, "success", f"Bem '{res['name']}' removido.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, "/patrimonio")
+
+
+@app.post("/patrimonio/conta-fixa")
+def patrimonio_conta_fixa_route(
+    request: Request,
+    csrf_token: str = Form(...),
+    asset_id: int = Form(...),
+    kind: str = Form("imposto"),
+    frequency: str = Form("yearly"),
+):
+    _check_csrf(request, csrf_token)
+    try:
+        rec = patrimonio.criar_conta_fixa_do_bem(asset_id, kind=kind, frequency=frequency, author="usuario")
+        _flash(request, "success", f"Conta fixa '{rec['description']}' criada em Gastos › Contas fixas.")
+    except ValueError as exc:
+        _flash(request, "error", str(exc))
+    return _redirect(request, f"/patrimonio?bem={asset_id}")

@@ -27,6 +27,7 @@ Esta documentação está separada por objetivo. Se você está começando, leia
 | [Contrato com agentes](agente-financeiro.md) | Ferramentas MCP, comandos da CLI, formatos JSON e regras de cálculo |
 | [Modelo da tese de longo prazo](agentes/modelo-relatorio-tese.md) | Seções obrigatórias da análise completa de um ativo |
 | [Modelo do acompanhamento trimestral](agentes/modelo-relatorio-trimestral.md) | Seções do relatório de revisão de tese |
+| [Modelo de laudo de patrimônio](agentes/modelo-relatorio-patrimonio.md) | Seções do laudo de imóveis (NBR 14653-2) e veículos (FIPE/TCO) |
 | [Exemplos JSON](agentes/exemplos/) | Relatórios e recomendações válidos para importar |
 
 ## Recursos usados pelo app

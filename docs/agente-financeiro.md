@@ -99,6 +99,11 @@ reversível*, **sensível** (`destructiveHint`; só com pedido explícito do usu
 | `ir_deducao_adicionar` | escrita reversível | `financas ir deducao-manual` |
 | `ir_pendencia_resolver` | escrita reversível | `financas ir pendencia TIPO` |
 | `previdencia_aporte_registrar` | escrita reversível | `financas previdencia aporte PLANO DATA VALOR` |
+| `patrimonio_contexto` | leitura | `financas patrimonio contexto` |
+| `patrimonio_salvar` | escrita reversível | `financas patrimonio salvar` |
+| `patrimonio_remover` | **sensível** | `financas patrimonio remover ID` |
+| `patrimonio_simular_avaliacao` | leitura | `financas patrimonio simular ID` |
+| `patrimonio_registrar_avaliacao` | escrita reversível | `financas patrimonio avaliar ID` |
 
 **Diferenças em relação à CLI:**
 

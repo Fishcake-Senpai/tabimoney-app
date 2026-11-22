@@ -286,7 +286,7 @@ def connect(path: Path, key: DatabaseKey, timeout: int = 20, verify: bool = True
     bases grandes.
     """
     exists = path.exists()
-    connection = sqlcipher3.connect(path, timeout=timeout)
+    connection = sqlcipher3.connect(path, timeout=timeout, check_same_thread=False)
     connection.row_factory = sqlcipher3.Row
     try:
         _pragma_batch(connection, key)

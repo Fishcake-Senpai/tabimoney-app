@@ -938,6 +938,13 @@ def cash_transactions(limit: int | None = None, member: int | None = None,
     compras iguais legítimas continuam sendo duas. Depois, as transferências entre contas próprias são
     conciliadas (ver match_transfers). A conciliação olha a casa toda; só então fica o titular pedido.
     """
+    from app import db as _db
+    cache = _db.scope_cache()
+    cache_key = ("cash_transactions", bool(include_ignored))
+    if cache is not None and cache_key in cache:
+        cached_list = cache[cache_key]
+        output = [t for t in cached_list if t["member_id"] == member] if member is not None else list(cached_list)
+        return output[:limit] if limit else output
     ignored_filter = "" if include_ignored else " AND COALESCE(t.is_ignored, 0) = 0"
     data = [
         dict(r) for r in rows(
@@ -994,6 +1001,8 @@ def cash_transactions(limit: int | None = None, member: int | None = None,
             t["exclude_from_pnl"] or _norm_cat(t.get("category") or "") in excluded_cats
         )
         t["attachment_count"] = att_counts.get(int(t["id"]), 0)
+    if cache is not None:
+        cache[cache_key] = output
     if member is not None:
         output = [t for t in output if t["member_id"] == member]
     return output[:limit] if limit else output

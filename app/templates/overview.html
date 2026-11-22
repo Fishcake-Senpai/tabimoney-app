@@ -35,9 +35,9 @@
   <article class="card span-8 chart-block">
     <div class="hero-row">
       <div class="hero">
-        <div class="hero-label">Patrimônio</div>
+        <div class="hero-label">Patrimônio financeiro</div>
         <div class="hero-value money">{{ summary.net_worth|brl_hero }}</div>
-        <div class="hero-meta">{{ delta_chip(summary.change_30d, summary.change_30d_pct) }}<span>em 30 dias</span></div>
+        <div class="hero-meta">{{ delta_chip(summary.change_30d, summary.change_30d_pct) }}<span>em 30 dias</span>{% if patrimonio_summary and patrimonio_summary.total_cents %}<span>· Total com bens: <b class="money">{{ ((summary.net_worth or 0) + patrimonio_summary.total_cents)|brl_compact }}</b></span>{% endif %}</div>
       </div>
       <div class="actions">
         <div class="seg" data-view role="group" aria-label="Visão do gráfico">
@@ -60,6 +60,9 @@
     {% endif %}
     {% call stat("Investimentos", summary.invested|brl_compact, icon_name="trending-up", href="/investimentos") %}{% set r12 = kpis.returns["12M"] %}Ações e FIIs <span class="{{ r12.twr|tone }}">{{ r12.twr|pct(1) }}</span> em 12 meses{% endcall %}
     {% call stat("Em conta", summary.cash|brl_compact, icon_name="landmark", href="/contas") %}{% if summary.card_due is not none %}Fatura atual {{ summary.card_due|brl_compact }}{% else %}Saldo das contas{% endif %}{% endcall %}
+    {% if patrimonio_summary and patrimonio_summary.count %}
+    {% call stat("Bens físicos", patrimonio_summary.total_cents|brl_compact, icon_name="building-2", href="/patrimonio") %}{{ patrimonio_summary.count }} {{ "bem" if patrimonio_summary.count == 1 else "bens" }}{% if patrimonio_summary.estimated_annual_carrying_cents %} · custos {{ patrimonio_summary.estimated_annual_carrying_cents|brl_compact }}/ano{% endif %}{% endcall %}
+    {% endif %}
   </div>
 </section>
 

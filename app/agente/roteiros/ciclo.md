@@ -60,6 +60,12 @@ vencendo (`bolsa.darfs`) e pendências da bolsa. De outubro a dezembro, diga qua
 (`estimativa.previdencia`). De março a maio, ofereça o roteiro `imposto-renda` para a declaração. Gravar fontes,
 deduções e aportes é com o usuário, pelo roteiro `imposto-renda`.
 
+## 6c. Patrimônio físico (só leitura)
+
+Chame `patrimonio_contexto`. Se houver imóveis ou veículos cadastrados com última avaliação há mais de 6 meses (ou sem
+avaliação da IA), avise no resumo e ofereça rodar o roteiro `patrimonio` para atualizar FIPE/comparáveis e estimativas
+de IPTU/IPVA/seguro.
+
 ## 7. Resumo ao usuário
 
 Uma mensagem curta, nesta ordem:

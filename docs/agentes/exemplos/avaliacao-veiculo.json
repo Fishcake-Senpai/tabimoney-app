@@ -1,0 +1,39 @@
+{
+  "valor": 124500,
+  "valor_piso": 123800,
+  "valor_teto": 125200,
+  "confianca": "alta",
+  "imposto_anual": 4980,
+  "seguro_anual": 5800,
+  "manutencao_anual": 3735,
+  "comparaveis": [
+    {
+      "fonte": "Tabela FIPE oficial",
+      "preco": 124500,
+      "mes_referencia": "2026-11",
+      "url": "https://veiculos.fipe.org.br/"
+    },
+    {
+      "fonte": "Mobiauto FIPE",
+      "preco": 124500,
+      "mes_referencia": "2026-11",
+      "url": "https://www.mobiauto.com.br/tabela-fipe"
+    }
+  ],
+  "kpis": {
+    "tipo": "veiculo",
+    "uf": "SP",
+    "aliquota_ipva": 0.04,
+    "ipva_anual_estimado": 4980.0,
+    "seguro_anual_estimado": 5800.0,
+    "tco_mensal": 2052.0
+  },
+  "fontes": [
+    {
+      "titulo": "Tabela FIPE oficial",
+      "url": "https://veiculos.fipe.org.br/",
+      "data": "2026-11-21"
+    }
+  ],
+  "relatorio_md": "## Resumo executivo\n- **Valor FIPE:** R$ 124.500 (código FIPE 002111-3).\n"
+}

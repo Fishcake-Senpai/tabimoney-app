@@ -72,6 +72,43 @@ def _orcamento_definir(a: argparse.Namespace) -> dict[str, Any]:
     return op.orcamento_definir(a.nome, a.limite, categorias, a.total, a.aviso, a.nota, a.autor)
 
 
+def _patrimonio_simular_cli(a: argparse.Namespace) -> dict[str, Any]:
+    data = _read_json(a.arquivo)
+    return op.patrimonio_simular_avaliacao(
+        bem_id=a.id,
+        comparaveis_venda=data.get("comparaveis_venda"),
+        comparaveis_aluguel=data.get("comparaveis_aluguel"),
+        fontes_fipe=data.get("fontes_fipe"),
+        aluguel_mensal=data.get("aluguel_mensal"),
+        iptu_anual=data.get("iptu_anual"),
+        seguro_anual=data.get("seguro_anual"),
+        manutencao_anual=data.get("manutencao_anual"),
+        ipva_aliquota=data.get("ipva_aliquota"),
+        member=_MEMBER,
+    )
+
+
+def _patrimonio_avaliar_cli(a: argparse.Namespace) -> dict[str, Any]:
+    data = _read_json(a.arquivo)
+    return op.patrimonio_registrar_avaliacao(
+        bem_id=a.id,
+        valor=data["valor"],
+        valor_piso=data.get("valor_piso"),
+        valor_teto=data.get("valor_teto"),
+        confianca=data.get("confianca"),
+        comparaveis=data.get("comparaveis"),
+        kpis=data.get("kpis"),
+        fontes=data.get("fontes"),
+        relatorio_md=data.get("relatorio_md", ""),
+        imposto_anual=data.get("imposto_anual"),
+        seguro_anual=data.get("seguro_anual"),
+        aluguel_mensal=data.get("aluguel_mensal"),
+        manutencao_anual=data.get("manutencao_anual"),
+        data=data.get("data"),
+        autor=a.autor,
+    )
+
+
 def _mcp(a: argparse.Namespace) -> dict[str, Any] | None:
     from app.mcp_server import instalar
 
@@ -403,6 +440,44 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--folha", action="store_true", help="descontado em folha")
     p.add_argument("--repetir", action="store_true", help="mesmo valor todo mês até dezembro")
     p.add_argument("--autor", default="agente")
+
+    g = groups.add_parser("patrimonio", help="gestão de patrimônio físico (imóveis, veículos e avaliações)").add_subparsers(dest="acao", required=True)
+    cmd(g, "contexto", lambda a: op.patrimonio_contexto(member=_MEMBER), help="lista bens físicos, CDI e patrimônio total")
+    p = cmd(g, "salvar", lambda a: op.patrimonio_salvar(
+        nome=a.nome, tipo=a.tipo, subtipo=a.subtipo or "", valor_atual=a.valor or 0,
+        valor_aquisicao=a.aquisicao or 0, data_aquisicao=a.data_aquisicao, metodo=a.metodo,
+        taxa_valorizacao=a.taxa, periodo_valorizacao=a.periodo,
+        detalhes=json.loads(a.detalhes) if a.detalhes else None,
+        imposto_anual=a.imposto or 0, seguro_anual=a.seguro or 0,
+        aluguel_mensal=a.aluguel or 0, manutencao_anual=a.manutencao or 0,
+        nota=a.nota, bem_id=a.id, member=_MEMBER, autor=a.autor), help="cadastra ou edita um imóvel, veículo ou bem")
+    p.add_argument("--nome", required=True)
+    p.add_argument("--tipo", required=True, choices=["imovel", "veiculo", "outro"])
+    p.add_argument("--subtipo", default="")
+    p.add_argument("--valor")
+    p.add_argument("--aquisicao")
+    p.add_argument("--data-aquisicao")
+    p.add_argument("--metodo", default="manual", choices=["manual", "regra", "ia"])
+    p.add_argument("--taxa", type=float, default=0.0)
+    p.add_argument("--periodo", default="anual", choices=["mensal", "anual"])
+    p.add_argument("--detalhes", help="JSON com atributos (bairro, cidade, uf, area_construida_m2, codigo_fipe...)")
+    p.add_argument("--imposto")
+    p.add_argument("--seguro")
+    p.add_argument("--aluguel")
+    p.add_argument("--manutencao")
+    p.add_argument("--nota")
+    p.add_argument("--id", type=int)
+    p.add_argument("--autor", default="agente")
+    p = cmd(g, "remover", lambda a: op.patrimonio_remover(a.id), help="remove um bem físico")
+    p.add_argument("id", type=int)
+    p = cmd(g, "simular", lambda a: _patrimonio_simular_cli(a), help="simula avaliação NBR 14653-2 ou FIPE a partir de JSON")
+    p.add_argument("id", type=int)
+    p.add_argument("--arquivo", required=True, help="JSON com comparaveis_venda/aluguel ou fontes_fipe")
+    p = cmd(g, "avaliar", lambda a: _patrimonio_avaliar_cli(a), help="registra avaliação de mercado a partir de JSON")
+    p.add_argument("id", type=int)
+    p.add_argument("--arquivo", required=True, help="JSON com valor, faixa, comparaveis, kpis, fontes e relatorio_md")
+    p.add_argument("--autor", default="agente")
+
     cmd(groups, "titulares", lambda a: op.titulares(), help="titulares, conexões Pluggy e contas de cada um")
     cmd(groups, "backup", lambda a: op.backup(), help="cópia da base antes de mudanças em massa")
     cmd(groups, "atualizar", lambda a: op.atualizar(), help="backup + Open Finance + cotações/CDI + balanços da CVM")
